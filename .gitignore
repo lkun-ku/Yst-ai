@@ -1,0 +1,10 @@
+node_modules/
+miniprogram_npm/
+dist/
+build/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+!.env.example
