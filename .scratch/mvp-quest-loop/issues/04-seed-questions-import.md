@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 04 种子题目导入
 
@@ -21,6 +21,10 @@ Status: ready-for-agent
 - 来源标识=池化；审校状态=人工抽检通过；带 AIGC 标识位与版本号。
 - 导入脚本可重复执行且幂等（重跑不重复入库）。
 - 文化素养模块题目经过最高比例人工抽检（常识/历史/科技最易出错，存疑即弃）。
+
+## Comments
+
+- 2026-05-21：实现完成。`app/seed/questions_data.py` 定义五大模块各 30 考点（共 150），`import_questions.py` 每考点生成 2 题 => 300 题，来源=pool、审校=已抽检通过、AIGC 标识位=真、版本=1；以 (module, knowledge_point, stem) 去重重跑幂等。pytest 9/9 通过（覆盖、幂等、schema：答案唯一/选项4/解析非空）。运行：`python -m app.seed.import_questions`。种子内容为模板化占位，真实题库由 ADR-0003 管线在票 14 扩充至 1 万级。
 
 ## 关联
 - Implementation 12（离线题目池为主供给）、18-21（出题与审校管线）、ADR-0002（题目供给架构）、ADR-0003（题库版权策略）。

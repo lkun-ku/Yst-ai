@@ -28,7 +28,7 @@ def test_six_core_tables_create_and_persist(db_session):
         answer='["A"]',
         explanation="解析",
         type=QuestionType.SINGLE,
-        source=QuestionSource.POOL,
+        source=QuestionSource.REALTIME,
         proofread_status=ProofreadStatus.PASSED,
     )
     db_session.add(q)
