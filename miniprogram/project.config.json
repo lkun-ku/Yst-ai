@@ -1,0 +1,16 @@
+{
+  "miniprogramRoot": "dist/",
+  "projectname": "ai-quest-miniprogram",
+  "description": "教资《综合素质》客观题闯关闭环小程序",
+  "appid": "touristappid",
+  "setting": {
+    "urlCheck": true,
+    "es6": false,
+    "enhance": false,
+    "postcss": false,
+    "minified": false
+  },
+  "compileType": "miniprogram",
+  "framework": "vue3",
+  "libVersion": "latest"
+}

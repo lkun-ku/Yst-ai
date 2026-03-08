@@ -1,10 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/.test_tmp.db
+backend/dev.db
+
+# Node / Taro
 node_modules/
-miniprogram_npm/
-dist/
-build/
-.DS_Store
-Thumbs.db
-*.log
+miniprogram/dist/
+miniprogram/.temp/
+miniprogram/.rn_temp/
+
+# Env
 .env
-.env.*
-!.env.example
+.env.local
+
+# OS
+.DS_Store
