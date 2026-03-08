@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 03 发起闯关与题目拉取
 
@@ -27,3 +27,7 @@ Status: ready-for-agent
 ## 备注
 - 题目来源本票依赖票 04 的种子池；接票 14 后同样支持实时生成的来源标识。
 - 一局题量上限受每日额度约束（票 12），本票只负责单次拉取。
+
+## Comments
+
+- 2026-05-21：实现完成。后端 `POST /api/sessions/start`：按模块/考点发起，固定题量（默认 10）一次下发，同局不重复、尝试避免连续同题型（`_arrange`），返回题序与题目全字段（含答案/解析/AIGC 标识/来源），并落 `sessions` 表（question_ids）。池不足返回 409。前端：Pinia `session` store + `pages/quest` 模块选择入口（调用 start 并缓存当前局）。pytest 14/14 通过（含不重复、按模块/考点、不足 409）。
