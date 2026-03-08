@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import settings
-from .routers import health
+from .routers import health, identity
 
 
 @asynccontextmanager
@@ -26,3 +26,4 @@ app.add_middleware(
 )
 
 app.include_router(health.router, tags=["health"])
+app.include_router(identity.router, tags=["identity"])

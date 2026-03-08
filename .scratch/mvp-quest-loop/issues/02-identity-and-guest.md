@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 02 身份与游客
 
@@ -30,3 +30,7 @@ Status: ready-for-agent
 ## 备注
 - 「身份在更换 AppID 后仍可识别」（用户故事 #4）依赖微信开放平台账号绑定，D1 已确认接受失败风险。
 - 内容安全输入检测的真实拦截在票 13 接入，本票先留调用点。
+
+## Comments
+
+- 2026-05-21：实现完成。后端 `/api/identity`：游客登录（生成 guest_ 身份）、微信登录（按 unionid upsert，is_guest=false）、me（X-Unionid 头）、ack-aigc（首次说明一次性）、delete-data（清该考生全部学习数据，D1 重置可用）。`deps.get_current_candidate` 以 X-Unionid 识别。前端：`utils/api.ts`（含 ensureIdentity 游客取号）、首页 AIGC 确认调用、设置页（查看/删除数据）。pytest 7/7 通过。真实微信 code→unionid 交换占位为直接接收 unionid。

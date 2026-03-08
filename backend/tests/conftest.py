@@ -8,7 +8,20 @@ os.environ["APP_ENV"] = "test"
 import pytest
 from fastapi.testclient import TestClient
 
-from app.db import SessionLocal, init_db
+from app.db import Base, SessionLocal, engine, init_db
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _reset_db():
+    """会话级重置：每次测试运行使用干净库，避免跨运行数据累积导致唯一约束冲突。"""
+    import app.models  # noqa: F401  确保元数据含全部表
+
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    yield
+    engine.dispose()
+    if os.path.exists(".test_tmp.db"):
+        os.remove(".test_tmp.db")
 
 
 @pytest.fixture
