@@ -66,3 +66,12 @@ class SubmitOut(BaseModel):
     results: List[QuestionJudgement]
     mastery: Dict[str, float]  # 模块 -> 掌握度
     new_mistakes: List[int]  # 新进入错题本的题 id
+
+
+class ReviewOut(BaseModel):
+    session_id: int
+    mastery: Dict[str, float]  # 五模块 -> 掌握度
+    weak_points: List[str]  # 薄弱 3 考点/模块
+    next_step: str  # 下一步做一件事
+    paragraph: str  # AI 个性化段落（票 14 接实时生成，本票为模板占位）
+    aigc_flag: bool = True

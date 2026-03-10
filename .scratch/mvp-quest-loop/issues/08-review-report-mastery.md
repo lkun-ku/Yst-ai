@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 08 复盘报告与掌握度
 

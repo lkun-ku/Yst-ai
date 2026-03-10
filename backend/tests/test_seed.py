@@ -17,7 +17,7 @@ def test_build_questions_coverage_and_count():
 
 def test_seed_idempotent_and_schema_valid(db_session):
     items = build_questions()
-    added1 = import_questions(db_session, items)
+    added1 = import_questions(db_session, items, clear=True)
     assert added1 >= 300
     total1 = db_session.query(Question).count()
     # 重跑幂等
