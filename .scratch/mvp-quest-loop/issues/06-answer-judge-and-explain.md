@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 06 答题判定与逐题解析
 
@@ -28,3 +28,7 @@ Status: ready-for-agent
 ## 备注
 - 幂等以闯关局标识为准，服务端记录提交状态（Implementation 26）。
 - 本票同时是内容安全输出侧检测的调用点之一（接票 13）。
+
+## Comments
+
+- 2026-05-21：实现完成。后端 `POST /api/sessions/submit`：逐题判定（单选 correct/wrong；多选四态 correct_selected/wrong_selected/missed/wrong_not_selected，state=correct/partial/wrong）、幂等（已提交直接返回缓存 result_json）、掌握度 EMA 增量、错题本按 (考生,题) upsert、返回每题解析+考点标签+正向反馈语。Session 增加 result_json 列（幂等缓存）。pytest 18/18 通过（全对/全错/幂等/多选四态）。前端答题 UI（选中高亮、进度、展示判定）在票 05。

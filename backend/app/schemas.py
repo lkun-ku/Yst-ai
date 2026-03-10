@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -33,3 +33,36 @@ class SessionStartOut(BaseModel):
     knowledge_point: Optional[str]
     question_count: int
     questions: List[QuestionOut]
+
+
+# ---------- 提交判定 ----------
+class AnswerIn(BaseModel):
+    question_id: int
+    selected: List[str]
+
+
+class SubmitIn(BaseModel):
+    session_id: int
+    answers: List[AnswerIn]
+
+
+class QuestionJudgement(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    question_id: int
+    is_correct: bool
+    selected: List[str]
+    correct: List[str]
+    state: str  # correct | wrong | partial（多选）
+    options_state: Optional[Dict[str, str]] = None  # 多选四态：correct_selected/wrong_selected/missed/wrong_not_selected
+    explanation: str
+    knowledge_point: str
+    positive_note: str
+
+
+class SubmitOut(BaseModel):
+    session_id: int
+    idempotent: bool
+    results: List[QuestionJudgement]
+    mastery: Dict[str, float]  # 模块 -> 掌握度
+    new_mistakes: List[int]  # 新进入错题本的题 id

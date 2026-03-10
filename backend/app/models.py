@@ -100,6 +100,7 @@ class Session(Base):
     question_count: Mapped[int] = mapped_column(Integer, default=10)
     status: Mapped[SessionStatus] = mapped_column(SAEnum(SessionStatus), default=SessionStatus.STARTED)
     question_ids: Mapped[str] = mapped_column(Text, default="[]")  # JSON: [id,...]
+    result_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # 提交结果（幂等缓存）
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
