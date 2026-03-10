@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 07 续答与本地持久化
 
@@ -25,3 +25,7 @@ Status: ready-for-agent
 
 ## 备注
 - 持久化键建议以局标识 + 本地游客/unionid 维度；换设备不保证恢复（游客态本地存储）。
+
+## Comments
+
+- 2026-05-21：实现完成。后端 `GET /api/sessions/{id}` 以局标识为准重复拉取同一局题目（续答/弱网重连，Implementation 6）；已提交局不可再改（状态 guard）。前端 `pages/answer` 用 `quest_draft` 本地存储缓存未提交局的题目/作答/揭示状态，onMounted 恢复、选中即 persist、交卷后清除。pytest 20/20 通过（重复拉取同局、未找到 404）。

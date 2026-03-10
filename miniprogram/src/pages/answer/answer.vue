@@ -30,14 +30,16 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from "vue";
+import { reactive, ref, onMounted } from "vue";
 import { Button as NutButton } from "@nutui/nutui-taro";
 import { useSessionStore } from "@/stores/session";
 import { api } from "@/utils/api";
 import Taro from "@tarojs/taro";
 
+const DRAFT_KEY = "quest_draft";
 const store = useSessionStore();
-const questions = store.questions as Record<string, any>[];
+
+const questions = ref<any[]>([]);
 const answers = reactive<Record<number, string[]>>({});
 const revealed = reactive<Record<number, boolean>>({});
 
@@ -59,8 +61,17 @@ function isCorrect(q: any) {
   return setsEqual(new Set(answers[q.id] || []), correctSet(q));
 }
 
+function persist() {
+  Taro.setStorageSync(DRAFT_KEY, {
+    sessionId: store.sessionId,
+    questions: questions.value,
+    answers: { ...answers },
+    revealed: { ...revealed },
+  });
+}
+
 function choose(qi: number, key: string) {
-  const q = questions[qi];
+  const q = questions.value[qi];
   if (revealed[q.id]) return; // 选中即揭示，一次性判定不再改
   if (isMultiple(q)) {
     const cur = answers[q.id] || [];
@@ -69,6 +80,7 @@ function choose(qi: number, key: string) {
     answers[q.id] = [key];
   }
   revealed[q.id] = true; // 即时反馈（Implementation 23）
+  persist(); // 本地持久化未提交局（票 07）
 }
 
 function optionClass(q: any, o: any) {
@@ -89,18 +101,31 @@ function stateText(q: any) {
 }
 
 function answeredCount() {
-  return questions.filter((q) => revealed[q.id]).length;
+  return questions.value.filter((q) => revealed[q.id]).length;
 }
 
 async function submitAll() {
   const payload = {
     session_id: store.sessionId,
-    answers: questions.map((q) => ({ question_id: q.id, selected: answers[q.id] || [] })),
+    answers: questions.value.map((q) => ({ question_id: q.id, selected: answers[q.id] || [] })),
   };
   const data = (await api("/api/sessions/submit", { method: "POST", data: payload })) as any;
   const right = data.results.filter((r: any) => r.is_correct).length;
-  Taro.showToast({ title: `答对 ${right}/${questions.length}`, icon: "none" });
+  Taro.removeStorageSync(DRAFT_KEY); // 提交后清除草稿（Implementation 6）
+  Taro.showToast({ title: `答对 ${right}/${questions.value.length}`, icon: "none" });
 }
+
+onMounted(() => {
+  const d = Taro.getStorageSync(DRAFT_KEY);
+  if (d && d.sessionId === store.sessionId && d.questions?.length) {
+    questions.value = d.questions;
+    Object.assign(answers, d.answers || {});
+    Object.assign(revealed, d.revealed || {});
+  } else if (store.questions?.length) {
+    questions.value = store.questions;
+  }
+  persist();
+});
 </script>
 
 <style>

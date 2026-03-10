@@ -209,3 +209,27 @@ def _snapshot_mastery(db: Session, candidate_id: int) -> dict[str, float]:
         str(m.module.value): m.score
         for m in db.query(Mastery).filter(Mastery.candidate_id == candidate_id).all()
     }
+
+
+@router.get("/{session_id}", response_model=SessionStartOut)
+def get_session(
+    session_id: int,
+    c: Candidate = Depends(get_current_candidate),
+    db: Session = Depends(get_db),
+) -> SessionStartOut:
+    """重复拉取同一闯关局题目（续答/弱网重连，Implementation 6）。"""
+    sess = db.get(Session, session_id)
+    if sess is None or sess.candidate_id != c.id:
+        raise HTTPException(status_code=404, detail="session not found")
+    qids = json.loads(sess.question_ids)
+    qs = db.query(Question).filter(Question.id.in_(qids)).all()
+    by_id = {q.id: q for q in qs}
+    ordered = [by_id[i] for i in qids if i in by_id]
+    return SessionStartOut(
+        session_id=sess.id,
+        candidate_id=c.id,
+        module=sess.module,
+        knowledge_point=sess.knowledge_point,
+        question_count=sess.question_count,
+        questions=[QuestionOut.model_validate(x) for x in ordered],
+    )

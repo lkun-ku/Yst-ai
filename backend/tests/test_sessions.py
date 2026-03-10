@@ -57,3 +57,24 @@ def test_start_insufficient_pool(client, db_session):
         headers={"X-Unionid": uid},
     )
     assert r.status_code == 409
+
+
+def test_get_session_repull(client, db_session):
+    import_questions(db_session)
+    uid = _guest(client)
+    r = client.post(
+        "/api/sessions/start",
+        json={"module": "职业理念", "question_count": 3},
+        headers={"X-Unionid": uid},
+    )
+    body = r.json()
+    sid = body["session_id"]
+    r2 = client.get(f"/api/sessions/{sid}", headers={"X-Unionid": uid})
+    assert r2.status_code == 200
+    repull = r2.json()
+    assert [q["id"] for q in repull["questions"]] == [q["id"] for q in body["questions"]]
+
+
+def test_get_session_not_found(client, db_session):
+    uid = _guest(client)
+    assert client.get("/api/sessions/99999", headers={"X-Unionid": uid}).status_code == 404
