@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 09 错题本与专项重练
 

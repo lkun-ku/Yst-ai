@@ -68,6 +68,16 @@ class SubmitOut(BaseModel):
     new_mistakes: List[int]  # 新进入错题本的题 id
 
 
+# ---------- 错题本（票 09：按考点聚合） ----------
+class MistakeGroupOut(BaseModel):
+    knowledge_point: str
+    module: Optional[Module] = None
+    wrong_count: int  # 该考点累计错次（跨题累计）
+    question_count: int  # 该考点错过的不同题目数
+    question_ids: List[int]
+    last_wrong_at: str  # ISO datetime
+
+
 class ReviewOut(BaseModel):
     session_id: int
     mastery: Dict[str, float]  # 五模块 -> 掌握度

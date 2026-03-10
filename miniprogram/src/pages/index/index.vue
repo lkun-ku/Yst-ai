@@ -5,6 +5,7 @@
     <nut-button v-if="!ack" type="primary" @click="onAck">我已知晓</nut-button>
 
     <nut-cell title="进入闯关" description="按模块或考点发起一次闯关" @click="goQuest" />
+    <nut-cell title="错题本" description="按考点聚合，可一键重练" @click="goMistakes" />
     <nut-cell title="我的 / 设置" description="查看或删除学习数据" @click="goSettings" />
     <text class="tip">脚手架就绪（票 01）· 身份就绪（票 02）</text>
   </view>
@@ -26,7 +27,11 @@ async function onAck() {
 }
 
 function goQuest() {
-  Taro.showToast({ title: "闯关（票 03）", icon: "none" });
+  Taro.navigateTo({ url: "/pages/quest/quest" });
+}
+
+function goMistakes() {
+  Taro.navigateTo({ url: "/pages/mistakes/mistakes" });
 }
 
 function goSettings() {
