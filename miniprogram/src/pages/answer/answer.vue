@@ -1,0 +1,165 @@
+<template>
+  <view class="answer">
+    <view class="progress">已答 {{ answeredCount }} / {{ questions.length }} 题</view>
+
+    <view v-for="(q, qi) in questions" :key="q.id" class="qcard">
+      <view class="stem">
+        <text v-if="q.aigc_flag" class="aigc">AI</text>
+        <text>{{ q.stem }}</text>
+      </view>
+      <view class="kp">考点：{{ q.knowledge_point }}</view>
+
+      <view
+        v-for="o in opts(q)"
+        :key="o.key"
+        class="option"
+        :class="optionClass(q, o)"
+        @click="choose(qi, o.key)"
+      >
+        {{ o.key }}. {{ o.text }}
+      </view>
+
+      <view v-if="revealed[q.id]" class="explain">
+        <text>解析：{{ q.explanation }}</text>
+        <text v-if="isMultiple(q)" class="state">本题状态：{{ stateText(q) }}</text>
+      </view>
+    </view>
+
+    <nut-button type="primary" block @click="submitAll">交卷</nut-button>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { reactive } from "vue";
+import { Button as NutButton } from "@nutui/nutui-taro";
+import { useSessionStore } from "@/stores/session";
+import { api } from "@/utils/api";
+import Taro from "@tarojs/taro";
+
+const store = useSessionStore();
+const questions = store.questions as Record<string, any>[];
+const answers = reactive<Record<number, string[]>>({});
+const revealed = reactive<Record<number, boolean>>({});
+
+function opts(q: any) {
+  return JSON.parse(q.options);
+}
+function isMultiple(q: any) {
+  return q.type === "multiple";
+}
+function correctSet(q: any): Set<string> {
+  return new Set(JSON.parse(q.answer));
+}
+function setsEqual(a: Set<string>, b: Set<string>) {
+  if (a.size !== b.size) return false;
+  for (const x of a) if (!b.has(x)) return false;
+  return true;
+}
+function isCorrect(q: any) {
+  return setsEqual(new Set(answers[q.id] || []), correctSet(q));
+}
+
+function choose(qi: number, key: string) {
+  const q = questions[qi];
+  if (revealed[q.id]) return; // 选中即揭示，一次性判定不再改
+  if (isMultiple(q)) {
+    const cur = answers[q.id] || [];
+    answers[q.id] = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+  } else {
+    answers[q.id] = [key];
+  }
+  revealed[q.id] = true; // 即时反馈（Implementation 23）
+}
+
+function optionClass(q: any, o: any) {
+  if (!revealed[q.id]) return "";
+  const correct = correctSet(q).has(o.key);
+  const sel = (answers[q.id] || []).includes(o.key);
+  if (correct) return "opt-correct";
+  if (sel) return "opt-wrong";
+  return "opt-dim";
+}
+
+function stateText(q: any) {
+  if (isCorrect(q)) return "全对";
+  const sel = new Set(answers[q.id] || []);
+  const cor = correctSet(q);
+  if (cor.size > 1 && sel.size > 0) return sel.size === cor.size ? "全对" : "部分对（漏选/错选）";
+  return "错误";
+}
+
+function answeredCount() {
+  return questions.filter((q) => revealed[q.id]).length;
+}
+
+async function submitAll() {
+  const payload = {
+    session_id: store.sessionId,
+    answers: questions.map((q) => ({ question_id: q.id, selected: answers[q.id] || [] })),
+  };
+  const data = (await api("/api/sessions/submit", { method: "POST", data: payload })) as any;
+  const right = data.results.filter((r: any) => r.is_correct).length;
+  Taro.showToast({ title: `答对 ${right}/${questions.length}`, icon: "none" });
+}
+</script>
+
+<style>
+.answer {
+  padding: 24rpx;
+}
+.progress {
+  color: #666;
+  margin-bottom: 12rpx;
+}
+.qcard {
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  margin-bottom: 20rpx;
+}
+.stem {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+.aigc {
+  display: inline-block;
+  background: #eee;
+  color: #999;
+  font-size: 20rpx;
+  padding: 0 8rpx;
+  border-radius: 6rpx;
+  margin-right: 8rpx;
+}
+.kp {
+  color: #999;
+  font-size: 22rpx;
+  margin: 8rpx 0;
+}
+.option {
+  padding: 16rpx;
+  border: 1rpx solid #eee;
+  border-radius: 8rpx;
+  margin-top: 10rpx;
+}
+.opt-correct {
+  background: #e8f8ee;
+  border-color: #52c41a;
+}
+.opt-wrong {
+  background: #fff1f0;
+  border-color: #ff4d4f;
+}
+.opt-dim {
+  opacity: 0.5;
+}
+.explain {
+  margin-top: 12rpx;
+  color: #555;
+  font-size: 24rpx;
+}
+.state {
+  display: block;
+  margin-top: 6rpx;
+  color: #fa8c16;
+}
+</style>

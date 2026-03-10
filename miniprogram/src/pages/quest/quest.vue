@@ -26,6 +26,7 @@ async function start(module: string) {
   })) as any;
   store.setSession(data);
   Taro.showToast({ title: `已拉取 ${data.questions.length} 题`, icon: "success" });
+  Taro.navigateTo({ url: "/pages/answer/answer" });
 }
 </script>
 
