@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import get_current_candidate
+from ..routers.quota import enforce_quota
 from ..models import (
     Candidate,
     Mastery,
@@ -51,11 +52,17 @@ def start_session(
     c: Candidate = Depends(get_current_candidate),
     db: Session = Depends(get_db),
 ) -> SessionStartOut:
-    """开始闯关局：按模块或考点发起，一局固定题量一次下发（Implementation 4）。"""
+    """开始闯关局：按模块或考点发起，一局固定题量一次下发（Implementation 4）。
+
+    免费考生受每日 20 题额度约束（票 12，跨局累计、按自然日重置）；VIP 不限量；
+    只限速不限制内容范围（Implementation 31）。
+    """
     if not body.module and not body.knowledge_point:
         raise HTTPException(status_code=400, detail="module 或 knowledge_point 至少提供一个")
     if body.question_count <= 0:
         raise HTTPException(status_code=400, detail="question_count 必须为正整数")
+
+    enforce_quota(db, c, body.question_count)
 
     q = db.query(Question).filter(Question.source == QuestionSource.POOL)
     if body.module is not None:

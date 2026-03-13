@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 12 额度与 VIP 权限
 

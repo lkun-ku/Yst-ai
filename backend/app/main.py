@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import settings
-from .routers import daily, health, identity, mistakes, review, sessions
+from .routers import daily, health, identity, mistakes, quota, review, sessions
 
 
 @asynccontextmanager
@@ -31,3 +31,4 @@ app.include_router(sessions.router, tags=["sessions"])
 app.include_router(review.router, tags=["review"])
 app.include_router(mistakes.router, tags=["mistakes"])
 app.include_router(daily.router, tags=["daily"])
+app.include_router(quota.router, tags=["quota"])

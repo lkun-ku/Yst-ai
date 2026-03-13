@@ -1,5 +1,5 @@
 export default defineAppConfig({
-  pages: ["pages/index/index", "pages/quest/quest", "pages/answer/answer", "pages/mistakes/mistakes", "pages/daily/daily", "pages/history/history", "pages/settings/settings"],
+  pages: ["pages/index/index", "pages/quest/quest", "pages/answer/answer", "pages/mistakes/mistakes", "pages/daily/daily", "pages/history/history", "pages/benefits/benefits", "pages/settings/settings"],
   window: {
     backgroundTextStyle: "light",
     navigationBarBackgroundColor: "#ffffff",

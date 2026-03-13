@@ -64,6 +64,7 @@ class Candidate(Base):
     is_guest: Mapped[bool] = mapped_column(Boolean, default=False)
     aigc_notice_acked: Mapped[bool] = mapped_column(Boolean, default=False)
     exam_date: Mapped[str | None] = mapped_column(String(32), nullable=True)  # ISO date，考期为锚（票 10）
+    is_vip: Mapped[bool] = mapped_column(Boolean, default=False)  # VIP 状态（票 12，内测占位无真实支付）
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

@@ -130,6 +130,19 @@ class SessionHistoryOut(BaseModel):
     mastery_overview: Dict[str, float]  # 模块 -> 本局正确率（概览）
 
 
+# ---------- 额度与 VIP（票 12 / Implementation 31） ----------
+class QuotaOut(BaseModel):
+    is_vip: bool
+    free_daily_limit: int  # 20
+    used_today: int
+    remaining: int
+    reset_rule: str  # 「每日 0 点按本地时区自然日重置」
+
+
+class VipActivateOut(BaseModel):
+    is_vip: bool
+
+
 class ReviewOut(BaseModel):
     session_id: int
     mastery: Dict[str, float]  # 五模块 -> 掌握度
