@@ -12,6 +12,7 @@ from ..models import (
     Candidate,
     Mastery,
     MistakeBook,
+    ProofreadStatus,
     Question,
     QuestionSource,
     QuestionType,
@@ -64,7 +65,10 @@ def start_session(
 
     enforce_quota(db, c, body.question_count)
 
-    q = db.query(Question).filter(Question.source == QuestionSource.POOL)
+    q = db.query(Question).filter(
+        Question.source == QuestionSource.POOL,
+        Question.proofread_status != ProofreadStatus.REJECTED,  # 驳回即弃（票 13）
+    )
     if body.module is not None:
         q = q.filter(Question.module == body.module)
     if body.knowledge_point is not None:

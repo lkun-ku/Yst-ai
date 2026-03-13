@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 13 题目纠错与审校队列
 

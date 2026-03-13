@@ -53,6 +53,12 @@ class SessionStatus(str, Enum):
     SUBMITTED = "submitted"
 
 
+class ReportStatus(str, Enum):
+    PENDING = "pending"
+    RESOLVED = "resolved"
+    REJECTED = "rejected"
+
+
 # ---------- 表 ----------
 class Candidate(Base):
     """考生。身份主键为 unionid（ADR-0001 / Implementation 25）。"""
@@ -136,6 +142,20 @@ class DailyTask(Base):
     items: Mapped[str] = mapped_column(Text, default="[]")  # JSON: 任务项引用
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
     valid_hours: Mapped[int] = mapped_column(Integer, default=12)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class ErrorReport(Base):
+    """题目纠错报告（票 13 / 用户故事 #21-#22）。进入审校队列由最小后台处理。"""
+
+    __tablename__ = "error_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id"), index=True)
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"), index=True)
+    error_type: Mapped[str] = mapped_column(String(32))  # answer | explanation | knowledge_point
+    detail: Mapped[str] = mapped_column(Text)
+    status: Mapped[ReportStatus] = mapped_column(SAEnum(ReportStatus), default=ReportStatus.PENDING)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

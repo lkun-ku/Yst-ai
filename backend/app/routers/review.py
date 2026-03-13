@@ -5,6 +5,7 @@ from ..db import get_db
 from ..deps import get_current_candidate
 from ..models import Candidate, Mastery, MistakeBook, Module, Session
 from ..schemas import ReviewOut
+from ..services import get_content_safety
 
 router = APIRouter(prefix="/api/review", tags=["review"])
 
@@ -54,6 +55,9 @@ def get_review(
         + ", ".join(f"{k} {v:.2f}" for k, v in mastery.items())
         + f"。建议优先巩固：{', '.join(weak[:3])}。（AI 生成，仅供参考）"
     )
+    # 输出侧内容安全检测（Implementation 29）：未通过不得展示，降级占位文案
+    if not get_content_safety().check_output(paragraph):
+        paragraph = "该报告内容未通过安全检测，暂时无法展示。"
 
     return ReviewOut(
         session_id=sess.id,

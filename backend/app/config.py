@@ -9,6 +9,11 @@ class Settings:
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
     auto_migrate: bool = os.getenv("AUTO_MIGRATE", "true").lower() == "true"
     app_env: str = os.getenv("APP_ENV", "dev")
+    # 票 13：最小审校后台令牌与内容安全模式（stub=占位放行；wx=微信 msgSecCheck）
+    admin_token: str = os.getenv("ADMIN_TOKEN", "dev-admin")
+    content_safety_mode: str = os.getenv("CONTENT_SAFETY_MODE", "stub")
+    wx_appid: str = os.getenv("WX_APPID", "")
+    wx_secret: str = os.getenv("WX_SECRET", "")
 
 
 settings = Settings()

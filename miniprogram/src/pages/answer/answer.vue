@@ -22,6 +22,7 @@
       <view v-if="revealed[q.id]" class="explain">
         <text>解析：{{ q.explanation }}</text>
         <text v-if="isMultiple(q)" class="state">本题状态：{{ stateText(q) }}</text>
+        <text class="report" @click="reportError(q)">题目有误？报错</text>
       </view>
     </view>
 
@@ -115,6 +116,19 @@ async function submitAll() {
   Taro.showToast({ title: `答对 ${right}/${questions.value.length}`, icon: "none" });
 }
 
+/** 题目纠错：进入审校队列（票 13）。 */
+async function reportError(q: any) {
+  try {
+    await api("/api/reports", {
+      method: "POST",
+      data: { question_id: q.id, error_type: "explanation", detail: `题目《${q.stem}》疑似有误，请审校。` },
+    });
+    Taro.showToast({ title: "已提交纠错，感谢反馈", icon: "success" });
+  } catch (e: any) {
+    Taro.showToast({ title: e.message || "提交失败", icon: "none" });
+  }
+}
+
 onMounted(() => {
   const d = Taro.getStorageSync(DRAFT_KEY);
   if (d && d.sessionId === store.sessionId && d.questions?.length) {
@@ -186,5 +200,11 @@ onMounted(() => {
   display: block;
   margin-top: 6rpx;
   color: #fa8c16;
+}
+.report {
+  display: inline-block;
+  margin-top: 10rpx;
+  color: #1890ff;
+  font-size: 22rpx;
 }
 </style>
