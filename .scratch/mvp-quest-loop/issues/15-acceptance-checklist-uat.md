@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 15 验收清单与手动 UAT
 
