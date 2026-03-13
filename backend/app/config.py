@@ -14,6 +14,11 @@ class Settings:
     content_safety_mode: str = os.getenv("CONTENT_SAFETY_MODE", "stub")
     wx_appid: str = os.getenv("WX_APPID", "")
     wx_secret: str = os.getenv("WX_SECRET", "")
+    # 票 14：实时生成管线（fake=假实现不耗额度；real=OpenAI 兼容接口）
+    llm_mode: str = os.getenv("LLM_MODE", "fake")
+    llm_api_base: str = os.getenv("LLM_API_BASE", "https://api.openai.com/v1")
+    llm_api_key: str = os.getenv("LLM_API_KEY", "")
+    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
 
 settings = Settings()

@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -5,7 +7,9 @@ from ..db import get_db
 from ..deps import get_current_candidate
 from ..models import Candidate, Mastery, MistakeBook, Module, Session
 from ..schemas import ReviewOut
-from ..services import get_content_safety
+from ..services import get_content_safety, get_llm_client
+from ..services.llm_client import GenerationRequest
+from ..services.realtime import REALTIME_DAILY_LIMIT, get_today_usage, increment_usage
 
 router = APIRouter(prefix="/api/review", tags=["review"])
 
@@ -55,6 +59,21 @@ def get_review(
         + ", ".join(f"{k} {v:.2f}" for k, v in mastery.items())
         + f"。建议优先巩固：{', '.join(weak[:3])}。（AI 生成，仅供参考）"
     )
+
+    # 票 14：个性化段落由模型写（模板结构兜底，缺失/超限优雅降级，Implementation 15/14）
+    today = date.today()
+    if get_today_usage(db, c.id, today) < REALTIME_DAILY_LIMIT and weak:
+        res = get_llm_client().generate(
+            GenerationRequest(
+                kind="review_paragraph",
+                knowledge_point=weak[0],
+                context={"mastery": mastery, "session_id": sess.id},
+            )
+        )
+        if res.text.strip():
+            paragraph = res.text.strip()
+            increment_usage(db, c.id, today)
+
     # 输出侧内容安全检测（Implementation 29）：未通过不得展示，降级占位文案
     if not get_content_safety().check_output(paragraph):
         paragraph = "该报告内容未通过安全检测，暂时无法展示。"

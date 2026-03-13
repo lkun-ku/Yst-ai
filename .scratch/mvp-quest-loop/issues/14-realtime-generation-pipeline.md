@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 14 实时生成管线接入
 

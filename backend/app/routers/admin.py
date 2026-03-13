@@ -13,6 +13,7 @@ from ..config import settings
 from ..db import get_db
 from ..models import ErrorReport, ProofreadStatus, Question, ReportStatus
 from ..services.proofread import sample_pending_questions
+from ..services.realtime import realtime_share
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -57,6 +58,20 @@ def resolve_question(question_id: int, body: ResolveIn, db: DBSession = Depends(
     q.proofread_status = ProofreadStatus.PASSED if body.approved else ProofreadStatus.REJECTED
     db.commit()
     return {"id": q.id, "proofread_status": str(q.proofread_status.value)}
+
+
+@router.get("/pool-stats", dependencies=[Depends(require_admin)])
+def pool_stats(db: DBSession = Depends(get_db)) -> dict:
+    """池化率监控与告警（票 14 / Implementation 17）：实时占比 >5% 告警。"""
+    from datetime import date
+
+    share, alarm, realtime_count = realtime_share(db, date.today())
+    return {
+        "realtime_today": realtime_count,
+        "pool_ratio": round(1 - share, 4),
+        "alarm": alarm,
+        "threshold": 0.95,
+    }
 
 
 @router.get("/reports", dependencies=[Depends(require_admin)])

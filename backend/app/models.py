@@ -145,6 +145,21 @@ class DailyTask(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class RealtimeUsage(Base):
+    """实时生成用量（票 14 / Implementation 14）。每人每日上限 3 次，超限降级纯池化。"""
+
+    __tablename__ = "realtime_usage"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id"), index=True)
+    day: Mapped[str] = mapped_column(String(10), index=True)  # 本地日期 YYYY-MM-DD
+    count: Mapped[int] = mapped_column(Integer, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("candidate_id", "day", name="uq_realtime_candidate_day"),
+    )
+
+
 class ErrorReport(Base):
     """题目纠错报告（票 13 / 用户故事 #21-#22）。进入审校队列由最小后台处理。"""
 
