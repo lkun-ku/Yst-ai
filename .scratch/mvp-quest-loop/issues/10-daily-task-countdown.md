@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 10 每日任务与考期倒计时
 

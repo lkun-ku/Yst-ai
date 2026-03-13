@@ -63,6 +63,7 @@ class Candidate(Base):
     unionid: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     is_guest: Mapped[bool] = mapped_column(Boolean, default=False)
     aigc_notice_acked: Mapped[bool] = mapped_column(Boolean, default=False)
+    exam_date: Mapped[str | None] = mapped_column(String(32), nullable=True)  # ISO date，考期为锚（票 10）
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

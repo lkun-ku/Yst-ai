@@ -78,6 +78,46 @@ class MistakeGroupOut(BaseModel):
     last_wrong_at: str  # ISO datetime
 
 
+# ---------- 每日任务与考期倒计时（票 10） ----------
+class ExamDateIn(BaseModel):
+    exam_date: str  # ISO date YYYY-MM-DD
+
+
+class ExamDateOut(BaseModel):
+    exam_date: str
+    countdown_days: int
+
+
+class DailyTaskItems(BaseModel):
+    mistake_review: List[dict]  # [{question_id, stem, knowledge_point, wrong_count}]
+    new_questions: List[QuestionOut]
+
+
+class DailyTaskOut(BaseModel):
+    task_id: int
+    task_date: str
+    valid_hours: int = 12
+    completed: bool = False
+    feedback: Optional[str] = None
+    items: DailyTaskItems
+
+
+class DailyOut(BaseModel):
+    exam_date: Optional[str] = None
+    countdown_days: Optional[int] = None
+    task: DailyTaskOut
+
+
+class DailyCompleteIn(BaseModel):
+    task_id: int
+
+
+class DailyCompleteOut(BaseModel):
+    task_id: int
+    completed: bool
+    feedback: str
+
+
 class ReviewOut(BaseModel):
     session_id: int
     mastery: Dict[str, float]  # 五模块 -> 掌握度
