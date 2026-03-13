@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 11 历史闯关局回看
 

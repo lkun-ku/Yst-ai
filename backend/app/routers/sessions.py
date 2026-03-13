@@ -21,6 +21,7 @@ from ..schemas import (
     AnswerIn,
     QuestionJudgement,
     QuestionOut,
+    SessionHistoryOut,
     SessionStartIn,
     SessionStartOut,
     SubmitIn,
@@ -209,6 +210,65 @@ def _snapshot_mastery(db: Session, candidate_id: int) -> dict[str, float]:
         str(m.module.value): m.score
         for m in db.query(Mastery).filter(Mastery.candidate_id == candidate_id).all()
     }
+
+
+@router.get("/history", response_model=list[SessionHistoryOut])
+def list_history(
+    limit: int = 20,
+    c: Candidate = Depends(get_current_candidate),
+    db: Session = Depends(get_db),
+) -> list[SessionHistoryOut]:
+    """历史闯关局列表（票 11 / D3 / Implementation 26）：已提交局按时间倒序。
+
+    每局含日期、模块/考点与掌握度概览（本局各模块正确率）；回看报告复用
+    GET /api/review/{session_id}（票 08 结构）。未提交局不计入。
+    """
+    rows = (
+        db.query(Session)
+        .filter(Session.candidate_id == c.id, Session.status == SessionStatus.SUBMITTED)
+        .order_by(Session.id.desc())
+        .limit(max(1, min(limit, 100)))
+        .all()
+    )
+
+    out: list[SessionHistoryOut] = []
+    for sess in rows:
+        qids = json.loads(sess.question_ids)
+        qs = db.query(Question).filter(Question.id.in_(qids)).all() if qids else []
+        module_by_qid = {q.id: q.module for q in qs}
+
+        per_module_total: dict[str, int] = {}
+        per_module_correct: dict[str, int] = {}
+        correct_count = 0
+        if sess.result_json:
+            for r in json.loads(sess.result_json):
+                mod = module_by_qid.get(r["question_id"])
+                if mod is None:
+                    continue
+                key = str(mod.value)
+                per_module_total[key] = per_module_total.get(key, 0) + 1
+                if r.get("is_correct"):
+                    per_module_correct[key] = per_module_correct.get(key, 0) + 1
+                    correct_count += 1
+        overview = {
+            k: round(per_module_correct.get(k, 0) / v, 4)
+            for k, v in per_module_total.items()
+            if v > 0
+        }
+
+        out.append(
+            SessionHistoryOut(
+                session_id=sess.id,
+                created_at=sess.created_at.isoformat() if sess.created_at else "",
+                submitted_at=sess.submitted_at.isoformat() if sess.submitted_at else None,
+                module=sess.module,
+                knowledge_point=sess.knowledge_point,
+                question_count=sess.question_count,
+                correct_count=correct_count,
+                mastery_overview=overview,
+            )
+        )
+    return out
 
 
 @router.get("/{session_id}", response_model=SessionStartOut)

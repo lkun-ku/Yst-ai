@@ -118,6 +118,18 @@ class DailyCompleteOut(BaseModel):
     feedback: str
 
 
+# ---------- 历史闯关局回看（票 11 / D3） ----------
+class SessionHistoryOut(BaseModel):
+    session_id: int
+    created_at: str
+    submitted_at: Optional[str] = None
+    module: Optional[Module] = None
+    knowledge_point: Optional[str] = None
+    question_count: int
+    correct_count: int
+    mastery_overview: Dict[str, float]  # 模块 -> 本局正确率（概览）
+
+
 class ReviewOut(BaseModel):
     session_id: int
     mastery: Dict[str, float]  # 五模块 -> 掌握度
