@@ -1,25 +1,32 @@
 <template>
-  <view class="mistakes">
-    <nut-empty v-if="!loading && groups.length === 0" description="暂无错题，继续保持" />
-    <nut-cell-group v-else title="错题本（按考点聚合）">
-      <nut-cell
+  <view class="page-wrap mistakes">
+    <view v-if="!loading && groups.length === 0" class="empty-hint">
+      <text>暂无错题，继续保持 👏</text>
+    </view>
+
+    <template v-else>
+      <text class="section-title">错题本 · 按考点聚合</text>
+      <view
         v-for="g in groups"
         :key="g.knowledge_point"
-        :title="g.knowledge_point"
-        :desc="`错次 ${g.wrong_count} · ${g.question_count} 题 · ${g.module || ''}`"
+        class="card mistake-card"
         @click="repractice(g)"
       >
-        <template v-slot:link>
-          <nut-button size="small" type="warning" @click.stop="repractice(g)">重练此考点</nut-button>
-        </template>
-      </nut-cell>
-    </nut-cell-group>
+        <view class="row-between">
+          <text class="kp-name">{{ g.knowledge_point }}</text>
+          <view class="tag tag-danger">错 {{ g.wrong_count }} 次</view>
+        </view>
+        <view class="row-between meta-row">
+          <text class="t-dim">{{ g.module || "综合" }} · {{ g.question_count }} 题</text>
+          <view class="retry-btn" @click.stop="repractice(g)">重练此考点</view>
+        </view>
+      </view>
+    </template>
   </view>
 </template>
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { Cell as NutCell, CellGroup as NutCellGroup, Button as NutButton, Empty as NutEmpty } from "@nutui/nutui-taro";
 import Taro from "@tarojs/taro";
 import { api, ensureIdentity } from "@/utils/api";
 import { useSessionStore } from "@/stores/session";
@@ -48,7 +55,25 @@ async function repractice(g: any) {
 </script>
 
 <style>
-.mistakes {
-  padding: 24rpx;
+.mistake-card:active {
+  opacity: 0.85;
+}
+.kp-name {
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--text-1);
+  flex: 1;
+  min-width: 0;
+}
+.meta-row {
+  margin-top: 16rpx;
+}
+.retry-btn {
+  flex-shrink: 0;
+  background: var(--warn-light);
+  color: var(--warn);
+  font-size: var(--fs-xs);
+  padding: 10rpx 24rpx;
+  border-radius: var(--r-pill);
 }
 </style>

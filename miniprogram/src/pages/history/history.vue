@@ -1,17 +1,27 @@
 <template>
-  <view class="history">
-    <nut-empty v-if="!loading && items.length === 0" description="还没有完成的闯关局" />
-    <nut-cell-group v-else title="历史闯关局">
-      <nut-cell
-        v-for="s in items"
-        :key="s.session_id"
-        :title="`#${s.session_id} ${s.module || '综合'}${s.knowledge_point ? ' · ' + s.knowledge_point : ''}`"
-        :desc="`提交于 ${fmt(s.submitted_at)} · 答对 ${s.correct_count}/${s.question_count}`"
-        @click="openReview(s)"
-      />
-    </nut-cell-group>
+  <view class="page-wrap history">
+    <view v-if="!loading && items.length === 0" class="empty-hint">
+      <text>还没有完成的闯关局</text>
+    </view>
 
-    <nut-dialog v-if="review" :title="`复盘报告 #${review.session_id}`" :visible="showReview" @close="showReview = false">
+    <template v-else>
+      <text class="section-title">历史闯关局</text>
+      <view v-for="s in items" :key="s.session_id" class="card hist-card" @click="openReview(s)">
+        <view class="row-between">
+          <text class="hist-title">#{{ s.session_id }} {{ s.module || "综合" }}</text>
+          <text class="hist-rate" :class="rateClass(s)">{{ rateText(s) }}</text>
+        </view>
+        <text v-if="s.knowledge_point" class="t-muted hist-kp">考点《{{ s.knowledge_point }}》</text>
+        <text class="t-dim hist-time">{{ fmt(s.submitted_at) }}</text>
+      </view>
+    </template>
+
+    <nut-dialog
+      v-if="review"
+      :title="`复盘报告 #${review.session_id}`"
+      :visible="showReview"
+      @close="showReview = false"
+    >
       <view class="review">
         <text class="line">五维掌握度：{{ fmtMastery(review.mastery) }}</text>
         <text class="line">薄弱考点：{{ review.weak_points.join("、") }}</text>
@@ -25,7 +35,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { Cell as NutCell, CellGroup as NutCellGroup, Empty as NutEmpty, Dialog as NutDialog } from "@nutui/nutui-taro";
+import { Dialog as NutDialog } from "@nutui/nutui-taro";
 import { api, ensureIdentity } from "@/utils/api";
 
 const items = ref<any[]>([]);
@@ -46,6 +56,20 @@ async function openReview(s: any) {
   showReview.value = true;
 }
 
+function rate(s: any) {
+  if (!s.question_count) return 0;
+  return Math.round((s.correct_count / s.question_count) * 100);
+}
+function rateText(s: any) {
+  return `答对 ${s.correct_count}/${s.question_count}`;
+}
+function rateClass(s: any) {
+  const r = rate(s);
+  if (r >= 80) return "rate-good";
+  if (r >= 60) return "rate-mid";
+  return "rate-bad";
+}
+
 function fmt(iso: string | null) {
   return iso ? iso.slice(0, 16).replace("T", " ") : "-";
 }
@@ -58,8 +82,42 @@ function fmtMastery(m: Record<string, number>) {
 </script>
 
 <style>
-.history {
-  padding: 24rpx;
+.hist-card:active {
+  opacity: 0.85;
+}
+.hist-title {
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--text-1);
+  flex: 1;
+  min-width: 0;
+}
+.hist-rate {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+  padding: 4rpx 16rpx;
+  border-radius: var(--r-pill);
+}
+.rate-good {
+  background: var(--success-light);
+  color: var(--success);
+}
+.rate-mid {
+  background: var(--warn-light);
+  color: var(--warn);
+}
+.rate-bad {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+.hist-kp {
+  display: block;
+  margin-top: 10rpx;
+}
+.hist-time {
+  display: block;
+  margin-top: 6rpx;
 }
 .review {
   display: flex;
@@ -67,9 +125,9 @@ function fmtMastery(m: Record<string, number>) {
   gap: 12rpx;
 }
 .line {
-  font-size: 26rpx;
+  font-size: var(--fs-sm);
 }
 .dim {
-  color: #999;
+  color: var(--text-3);
 }
 </style>

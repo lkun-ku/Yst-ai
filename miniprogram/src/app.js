@@ -7,6 +7,8 @@ if (typeof globalThis.process === "undefined") {
 
 import { createApp } from "vue";
 import { createPinia } from "pinia";
+// NutUI 官方样式（此前从未引入，组件以裸元素渲染 = 视觉崩溃的根因）
+import "@nutui/nutui-taro/dist/style.css";
 import "./app.less";
 
 const App = createApp({

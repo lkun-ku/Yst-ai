@@ -1,13 +1,26 @@
 <template>
-  <view class="answer">
-    <view class="progress">已答 {{ answeredCount }} / {{ questions.length }} 题</view>
-
-    <view v-for="(q, qi) in questions" :key="q.id" class="qcard">
-      <view class="stem">
-        <text v-if="q.aigc_flag" class="aigc">AI</text>
-        <text>{{ q.stem }}</text>
+  <view class="page-wrap answer">
+    <!-- 顶部进度 -->
+    <view class="card progress-card">
+      <view class="row-between">
+        <text class="t-strong">闯关进度</text>
+        <text class="progress-num">{{ answeredCount }} / {{ questions.length }}</text>
       </view>
-      <view class="kp">考点：{{ q.knowledge_point }}</view>
+      <view class="progress-track">
+        <view class="progress-fill" :style="{ width: progressPct + '%' }" />
+      </view>
+    </view>
+
+    <!-- 题目卡片 -->
+    <view v-for="(q, qi) in questions" :key="q.id" class="card qcard">
+      <view class="row qhead">
+        <text v-if="q.aigc_flag" class="tag tag-brand qtag">AI</text>
+        <text class="qindex">第 {{ qi + 1 }} 题</text>
+        <text v-if="isMultiple(q)" class="tag tag-accent qtag">多选</text>
+      </view>
+
+      <text class="stem">{{ q.stem }}</text>
+      <text class="kp">考点：{{ q.knowledge_point }}</text>
 
       <view
         v-for="o in opts(q)"
@@ -16,26 +29,41 @@
         :class="optionClass(q, o)"
         @click="choose(qi, o.key)"
       >
-        {{ o.key }}. {{ o.text }}
+        <view class="opt-key" :class="optionKeyClass(q, o)">{{ o.key }}</view>
+        <text class="opt-text">{{ o.text }}</text>
+        <text v-if="revealed[q.id] && correctSet(q).has(o.key)" class="opt-mark">✓</text>
+        <text v-else-if="revealed[q.id] && (answers[q.id] || []).includes(o.key)" class="opt-mark wrong"
+          >✕</text
+        >
       </view>
 
+      <!-- 解析区 -->
       <view v-if="revealed[q.id]" class="explain">
-        <text>解析：{{ q.explanation }}</text>
-        <text v-if="isMultiple(q)" class="state">本题状态：{{ stateText(q) }}</text>
+        <view class="explain-head">
+          <text class="explain-label">解析</text>
+          <text v-if="isMultiple(q)" class="state" :class="isCorrect(q) ? 'state-ok' : 'state-bad'">{{
+            stateText(q)
+          }}</text>
+          <text v-else class="state" :class="isCorrect(q) ? 'state-ok' : 'state-bad'">{{
+            isCorrect(q) ? "回答正确" : "回答错误"
+          }}</text>
+        </view>
+        <text class="explain-text">{{ q.explanation }}</text>
         <text class="report" @click="reportError(q)">题目有误？报错</text>
       </view>
     </view>
 
-    <nut-button type="primary" block @click="submitAll">交卷</nut-button>
+    <view class="submit-wrap">
+      <view class="btn-primary" @click="submitAll">交卷并查看复盘</view>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from "vue";
-import { Button as NutButton } from "@nutui/nutui-taro";
+import { computed, reactive, ref, onMounted } from "vue";
+import Taro from "@tarojs/taro";
 import { useSessionStore } from "@/stores/session";
 import { api } from "@/utils/api";
-import Taro from "@tarojs/taro";
 
 const DRAFT_KEY = "quest_draft";
 const store = useSessionStore();
@@ -43,6 +71,11 @@ const store = useSessionStore();
 const questions = ref<any[]>([]);
 const answers = reactive<Record<number, string[]>>({});
 const revealed = reactive<Record<number, boolean>>({});
+
+const progressPct = computed(() => {
+  if (!questions.value.length) return 0;
+  return Math.round((answeredCount.value / questions.value.length) * 100);
+});
 
 function opts(q: any) {
   return JSON.parse(q.options);
@@ -93,6 +126,15 @@ function optionClass(q: any, o: any) {
   return "opt-dim";
 }
 
+function optionKeyClass(q: any, o: any) {
+  if (!revealed[q.id]) return "";
+  const correct = correctSet(q).has(o.key);
+  const sel = (answers[q.id] || []).includes(o.key);
+  if (correct) return "key-correct";
+  if (sel) return "key-wrong";
+  return "key-dim";
+}
+
 function stateText(q: any) {
   if (isCorrect(q)) return "全对";
   const sel = new Set(answers[q.id] || []);
@@ -101,9 +143,7 @@ function stateText(q: any) {
   return "错误";
 }
 
-function answeredCount() {
-  return questions.value.filter((q) => revealed[q.id]).length;
-}
+const answeredCount = computed(() => questions.value.filter((q) => revealed[q.id]).length);
 
 async function submitAll() {
   const payload = {
@@ -143,68 +183,161 @@ onMounted(() => {
 </script>
 
 <style>
-.answer {
+.progress-card {
   padding: 24rpx;
 }
-.progress {
-  color: #666;
-  margin-bottom: 12rpx;
-}
-.qcard {
-  background: #fff;
-  border-radius: 12rpx;
-  padding: 20rpx;
-  margin-bottom: 20rpx;
-}
-.stem {
-  font-size: 30rpx;
+.progress-num {
+  font-size: var(--fs-sm);
+  color: var(--brand-dark);
   font-weight: 600;
 }
-.aigc {
-  display: inline-block;
-  background: #eee;
-  color: #999;
-  font-size: 20rpx;
-  padding: 0 8rpx;
-  border-radius: 6rpx;
+.progress-track {
+  height: 12rpx;
+  background: var(--bg);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  margin-top: 16rpx;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand) 0%, var(--brand-dark) 100%);
+  border-radius: var(--r-pill);
+  transition: width 0.3s;
+}
+
+/* 题目卡 */
+.qhead {
+  margin-bottom: 12rpx;
+}
+.qtag {
   margin-right: 8rpx;
 }
+.qindex {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  flex: 1;
+}
+.stem {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.7;
+}
 .kp {
-  color: #999;
-  font-size: 22rpx;
-  margin: 8rpx 0;
+  display: block;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  margin: 12rpx 0 20rpx;
 }
+
+/* 选项 */
 .option {
-  padding: 16rpx;
-  border: 1rpx solid #eee;
-  border-radius: 8rpx;
-  margin-top: 10rpx;
+  display: flex;
+  align-items: center;
+  padding: 20rpx;
+  border: 2rpx solid var(--border);
+  border-radius: var(--r-md);
+  margin-bottom: 16rpx;
 }
+.opt-key {
+  width: 48rpx;
+  height: 48rpx;
+  line-height: 44rpx;
+  text-align: center;
+  border-radius: 50%;
+  border: 2rpx solid var(--border);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  margin-right: 16rpx;
+  flex-shrink: 0;
+}
+.opt-text {
+  flex: 1;
+  font-size: var(--fs);
+  color: var(--text-1);
+  min-width: 0;
+}
+.opt-mark {
+  font-size: var(--fs);
+  color: var(--success);
+  margin-left: 12rpx;
+  flex-shrink: 0;
+}
+.opt-mark.wrong {
+  color: var(--danger);
+}
+
 .opt-correct {
-  background: #e8f8ee;
-  border-color: #52c41a;
+  background: var(--success-light);
+  border-color: var(--success);
+}
+.key-correct {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
 }
 .opt-wrong {
-  background: #fff1f0;
-  border-color: #ff4d4f;
+  background: var(--danger-light);
+  border-color: var(--danger);
+}
+.key-wrong {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
 }
 .opt-dim {
   opacity: 0.5;
 }
+.key-dim {
+  opacity: 0.6;
+}
+
+/* 解析区 */
 .explain {
-  margin-top: 12rpx;
-  color: #555;
-  font-size: 24rpx;
+  margin-top: 20rpx;
+  padding: 20rpx;
+  background: var(--bg);
+  border-radius: var(--r-md);
+}
+.explain-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+.explain-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--brand-dark);
+  margin-right: 12rpx;
 }
 .state {
+  font-size: var(--fs-xs);
+  padding: 2rpx 14rpx;
+  border-radius: var(--r-pill);
+}
+.state-ok {
+  background: var(--success-light);
+  color: var(--success);
+}
+.state-bad {
+  background: var(--warn-light);
+  color: var(--warn);
+}
+.explain-text {
   display: block;
-  margin-top: 6rpx;
-  color: #fa8c16;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  line-height: 1.7;
 }
 .report {
   display: inline-block;
-  margin-top: 10rpx;
-  color: #1890ff;
-  font-size: 22rpx;
+  margin-top: 14rpx;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+}
+
+.submit-wrap {
+  margin: 32rpx 0 8rpx;
 }
 </style>
