@@ -1,3 +1,11 @@
 module.exports = {
-  presets: [["@tarojs/babel-preset"]],
+  presets: [
+    [
+      "babel-preset-taro",
+      {
+        framework: "vue3",
+        ts: true,
+      },
+    ],
+  ],
 };

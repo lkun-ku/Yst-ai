@@ -52,11 +52,15 @@
 
 ### 阻塞 / 需人工
 1. **前端 UI 手工走查**：需微信开发者工具（人工操作）。所有 ⛔ 项待走查。
-2. **前端构建环境**：本机 Node v22.20.0 下 `npm run build:weapp` 报
-   `ERR_INVALID_ARG_VALUE`（@babel/import-meta-resolve，Taro 与 Node 22 兼容问题）。
-   已升级 Taro 至最新 4.x 并补装 `@vitejs/plugin-vue` / `@vitejs/plugin-vue-jsx`，仍复现。
-   **建议改用 Node 20 LTS 重试构建**（风险优先级：高，影响 UAT 人工走查启动）。
-3. **依赖安装**：peer 依赖冲突，需 `npm install --legacy-peer-deps`（已记入风险，建议在 README 补充说明）。
+   （2026-05-21 更新：`npm run build:weapp` 已在 Node v20.20.2 下构建成功，产物 `dist/` 含全部 8 页，
+   开发者工具导入 `miniprogram/dist` 即可开始走查。）
+
+### 已修复（2026-05-21）
+- **前端构建环境**：Node v22 下报 `ERR_INVALID_ARG_VALUE`（babel `import-meta-resolve`）；换 Node v20.20.2 后，
+  根因定位为脚手架缺失构建依赖，已补齐：`babel-preset-taro`（修正自不存在的 `@tarojs/babel-preset` 包名，并补
+  `framework: "vue3"` 选项）、`@babel/plugin-proposal-class-properties`、`less`、`terser`、
+  `@vitejs/plugin-vue`、`@vitejs/plugin-vue-jsx`；`@` 别名改为绝对路径以解析 .ts 模块。
+- **依赖安装**：peer 依赖冲突，需 `npm install --legacy-peer-deps`（建议在 README 补充说明）。
 
 ### 遗留风险
 - **D1 unionid 待实测**：换 AppID 后 unionid 不可迁移，内测数据重置已接受（ADR-0001）；正式环境需实测 unionid 获取链路。
@@ -68,5 +72,5 @@
 ## 5. 结论
 
 - 后端关键路径：**通过**（自动化走查覆盖全部 API 级验收条目）。
-- 前端关键路径：**阻塞**（等微信开发者工具人工走查 + Node 20 构建环境修复）。
+- 前端关键路径：**待人工走查**（构建已通过；微信开发者工具导入 `miniprogram/dist` 走查 ⛔ 项）。
 - MVP 上线前必须清零：上文 §4 全部「阻塞 / 需人工」项。

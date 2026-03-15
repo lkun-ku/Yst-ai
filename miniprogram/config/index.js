@@ -1,3 +1,5 @@
+const path = require("path");
+
 const config = {
   projectName: "ai-quest-miniprogram",
   date: "2026-05-21",
@@ -10,7 +12,7 @@ const config = {
   plugins: [],
   defineConstants: {},
   copy: { patterns: [], options: {} },
-  alias: { "@": "./src" },
+  alias: { "@": path.resolve(__dirname, "..", "src") },
   mini: {
     postcss: {
       autoprefix: { enable: true },
