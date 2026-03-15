@@ -11,6 +11,7 @@ node_modules/
 miniprogram/dist/
 miniprogram/.temp/
 miniprogram/.rn_temp/
+miniprogram/.swc/
 
 # Env
 .env

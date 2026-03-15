@@ -9,7 +9,11 @@
     "dev:weapp": "npm run build:weapp -- --watch",
     "test": "echo \"MVP 期不做端到端 UI 自动化（测试决策 46）\" && exit 0"
   },
-  "browserslist": ["last 3 versions", "Android >= 4.1", "ios >= 8"],
+  "browserslist": [
+    "last 3 versions",
+    "Android >= 4.1",
+    "ios >= 8"
+  ],
   "dependencies": {
     "@nutui/nutui-taro": "^4.0.0",
     "@tarojs/components": "4.0.0",
@@ -25,6 +29,8 @@
   "devDependencies": {
     "@tarojs/cli": "4.0.0",
     "@tarojs/vite-runner": "4.0.0",
+    "@vitejs/plugin-vue": "^5.2.0",
+    "@vitejs/plugin-vue-jsx": "^4.1.0",
     "typescript": "^5.5.0",
     "vite": "^5.4.0",
     "vue-tsc": "^2.0.0"
