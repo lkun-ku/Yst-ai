@@ -7,7 +7,7 @@
         <text class="aigc-title">题目由 AI 生成，仅供参考</text>
         <text class="aigc-desc">答案与解析请以官方教材为准</text>
       </view>
-      <view class="aigc-btn" @click="onAck">我已知晓</view>
+      <view class="aigc-btn" hover-class="aigc-btn--press" hover-stay-time="80" @click="onAck">我已知晓</view>
     </view>
 
     <!-- 今日进度概览 -->
@@ -34,7 +34,7 @@
     <!-- 功能入口：卡片栅格（响应式两列） -->
     <text class="section-title">开始学习</text>
     <view class="entry-grid">
-      <view v-for="e in entries" :key="e.title" class="entry-card" @click="e.go">
+      <view v-for="e in entries" :key="e.title" class="entry-card" hover-class="entry-card--press" hover-stay-time="80" @click="onEntry(e)">
         <view class="entry-icon" :style="{ background: e.bg }">{{ e.icon }}</view>
         <text class="entry-title">{{ e.title }}</text>
         <text class="entry-desc">{{ e.desc }}</text>
@@ -102,6 +102,11 @@ function goBenefits() {
 }
 function goSettings() {
   Taro.navigateTo({ url: "/pages/settings/settings" });
+}
+
+/** 统一处理入口点击：命名函数绑法比 `@click="e.go"` 在小程序里更可靠。 */
+function onEntry(e: any) {
+  e.go();
 }
 </script>
 
@@ -203,6 +208,11 @@ function goSettings() {
   border-radius: var(--r-lg);
   padding: 28rpx 24rpx;
   box-shadow: var(--shadow-card);
+}
+.entry-card--press {
+  background: var(--bg);
+  transform: scale(0.98);
+  opacity: 0.9;
 }
 .entry-icon {
   width: 72rpx;
