@@ -1,3 +1,10 @@
+// Taro Vue3 dist 在小程序环境下会触发 Vue 运行时对 Node 全局 `process` 的引用，
+// 在所有模块加载前注入一个最小 polyfill，避免白屏报错（process is not defined）。
+// 仅在缺失时设置，已存在则尊重宿主环境。
+if (typeof globalThis.process === "undefined") {
+  globalThis.process = { env: { NODE_ENV: "production" } };
+}
+
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import "./app.less";
