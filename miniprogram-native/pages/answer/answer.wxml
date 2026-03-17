@@ -1,0 +1,126 @@
+<view class="page-wrap answer">
+  <!-- 顶部栏：退出拦截入口（R8 / O-01） -->
+  <view class="answer-bar">
+    <text class="t-strong">闯关答题</text>
+    <view class="exit-btn" hover-class="exit-btn--press" hover-stay-time="80" bindtap="confirmExit">退出</view>
+  </view>
+
+  <!-- 顶部进度 -->
+  <view class="card progress-card">
+    <view class="row-between">
+      <text class="t-strong">{{isMock ? "模考进度" : "闯关进度"}}</text>
+      <text wx:if="{{isMock}}" class="mock-timer">{{remainText}}</text>
+      <text wx:else class="progress-num">{{answeredCount}} / {{total}}</text>
+    </view>
+    <view class="progress-track">
+      <view class="progress-fill" style="width: {{progressPct}}%" />
+    </view>
+  </view>
+
+  <!-- 出题失败态（后端不可达等） -->
+  <view wx:if="{{loadError}}" class="card error-card">
+    <text class="t-strong">出题失败</text>
+    <text class="t-dim error-msg">{{loadError}}</text>
+    <view class="retry-btn" hover-class="press" hover-stay-time="80" bindtap="onRetry">重试出题</view>
+    <view class="back-link" hover-class="press" hover-stay-time="80" bindtap="goQuest">返回选择模块</view>
+  </view>
+
+  <!-- 题目卡片：一次只渲染当前题 -->
+  <view wx:if="{{cur}}" class="card qcard">
+    <view class="row qhead">
+      <text wx:if="{{cur.aigc}}" class="tag tag-brand qtag">AI</text>
+      <text class="qindex">第 {{curIdx + 1}} / {{total}} 题</text>
+      <text wx:if="{{cur.isMultiple}}" class="tag tag-accent qtag">多选</text>
+    </view>
+
+    <text class="stem">{{cur.stem}}</text>
+    <text class="kp">考点：{{cur.kp}}</text>
+
+    <!-- 选项题（单选 / 多选 / 判断）：原生 bindtap 直接派发 -->
+    <block wx:if="{{curKind === 'option'}}">
+      <view
+        wx:for="{{curOptions}}"
+        wx:key="key"
+        class="option {{item.cls}}"
+        data-key="{{item.key}}"
+        hover-class="press"
+        hover-stay-time="80"
+        bindtap="onPick"
+      >
+        <view class="opt-key {{item.keyCls}}">{{item.key}}</view>
+        <text class="opt-text">{{item.text}}</text>
+        <text wx:if="{{item.mark === 'ok'}}" class="opt-mark">✓</text>
+        <text wx:elif="{{item.mark === 'wrong'}}" class="opt-mark wrong">✕</text>
+      </view>
+    </block>
+
+    <!-- 填空题：无选项，输入后提交 -->
+    <block wx:elif="{{curKind === 'blank'}}">
+      <input
+        class="field answer-input"
+        placeholder="请输入答案"
+        value="{{draft}}"
+        disabled="{{curRevealed}}"
+        bindinput="onDraftInput"
+      />
+      <view
+        wx:if="{{!curRevealed}}"
+        class="btn-primary answer-submit"
+        hover-class="btn-primary--press"
+        hover-stay-time="80"
+        bindtap="onConfirmAnswer"
+      >提交答案</view>
+      <text wx:else class="t-dim">你的作答：{{draft}}</text>
+    </block>
+
+    <!-- 简答题：无选项，文本域输入后提交（不自动判分，提交后对照参考答案自评） -->
+    <block wx:elif="{{curKind === 'short'}}">
+      <textarea
+        class="field answer-area"
+        placeholder="请简述你的答案"
+        value="{{draft}}"
+        disabled="{{curRevealed}}"
+        maxlength="500"
+        bindinput="onDraftInput"
+      />
+      <view
+        wx:if="{{!curRevealed}}"
+        class="btn-primary answer-submit"
+        hover-class="btn-primary--press"
+        hover-stay-time="80"
+        bindtap="onConfirmAnswer"
+      >提交作答</view>
+      <text wx:else class="t-dim">你的作答：{{draft}}</text>
+    </block>
+
+    <!-- 解析区 -->
+    <view wx:if="{{curRevealed}}" class="explain">
+      <view class="explain-head">
+        <text class="explain-label">解析</text>
+        <text class="state {{curCorrect ? 'state-ok' : 'state-bad'}}">{{curStateText}}</text>
+      </view>
+      <text class="explain-text">{{cur.explanation}}</text>
+      <text class="report" hover-class="press" hover-stay-time="80" bindtap="onReport">题目有误？报错</text>
+    </view>
+  </view>
+
+  <!-- 上一题 / 下一题 -->
+  <view class="nav-row">
+    <view wx:if="{{hasPrev}}" class="nav-btn" hover-class="press" hover-stay-time="80" bindtap="onPrev">上一题</view>
+    <view wx:if="{{hasNext}}" class="nav-btn" hover-class="press" hover-stay-time="80" bindtap="onNext">下一题</view>
+  </view>
+
+  <!-- 交卷：模考可随时交卷，普通闯关需答完所有题 -->
+  <view class="submit-wrap">
+    <view wx:if="{{isMock || allAnswered}}" class="btn-primary" hover-class="btn-primary--press" hover-stay-time="80" bindtap="onSubmit">
+      {{isMock ? "交卷" : "交卷并查看复盘"}}
+    </view>
+    <text wx:else class="t-dim submit-tip">答完 {{total}} 题后可交卷</text>
+  </view>
+
+  <!-- F-05：提交中全局遮罩，防重复提交（与 api 去重锁配合） -->
+  <view wx:if="{{requesting > 0}}" class="loading-mask">
+    <view class="loading-spinner" />
+    <text class="loading-text">提交中…</text>
+  </view>
+</view>

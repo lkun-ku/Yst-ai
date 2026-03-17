@@ -1,0 +1,64 @@
+.set-title {
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.set-desc {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  margin-top: 4rpx;
+}
+.danger {
+  border: 2rpx solid var(--danger-light);
+}
+.danger-text {
+  color: var(--danger);
+}
+.arrow {
+  font-size: 40rpx;
+  color: var(--text-3);
+  line-height: 1;
+}
+.warn-tip {
+  display: block;
+  text-align: center;
+  padding: 16rpx;
+}
+
+.data-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  padding: 8rpx 4rpx;
+}
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.data-k {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.data-v {
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--brand-dark);
+}
+.data-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  margin-top: 8rpx;
+  padding-top: 16rpx;
+  border-top: 2rpx dashed var(--border);
+}
+.data-mastery {
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  line-height: 1.7;
+}
+.data-muted {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}

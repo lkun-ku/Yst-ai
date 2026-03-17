@@ -1,0 +1,187 @@
+/* 首页样式（平移自 Taro 版 index.vue，尺寸全部 rpx，原生 WXSS 直接支持） */
+
+/* AIGC 说明条 */
+.aigc-bar {
+  display: flex;
+  align-items: center;
+  background: var(--brand-light);
+  border-radius: var(--r-lg);
+  padding: 24rpx;
+  margin-bottom: var(--sp);
+}
+.aigc-icon {
+  width: 56rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  text-align: center;
+  border-radius: var(--r-sm);
+  background: var(--brand);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  margin-right: 16rpx;
+  flex-shrink: 0;
+}
+.aigc-body {
+  flex: 1;
+  min-width: 0;
+}
+.aigc-title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--brand-dark);
+}
+.aigc-desc {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.aigc-btn {
+  flex-shrink: 0;
+  background: var(--brand);
+  color: #fff;
+  font-size: var(--fs-xs);
+  padding: 10rpx 24rpx;
+  border-radius: var(--r-pill);
+}
+.aigc-btn--press {
+  opacity: 0.85;
+}
+
+/* 今日进度 */
+.hero-label {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.hero-num-row {
+  margin-top: 4rpx;
+}
+.hero-num {
+  font-size: 56rpx;
+  font-weight: 700;
+  color: var(--brand-dark);
+  line-height: 1.2;
+}
+.hero-total {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  margin-left: 8rpx;
+}
+.progress-track {
+  height: 12rpx;
+  background: var(--bg);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  margin: 20rpx 0 12rpx;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand) 0%, var(--brand-dark) 100%);
+  border-radius: var(--r-pill);
+  transition: width 0.3s;
+}
+.hero-reset {
+  display: block;
+}
+
+/* 考期卡 */
+.exam-card {
+  margin-top: var(--sp);
+}
+.exam-num {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: var(--brand-dark);
+  line-height: 1.3;
+}
+.exam-empty {
+  margin-top: var(--sp);
+  text-align: center;
+}
+.exam-empty--press {
+  opacity: 0.85;
+}
+.exam-empty-text {
+  color: var(--brand-dark);
+  font-size: var(--fs-sm);
+}
+
+/* 继续进度卡 */
+.resume-card {
+  margin-top: var(--sp);
+  background: linear-gradient(135deg, var(--brand-light) 0%, #ffffff 100%);
+}
+.resume-card--press {
+  opacity: 0.9;
+}
+.resume-title {
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--brand-dark);
+}
+.go-btn {
+  flex-shrink: 0;
+  background: var(--brand);
+  color: #fff;
+  font-size: var(--fs-xs);
+  padding: 12rpx 28rpx;
+  border-radius: var(--r-pill);
+}
+
+/* 任务进度卡 */
+.task-card {
+  margin-top: var(--sp);
+}
+.task-title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+/* 入口栅格：CSS grid 两列 */
+.entry-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24rpx;
+}
+.entry-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border-radius: var(--r-lg);
+  padding: 28rpx 24rpx;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 0;
+}
+.entry-card--press {
+  background: var(--bg);
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+.entry-icon {
+  width: 72rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  text-align: center;
+  border-radius: var(--r-md);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-1);
+  margin-bottom: 16rpx;
+}
+.entry-title {
+  display: block;
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.entry-desc {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  margin-top: 4rpx;
+}
+.build-tip {
+  display: block;
+  text-align: center;
+  padding: 16rpx 0 8rpx;
+}

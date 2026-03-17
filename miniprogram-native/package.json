@@ -1,0 +1,12 @@
+{
+  "name": "ai-quest-miniprogram-native",
+  "version": "0.1.0",
+  "private": true,
+  "description": "教资《综合素质》客观题闯关闭环小程序（微信原生，弃用 Taro）",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
+  }
+}

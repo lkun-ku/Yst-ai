@@ -1,0 +1,59 @@
+<view class="page-wrap">
+  <!-- 上传中 -->
+  <view wx:if="{{uploading}}" class="card upload-card">
+    <view class="row-between">
+      <text class="t-strong upload-name">{{uploadName}}</text>
+      <text class="t-dim">解析中…</text>
+    </view>
+    <view class="progress-track">
+      <view class="progress-fill" style="width: {{uploadProgress}}%" />
+    </view>
+    <text class="t-dim">上传 {{uploadProgress}}%</text>
+  </view>
+
+  <!-- 空状态 -->
+  <view wx:if="{{!loading && docs.length === 0 && !uploading}}" class="empty-hint">
+    <text>还没有资料，上传一份讲义/笔记试试</text>
+    <view class="btn-primary" hover-class="btn-primary--press" hover-stay-time="80" bindtap="onChoose">选择文件</view>
+    <text class="t-dim tip">支持 PDF / Word / TXT / Markdown，单个 ≤ 20MB</text>
+    <text class="t-dim tip">资料权属与内容由你自行负责，题目仅本人可见</text>
+  </view>
+
+  <!-- 列表 -->
+  <block wx:if="{{docs.length > 0}}">
+    <text class="section-title">我的资料</text>
+    <view wx:for="{{docs}}" wx:key="id" class="card doc-card">
+      <view class="row-between">
+        <text class="doc-name">{{item.title}}</text>
+        <text class="tag tag-brand">{{item.file_type}}</text>
+      </view>
+      <text class="t-dim doc-meta">
+        {{item.char_count}} 字 · {{item.chunk_count}} 段<text wx:if="{{item.page_count > 0}}"> · {{item.page_count}} 页</text>
+        <text wx:if="{{item.question_count > 0}}"> · 已生成 {{item.question_count}} 题</text>
+      </text>
+      <view class="row doc-actions">
+        <view
+          class="btn-ghost act"
+          hover-class="btn-ghost--press"
+          hover-stay-time="80"
+          data-id="{{item.id}}"
+          bindtap="onGenerate"
+        >出题</view>
+        <view
+          class="btn-danger act"
+          hover-class="press"
+          hover-stay-time="80"
+          data-id="{{item.id}}"
+          data-name="{{item.title}}"
+          bindtap="onDelete"
+        >删除</view>
+      </view>
+    </view>
+  </block>
+
+  <view wx:if="{{docs.length > 0 && !uploading}}" class="btn-primary" hover-class="btn-primary--press" hover-stay-time="80" bindtap="onChoose">
+    上传资料
+  </view>
+
+  <text class="t-dim build-tip">题目由 AI 生成，仅供参考</text>
+</view>

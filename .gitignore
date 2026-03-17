@@ -6,12 +6,21 @@ venv/
 backend/.test_tmp.db
 backend/dev.db
 
-# Node / Taro
+# Node / 小程序
 node_modules/
 miniprogram/dist/
 miniprogram/.temp/
 miniprogram/.rn_temp/
 miniprogram/.swc/
+miniprogram-native/node_modules/
+
+# 微信开发者工具本地私有配置（个人 IDE 设置，不入库）
+project.private.config.json
+
+# 测试与运行产物
+.test_tmp.db
+backend/server.err
+backend/server.log
 
 # Env
 .env

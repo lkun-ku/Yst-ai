@@ -1,0 +1,74 @@
+.progress-track {
+  height: 12rpx;
+  background: var(--bg);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  margin: 16rpx 0 8rpx;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand) 0%, var(--brand-dark) 100%);
+  border-radius: var(--r-pill);
+  transition: width 0.2s;
+}
+
+.upload-card {
+  border: 2rpx solid var(--brand-light);
+}
+.upload-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-hint {
+  padding: 60rpx 32rpx;
+}
+.empty-hint .btn-primary {
+  margin-top: 32rpx;
+}
+.tip {
+  display: block;
+  margin-top: 16rpx;
+  line-height: 1.6;
+}
+
+.doc-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.doc-meta {
+  display: block;
+  margin-top: 8rpx;
+}
+.doc-actions {
+  gap: 20rpx;
+  margin-top: 20rpx;
+}
+.act {
+  flex: 1;
+  height: 72rpx;
+  line-height: 68rpx;
+  font-size: var(--fs-sm);
+}
+.btn-danger {
+  background: var(--danger-light);
+  color: var(--danger);
+  border: 2rpx solid var(--danger);
+  border-radius: var(--r-pill);
+  text-align: center;
+}
+
+.build-tip {
+  display: block;
+  text-align: center;
+  padding: 24rpx 0 8rpx;
+}

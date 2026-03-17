@@ -1,0 +1,35 @@
+<view class="page-wrap">
+  <view wx:if="{{!loading && groups.length === 0}}" class="empty-hint">
+    <text>暂无错题，继续保持 👏</text>
+  </view>
+
+  <block wx:else>
+    <text class="section-title">错题本 · 按考点聚合</text>
+    <view
+      wx:for="{{groups}}"
+      wx:key="knowledge_point"
+      class="card mistake-card"
+      hover-class="press"
+      hover-stay-time="80"
+      data-kp="{{item.knowledge_point}}"
+      data-count="{{item.question_count}}"
+      bindtap="onRepractice"
+    >
+      <view class="row-between">
+        <text class="kp-name">{{item.knowledge_point}}</text>
+        <view class="tag tag-danger">错 {{item.wrong_count}} 次</view>
+      </view>
+      <view class="row-between meta-row">
+        <text class="t-dim">{{item.module}} · {{item.question_count}} 题</text>
+        <!-- catchtap 阻止冒泡，避免重复触发整卡点击 -->
+        <view
+          class="retry-btn"
+          data-kp="{{item.knowledge_point}}"
+          data-count="{{item.question_count}}"
+          catchtap="onRepractice"
+        >重练此考点</view>
+      </view>
+      <text class="feedback">{{item.feedback}}</text>
+    </view>
+  </block>
+</view>

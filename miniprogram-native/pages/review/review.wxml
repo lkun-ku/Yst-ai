@@ -1,0 +1,51 @@
+<view class="page-wrap review">
+  <view wx:if="{{loading}}" class="card t-muted">正在生成复盘报告…</view>
+
+  <block wx:elif="{{summary}}">
+    <view class="card hero">
+      <text class="hero-title">复盘报告</text>
+      <text wx:if="{{summary.aigc}}" class="tag tag-brand aigc">AI 生成内容，仅供参考</text>
+    </view>
+
+    <!-- 五维掌握度（G-02）：横向条形呈现 -->
+    <text class="section-title">五维掌握度</text>
+    <view class="card">
+      <view wx:for="{{summary.radar}}" wx:key="module" class="radar-row">
+        <text class="radar-name">{{item.module}}</text>
+        <view class="radar-track">
+          <view class="radar-fill {{item.percent < 60 ? 'low' : ''}}" style="width: {{item.percent}}%" />
+        </view>
+        <text class="radar-pct">{{item.percent}}%</text>
+      </view>
+    </view>
+
+    <!-- 薄弱考点（G-03） -->
+    <text class="section-title">建议优先巩固</text>
+    <view class="card">
+      <view wx:for="{{summary.weakTop3}}" wx:key="*this" class="weak-item">
+        <text class="weak-dot">·</text>
+        <text>{{item}}</text>
+      </view>
+      <text wx:if="{{!summary.weakTop3.length}}" class="t-muted">暂无薄弱考点，保持得不错</text>
+    </view>
+
+    <!-- 下一步一件事（G-04） -->
+    <view class="card next">
+      <text class="next-label">下一步</text>
+      <text class="next-text">{{summary.nextStep || "继续下一局闯关"}}</text>
+    </view>
+
+    <!-- 个性化段落（G-05~G-08） -->
+    <view class="card para">
+      <text class="para-text">{{summary.paragraph}}</text>
+      <text wx:if="{{summary.aigc}}" class="para-aigc">（AI 生成，仅供参考）</text>
+    </view>
+
+    <view class="btn-row">
+      <view class="btn-ghost" hover-class="btn-ghost--press" hover-stay-time="80" bindtap="goMistakes">去错题本</view>
+      <view class="btn-primary" hover-class="btn-primary--press" hover-stay-time="80" bindtap="goQuest">再来一局</view>
+    </view>
+  </block>
+
+  <view wx:else class="card t-muted">未找到该局复盘，请返回首页</view>
+</view>

@@ -1,0 +1,55 @@
+.hist-title {
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--text-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.hist-rate {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+  padding: 4rpx 16rpx;
+  border-radius: var(--r-pill);
+}
+
+.rate-good {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.rate-mid {
+  background: var(--warn-light);
+  color: var(--warn);
+}
+
+.rate-bad {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.hist-kp {
+  display: block;
+  margin-top: 10rpx;
+}
+
+.hist-time {
+  display: block;
+  margin-top: 6rpx;
+}
+
+.repractice-row {
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 2rpx dashed var(--border);
+}
+
+.retry-btn {
+  flex-shrink: 0;
+  background: var(--brand-light);
+  color: var(--brand-dark);
+  font-size: var(--fs-xs);
+  padding: 10rpx 24rpx;
+  border-radius: var(--r-pill);
+}

@@ -1,0 +1,23 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/quest/quest",
+    "pages/answer/answer",
+    "pages/review/review",
+    "pages/mistakes/mistakes",
+    "pages/daily/daily",
+    "pages/history/history",
+    "pages/benefits/benefits",
+    "pages/settings/settings",
+    "pages/docs/docs",
+    "pages/generate/generate"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTitleText": "AI 闯关学习",
+    "navigationBarTextStyle": "black"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

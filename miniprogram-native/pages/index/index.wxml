@@ -1,0 +1,84 @@
+<view class="page-wrap">
+  <!-- AIGC 首次说明：仅展示一次（R2 / B-02 回读后端 ack 状态） -->
+  <view wx:if="{{showNotice}}" class="aigc-bar">
+    <view class="aigc-icon">AI</view>
+    <view class="col aigc-body">
+      <text class="aigc-title">题目由 AI 生成，仅供参考</text>
+      <text class="aigc-desc">答案与解析请以官方教材为准</text>
+    </view>
+    <view class="aigc-btn" hover-class="aigc-btn--press" hover-stay-time="80" bindtap="onAck">我已知晓</view>
+  </view>
+
+  <!-- 今日进度概览 -->
+  <view class="card hero">
+    <view class="row-between">
+      <view class="col">
+        <text class="hero-label">今日已刷</text>
+        <view class="row hero-num-row">
+          <text class="hero-num">{{quota.used_today}}</text>
+          <text class="hero-total">/ {{quota.free_daily_limit}} 题</text>
+        </view>
+      </view>
+      <view class="tag {{quota.remaining > 0 ? 'tag-brand' : 'tag-warn'}}">剩余 {{quota.remaining}} 题</view>
+    </view>
+    <view class="progress-track">
+      <view class="progress-fill" style="width: {{progressPct}}%" />
+    </view>
+    <text class="t-dim hero-reset">{{quota.reset_rule || "额度每日 0 点重置"}}</text>
+  </view>
+
+  <!-- 考期倒计时（R5 / C-06） -->
+  <view wx:if="{{examDate}}" class="card exam-card">
+    <view class="row-between">
+      <view class="col">
+        <text class="hero-label">距考期</text>
+        <text class="exam-num">{{countdown}} 天</text>
+      </view>
+      <text class="t-dim">{{examDate}}</text>
+    </view>
+  </view>
+  <view wx:else class="card exam-card exam-empty" hover-class="exam-empty--press" hover-stay-time="80" bindtap="goDaily">
+    <text class="exam-empty-text">未设置考期 · 点此设置并开始每日任务</text>
+  </view>
+
+  <!-- 继续上次进度（R5 / C-05） -->
+  <view wx:if="{{resume}}" class="card resume-card" hover-class="resume-card--press" hover-stay-time="80" bindtap="goResume">
+    <view class="row-between">
+      <view class="col">
+        <text class="resume-title">继续上次闯关</text>
+        <text class="t-dim">已答 {{resume.answered}} / {{resume.total}} 题</text>
+      </view>
+      <view class="go-btn">继续</view>
+    </view>
+  </view>
+
+  <!-- 今日任务进度（R5 / C-04） -->
+  <view wx:if="{{dailyTask}}" class="card task-card">
+    <view class="row-between">
+      <text class="task-title">今日任务</text>
+      <text wx:if="{{dailyTask.completed}}" class="tag tag-brand">已完成</text>
+      <text wx:else class="tag tag-warn">{{taskRemain}}</text>
+    </view>
+    <text class="t-dim">{{dailyTask.completed ? "保持节奏，明天再来" : "错题复习 + 新题，12 小时内有效"}}</text>
+  </view>
+
+  <!-- 功能入口：卡片栅格 -->
+  <text class="section-title">开始学习</text>
+  <view class="entry-grid">
+    <view
+      wx:for="{{entries}}"
+      wx:key="title"
+      class="entry-card"
+      data-url="{{item.url}}"
+      hover-class="entry-card--press"
+      hover-stay-time="80"
+      bindtap="onEntryTap"
+    >
+      <view class="entry-icon" style="background: {{item.bg}}">{{item.icon}}</view>
+      <text class="entry-title">{{item.title}}</text>
+      <text class="entry-desc">{{item.desc}}</text>
+    </view>
+  </view>
+
+  <text class="t-dim build-tip">原生重写版 · 阶段 2</text>
+</view>

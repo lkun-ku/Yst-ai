@@ -1,0 +1,303 @@
+/* 答题页样式（平移自 Taro 版 answer.vue） */
+
+.progress-card {
+  padding: 24rpx;
+}
+.progress-num {
+  font-size: var(--fs-sm);
+  color: var(--brand-dark);
+  font-weight: 600;
+}
+.mock-timer {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--brand-dark);
+  font-variant-numeric: tabular-nums;
+}
+.progress-track {
+  height: 12rpx;
+  background: var(--bg);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  margin-top: 16rpx;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand) 0%, var(--brand-dark) 100%);
+  border-radius: var(--r-pill);
+  transition: width 0.3s;
+}
+
+/* 题目卡 */
+.qhead {
+  margin-bottom: 12rpx;
+}
+.qtag {
+  margin-right: 8rpx;
+}
+.qindex {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  flex: 1;
+}
+.stem {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.7;
+}
+.kp {
+  display: block;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  margin: 12rpx 0 20rpx;
+}
+
+/* 选项 */
+.option {
+  display: flex;
+  align-items: center;
+  padding: 20rpx;
+  border: 2rpx solid var(--border);
+  border-radius: var(--r-md);
+  margin-bottom: 16rpx;
+}
+.opt-key {
+  width: 48rpx;
+  height: 48rpx;
+  line-height: 44rpx;
+  text-align: center;
+  border-radius: 50%;
+  border: 2rpx solid var(--border);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  margin-right: 16rpx;
+  flex-shrink: 0;
+}
+.opt-text {
+  flex: 1;
+  font-size: var(--fs);
+  color: var(--text-1);
+  min-width: 0;
+}
+.opt-mark {
+  font-size: var(--fs);
+  color: var(--success);
+  margin-left: 12rpx;
+  flex-shrink: 0;
+}
+.opt-mark.wrong {
+  color: var(--danger);
+}
+
+/* 模考：已选但未揭示对错（不能复用四态，因为 revealed=false 时四态恒为 idle） */
+.opt-picked {
+  background: var(--brand-light);
+  border-color: var(--brand);
+}
+.key-picked {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+.opt-correct {
+  background: var(--success-light);
+  border-color: var(--success);
+}
+.key-correct {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+.opt-wrong {
+  background: var(--danger-light);
+  border-color: var(--danger);
+}
+.key-wrong {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+/* 漏选态（R3/E-02）：未选但正确——橙色虚线边框，与已选正确(绿)明确区分 */
+.opt-missed {
+  background: var(--warn-light);
+  border-color: var(--warn);
+  border-style: dashed;
+}
+.key-missed {
+  background: var(--warn);
+  border-color: var(--warn);
+  border-style: dashed;
+  color: #fff;
+}
+.opt-dim {
+  opacity: 0.5;
+}
+.key-dim {
+  opacity: 0.6;
+}
+
+/* 解析区 */
+.explain {
+  margin-top: 20rpx;
+  padding: 20rpx;
+  background: var(--bg);
+  border-radius: var(--r-md);
+}
+.explain-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+.explain-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--brand-dark);
+  margin-right: 12rpx;
+}
+.state {
+  font-size: var(--fs-xs);
+  padding: 2rpx 14rpx;
+  border-radius: var(--r-pill);
+}
+.state-ok {
+  background: var(--success-light);
+  color: var(--success);
+}
+.state-bad {
+  background: var(--warn-light);
+  color: var(--warn);
+}
+.explain-text {
+  display: block;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  line-height: 1.7;
+}
+.report {
+  display: inline-block;
+  margin-top: 14rpx;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+}
+
+/* 填空 / 简答输入区 */
+.answer-input {
+  width: 100%;
+  margin: 8rpx 0 16rpx;
+}
+.answer-area {
+  width: 100%;
+  min-height: 200rpx;
+  margin: 8rpx 0 16rpx;
+}
+.answer-submit {
+  margin-bottom: 8rpx;
+}
+
+.nav-row {
+  display: flex;
+  gap: 24rpx;
+  margin-top: 8rpx;
+}
+.nav-btn {
+  flex: 1;
+  text-align: center;
+  background: var(--card);
+  color: var(--brand-dark);
+  border: 2rpx solid var(--border);
+  border-radius: var(--r-pill);
+  height: 76rpx;
+  line-height: 72rpx;
+  font-size: var(--fs-sm);
+}
+.submit-wrap {
+  margin: 32rpx 0 8rpx;
+}
+.submit-tip {
+  display: block;
+  text-align: center;
+  padding: 24rpx 0;
+}
+
+/* 出题失败错误态 */
+.error-card {
+  text-align: center;
+  padding: 48rpx 32rpx;
+}
+.error-msg {
+  display: block;
+  margin: 16rpx 0 32rpx;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  word-break: break-all;
+}
+.retry-btn {
+  display: inline-block;
+  background: var(--brand);
+  color: #fff;
+  border-radius: var(--r-pill);
+  padding: 16rpx 56rpx;
+  font-size: var(--fs);
+  margin-bottom: 24rpx;
+}
+.back-link {
+  display: inline-block;
+  color: var(--brand-dark);
+  font-size: var(--fs-sm);
+  padding: 12rpx 24rpx;
+}
+
+/* 顶部栏 + 退出（R8 / O-01） */
+.answer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp);
+}
+.exit-btn {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  padding: 8rpx 24rpx;
+  border: 2rpx solid var(--border);
+  border-radius: var(--r-pill);
+}
+.exit-btn--press {
+  background: var(--bg);
+  opacity: 0.85;
+}
+
+/* F-05 提交遮罩 */
+.loading-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 99;
+}
+.loading-spinner {
+  width: 64rpx;
+  height: 64rpx;
+  border: 6rpx solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.loading-text {
+  color: #fff;
+  font-size: var(--fs-sm);
+  margin-top: 20rpx;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,130 @@
+<view class="page-wrap">
+  <!-- 资料摘要 -->
+  <view wx:if="{{doc}}" class="card">
+    <view class="row-between">
+      <text class="t-strong doc-title">{{doc.title}}</text>
+      <text class="tag tag-brand">{{doc.file_type}}</text>
+    </view>
+    <text class="t-dim">{{doc.char_count}} 字 · {{doc.chunk_count}} 段</text>
+  </view>
+
+  <!-- 进度 / 结果态 -->
+  <block wx:if="{{status === 'running'}}">
+    <view class="card ring-card">
+      <view class="ring-wrap">
+        <canvas type="2d" id="ring" class="ring" />
+        <view class="ring-text">
+          <text class="ring-num">{{done}}</text>
+          <text class="ring-total">/ {{taskTotal}}</text>
+        </view>
+      </view>
+      <text class="t-dim ring-stage">{{stageText}}</text>
+    </view>
+  </block>
+
+  <block wx:elif="{{status === 'done'}}">
+    <view class="card done-card">
+      <text class="done-title">生成完成 🎉</text>
+      <text class="t-muted">共 {{questionCount}} 题，已存入你的个人题库</text>
+    </view>
+    <view class="btn-primary" hover-class="btn-primary--press" hover-stay-time="80" bindtap="onStartQuest">开始闯关</view>
+    <view class="btn-ghost" hover-class="btn-ghost--press" hover-stay-time="80" bindtap="onBackDocs">返回我的资料</view>
+  </block>
+
+  <block wx:elif="{{status === 'failed'}}">
+    <view class="card err-card">
+      <text class="t-strong">生成失败</text>
+      <text class="t-dim err-msg">{{error || '请稍后重试'}}</text>
+      <view class="btn-ghost" hover-class="btn-ghost--press" hover-stay-time="80" bindtap="onRetry">重试</view>
+    </view>
+  </block>
+
+  <!-- 配置态 -->
+  <block wx:else>
+    <!-- 模式 -->
+    <text class="section-title">出题方式</text>
+    <view class="card">
+      <view class="row mode-row">
+        <view
+          class="mode-item {{mode === 'paper' ? 'on' : ''}}"
+          data-mode="paper"
+          hover-class="press"
+          hover-stay-time="80"
+          bindtap="onModeChange"
+        >
+          <text class="mode-name">整卷模式</text>
+          <text class="t-dim">按章节比例覆盖全篇</text>
+        </view>
+        <view
+          class="mode-item {{mode === 'spot' ? 'on' : ''}}"
+          data-mode="spot"
+          hover-class="press"
+          hover-stay-time="80"
+          bindtap="onModeChange"
+        >
+          <text class="mode-name">定点模式</text>
+          <text class="t-dim">只考指定知识点</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 题型配比 -->
+    <text class="section-title">题型与题量</text>
+    <view class="card">
+      <view wx:for="{{spec}}" wx:key="type" class="row-between spec-row">
+        <text class="spec-name">{{item.name}}</text>
+        <view class="row stepper">
+          <view class="step-btn" data-idx="{{index}}" data-delta="{{-1}}" hover-class="press" hover-stay-time="80" bindtap="onStep">−</view>
+          <text class="step-num">{{item.count}}</text>
+          <view class="step-btn" data-idx="{{index}}" data-delta="{{1}}" hover-class="press" hover-stay-time="80" bindtap="onStep">＋</view>
+          <view class="step-del" data-idx="{{index}}" hover-class="press" hover-stay-time="80" bindtap="onRemoveType">删除</view>
+        </view>
+      </view>
+      <view class="add-type" hover-class="press" hover-stay-time="80" bindtap="onAddType">＋ 添加题型</view>
+      <text class="t-dim">共 {{total}} 题（单次上限 30）</text>
+    </view>
+
+    <!-- 范围与难度 -->
+    <text class="section-title">{{mode === 'paper' ? '覆盖章节' : '知识点范围'}}</text>
+    <view class="card">
+      <block wx:if="{{mode === 'paper'}}">
+        <view wx:if="{{doc.headings.length === 0}}" class="t-dim">该资料未识别出章节，将整篇出题</view>
+        <view class="row head-wrap">
+          <view
+            wx:for="{{doc.headings}}"
+            wx:key="*this"
+            class="head-chip {{selected.indexOf(item) >= 0 ? 'on' : ''}}"
+            data-h="{{item}}"
+            hover-class="press"
+            hover-stay-time="80"
+            bindtap="onToggleHeading"
+          >{{item}}</view>
+        </view>
+      </block>
+      <block wx:else>
+        <input
+          class="field"
+          placeholder="如：教师权利 / 德育原则"
+          value="{{focus}}"
+          bindinput="onFocusInput"
+        />
+      </block>
+    </view>
+
+    <text class="section-title">难度</text>
+    <view class="card">
+      <view class="row diff-row">
+        <view class="diff-item {{difficulty === 'easy' ? 'on' : ''}}" data-v="easy" hover-class="press" hover-stay-time="80" bindtap="onDifficulty">简单</view>
+        <view class="diff-item {{difficulty === 'medium' ? 'on' : ''}}" data-v="medium" hover-class="press" hover-stay-time="80" bindtap="onDifficulty">中等</view>
+        <view class="diff-item {{difficulty === 'hard' ? 'on' : ''}}" data-v="hard" hover-class="press" hover-stay-time="80" bindtap="onDifficulty">困难</view>
+      </view>
+    </view>
+
+    <view class="submit-wrap">
+      <view wx:if="{{canSubmit}}" class="btn-primary" hover-class="btn-primary--press" hover-stay-time="80" bindtap="onSubmit">
+        开始生成（共 {{total}} 题）
+      </view>
+      <text wx:else class="t-dim submit-tip">请先配置题型与题量</text>
+    </view>
+  </block>
+</view>

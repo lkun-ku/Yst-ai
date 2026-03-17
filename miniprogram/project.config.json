@@ -4,7 +4,7 @@
   "description": "教资《综合素质》客观题闯关闭环小程序",
   "appid": "touristappid",
   "setting": {
-    "urlCheck": true,
+    "urlCheck": false,
     "es6": false,
     "enhance": false,
     "postcss": false,
@@ -12,5 +12,5 @@
   },
   "compileType": "miniprogram",
   "framework": "vue3",
-  "libVersion": "latest"
+  "libVersion": "3.16.2"
 }

@@ -1,0 +1,61 @@
+.m-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.m-dialog {
+  width: 600rpx;
+  max-height: 80vh;
+  background: var(--card);
+  border-radius: var(--r-lg);
+  padding: var(--sp);
+  display: flex;
+  flex-direction: column;
+}
+
+.m-title {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-1);
+  text-align: center;
+  margin-bottom: var(--sp-sm);
+}
+
+.m-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.m-foot {
+  display: flex;
+  gap: 20rpx;
+  margin-top: var(--sp);
+}
+
+.m-btn {
+  flex: 1;
+  height: 80rpx;
+  line-height: 80rpx;
+  text-align: center;
+  border-radius: var(--r-pill);
+  font-size: var(--fs);
+}
+
+.m-cancel {
+  background: var(--bg);
+  color: var(--text-2);
+}
+
+.m-confirm {
+  background: var(--brand);
+  color: #fff;
+}

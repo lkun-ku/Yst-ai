@@ -1,0 +1,86 @@
+<view class="page-wrap">
+  <!-- 考期倒计时 -->
+  <view class="card countdown-card">
+    <view wx:if="{{countdown !== null}}" class="col cd-body">
+      <text class="cd-label">距考试还有</text>
+      <view class="row cd-num-row">
+        <text class="cd-num">{{countdown}}</text>
+        <text class="cd-unit">天</text>
+      </view>
+      <text class="t-dim">考期 {{examDate}}</text>
+    </view>
+    <view wx:else class="col">
+      <text class="card-title">设置考期</text>
+      <text class="card-sub">输入考试日期，开启倒计时</text>
+      <view class="row input-row">
+        <input class="field" placeholder="如 2026-06-16" value="{{examInput}}" bindinput="onExamInput" />
+        <view class="save-btn" hover-class="press" hover-stay-time="80" bindtap="onSaveExamDate">保存</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- S1 连胜 -->
+  <view wx:if="{{streak}}" class="card streak-card">
+    <view class="row-between">
+      <view class="col">
+        <text class="t-strong">连续学习 {{streak.current}} 天</text>
+        <text class="t-dim">最高 {{streak.max}} 天 · 累计 {{streak.total_days}} 天</text>
+      </view>
+      <view class="streak-badge">🔥</view>
+    </view>
+    <view class="row-between streak-foot">
+      <text class="t-dim">补签卡 {{streak.cards}} 张</text>
+      <view
+        wx:if="{{streak.can_makeup}}"
+        class="makeup-btn"
+        hover-class="press"
+        hover-stay-time="80"
+        bindtap="onMakeup"
+      >补 {{streak.makeup_date}}</view>
+      <text wx:else class="t-dim">暂无可补日期</text>
+    </view>
+  </view>
+
+  <!-- 今日任务 -->
+  <block wx:if="{{task}}">
+    <view class="row-between">
+      <text class="section-title">今日任务</text>
+      <text wx:if="{{!task.completed}}" class="task-timer">{{taskRemain}}</text>
+      <text wx:else class="task-timer done">已按时完成</text>
+    </view>
+
+    <view wx:for="{{task.items.mistake_review}}" wx:key="question_id" class="card task-card">
+      <view class="row-between">
+        <view class="tag tag-warn">错题复习</view>
+        <text class="t-dim">已错 {{item.wrong_count}} 次</text>
+      </view>
+      <text class="task-stem">{{item.stem}}</text>
+      <text class="t-dim">考点《{{item.knowledge_point}}》</text>
+    </view>
+
+    <view wx:for="{{task.items.new_questions}}" wx:key="id" class="card task-card">
+      <view class="tag tag-brand">新题</view>
+      <text class="task-stem">{{item.stem}}</text>
+      <text class="t-dim">考点《{{item.knowledge_point}}》</text>
+    </view>
+
+    <view wx:if="{{task.items.mistake_review.length === 0 && task.items.new_questions.length === 0}}" class="empty-hint">
+      <text>暂无任务内容，先去闯关或导入题目吧</text>
+    </view>
+
+    <view wx:if="{{task.completed}}" class="card done-card">
+      <text class="done-text">今日任务已完成 🎉</text>
+      <text wx:if="{{feedback}}" class="t-muted">{{feedback}}</text>
+    </view>
+    <view
+      wx:elif="{{task.can_complete}}"
+      class="btn-primary"
+      hover-class="btn-primary--press"
+      hover-stay-time="80"
+      bindtap="onComplete"
+    >完成今日任务</view>
+    <text wx:else class="t-dim submit-tip">
+      还需完成 {{task.required_count - task.done_count}} 道题（{{task.done_count}}/{{task.required_count}}）才能标记完成
+    </text>
+  </block>
+</view>

@@ -1,0 +1,28 @@
+.kp-name {
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--text-1);
+  flex: 1;
+  min-width: 0;
+}
+.meta-row {
+  margin-top: 16rpx;
+}
+.retry-btn {
+  flex-shrink: 0;
+  background: var(--warn-light);
+  color: var(--warn);
+  font-size: var(--fs-xs);
+  padding: 10rpx 24rpx;
+  border-radius: var(--r-pill);
+}
+.feedback {
+  display: block;
+  margin-top: 14rpx;
+  font-size: var(--fs-xs);
+  color: var(--brand-dark);
+  background: var(--brand-light);
+  padding: 12rpx 16rpx;
+  border-radius: var(--r-sm);
+  line-height: 1.6;
+}

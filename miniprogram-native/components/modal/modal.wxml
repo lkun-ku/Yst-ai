@@ -1,0 +1,14 @@
+<view wx:if="{{visible}}" class="m-mask" bindtap="onClose" catchtouchmove="noop">
+  <view class="m-dialog" catchtap="noop">
+    <view wx:if="{{title}}" class="m-title">{{title}}</view>
+    <view class="m-body">
+      <slot />
+    </view>
+    <view class="m-foot">
+      <view class="m-btn m-cancel" hover-class="press" hover-stay-time="80" bindtap="onClose">{{cancelText}}</view>
+      <view wx:if="{{confirmText}}" class="m-btn m-confirm" hover-class="press" hover-stay-time="80" bindtap="onConfirm">
+        {{confirmText}}
+      </view>
+    </view>
+  </view>
+</view>

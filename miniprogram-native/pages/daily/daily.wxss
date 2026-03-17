@@ -1,0 +1,95 @@
+.countdown-card {
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
+  box-shadow: var(--shadow-brand);
+}
+.cd-body {
+  align-items: center;
+}
+.cd-label {
+  font-size: var(--fs-sm);
+  color: rgba(255, 255, 255, 0.85);
+}
+.cd-num-row {
+  margin: 4rpx 0 8rpx;
+}
+.cd-num {
+  font-size: 80rpx;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+}
+.cd-unit {
+  font-size: var(--fs);
+  color: rgba(255, 255, 255, 0.9);
+  margin-left: 8rpx;
+}
+.countdown-card .t-dim {
+  color: rgba(255, 255, 255, 0.8);
+}
+.countdown-card .card-title,
+.countdown-card .card-sub {
+  color: #fff;
+}
+.input-row {
+  margin-top: 20rpx;
+  gap: 16rpx;
+}
+.save-btn {
+  flex-shrink: 0;
+  background: #fff;
+  color: var(--brand-dark);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  padding: 18rpx 32rpx;
+  border-radius: var(--r-pill);
+}
+
+.task-stem {
+  display: block;
+  font-size: var(--fs);
+  color: var(--text-1);
+  line-height: 1.6;
+  margin: 14rpx 0 8rpx;
+}
+.done-card {
+  align-items: center;
+}
+.done-text {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--success);
+  text-align: center;
+}
+.task-timer {
+  font-size: var(--fs-xs);
+  color: var(--warn);
+  font-weight: 600;
+  padding: 4rpx 16rpx;
+  border-radius: var(--r-pill);
+  background: var(--warn-light);
+}
+.task-timer.done {
+  color: var(--success);
+  background: var(--success-light);
+}
+
+/* S1 连胜 */
+.streak-card {
+  background: linear-gradient(135deg, var(--warn-light) 0%, #ffffff 100%);
+}
+.streak-badge {
+  font-size: 56rpx;
+  line-height: 1;
+}
+.streak-foot {
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 2rpx dashed var(--border);
+}
+.makeup-btn {
+  background: var(--warn);
+  color: #fff;
+  font-size: var(--fs-xs);
+  padding: 10rpx 24rpx;
+  border-radius: var(--r-pill);
+}

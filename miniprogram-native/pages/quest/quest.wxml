@@ -1,0 +1,43 @@
+<view class="page-wrap">
+  <text class="section-title">选择模块发起闯关</text>
+
+  <view class="mod-grid">
+    <view
+      wx:for="{{modules}}"
+      wx:key="name"
+      class="mod-card"
+      style="background: {{item.bg}}"
+      data-module="{{item.name}}"
+      hover-class="press"
+      hover-stay-time="80"
+      bindtap="onSelectModule"
+    >
+      <view class="mod-icon">{{item.icon}}</view>
+      <text class="mod-name">{{item.name}}</text>
+      <text class="mod-desc">{{item.desc}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{sessionId}}" class="card session-tip">
+    <view class="row-between">
+      <view class="col">
+        <text class="t-strong">已创建闯关局 #{{sessionId}}</text>
+        <text class="t-muted">题目 {{questionCount}} 道</text>
+      </view>
+      <view class="go-btn" hover-class="press" hover-stay-time="80" bindtap="goAnswer">继续答题</view>
+    </view>
+  </view>
+
+  <!-- S3 模考入口 -->
+  <text class="section-title">仿真模考</text>
+  <view class="card mock-card">
+    <text class="t-strong">限时模考</text>
+    <text class="t-dim mock-desc">按官方权重（15/15/10/12/48）抽 30 题，限时 45 分钟，答题中不显示对错，交卷后统一查看</text>
+    <view
+      class="btn-primary mock-btn"
+      hover-class="btn-primary--press"
+      hover-stay-time="80"
+      bindtap="onStartMock"
+    >开始模考</view>
+  </view>
+</view>

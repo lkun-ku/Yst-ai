@@ -1,0 +1,57 @@
+.mod-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24rpx;
+}
+.mod-card {
+  border-radius: var(--r-lg);
+  padding: 28rpx 24rpx;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 0;
+}
+.mod-icon {
+  width: 72rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  text-align: center;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.7);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+.mod-name {
+  display: block;
+  font-size: var(--fs);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.mod-desc {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  margin-top: 4rpx;
+}
+.session-tip {
+  margin-top: 8rpx;
+}
+.mock-card {
+  border: 2rpx solid var(--brand-light);
+  background: var(--brand-light);
+}
+.mock-desc {
+  display: block;
+  margin-top: 8rpx;
+  line-height: 1.6;
+}
+.mock-btn {
+  margin-top: 20rpx;
+}
+.go-btn {
+  flex-shrink: 0;
+  background: var(--brand);
+  color: #fff;
+  font-size: var(--fs-xs);
+  padding: 12rpx 28rpx;
+  border-radius: var(--r-pill);
+}

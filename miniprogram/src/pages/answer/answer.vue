@@ -1,5 +1,11 @@
 <template>
   <view class="page-wrap answer">
+    <!-- 顶部栏：退出拦截入口（R8 / O-01） -->
+    <view class="answer-bar">
+      <text class="t-strong">闯关答题</text>
+      <view class="exit-btn" hover-class="exit-btn--press" @click="confirmExit">退出</view>
+    </view>
+
     <!-- 顶部进度 -->
     <view class="card progress-card">
       <view class="row-between">
@@ -49,12 +55,18 @@
           }}</text>
         </view>
         <text class="explain-text">{{ q.explanation }}</text>
-        <text class="report" @click="reportError(q)">题目有误？报错</text>
+        <text class="report" hover-class="press" hover-stay-time="80" @click="reportError(q)">题目有误？报错</text>
       </view>
     </view>
 
     <view class="submit-wrap">
-      <view class="btn-primary" @click="submitAll">交卷并查看复盘</view>
+      <view class="btn-primary" hover-class="btn-primary--press" hover-stay-time="80" @click="submitAll">交卷并查看复盘</view>
+    </view>
+
+    <!-- F-05：提交中全局遮罩，防止重复提交（与 api 去重锁配合） -->
+    <view v-if="requesting > 0" class="loading-mask">
+      <view class="loading-spinner" />
+      <text class="loading-text">提交中…</text>
     </view>
   </view>
 </template>
@@ -63,7 +75,8 @@
 import { computed, reactive, ref, onMounted } from "vue";
 import Taro from "@tarojs/taro";
 import { useSessionStore } from "@/stores/session";
-import { api } from "@/utils/api";
+import { api, requesting, toastApiError, redirectNav } from "@/utils/api";
+import { optionState } from "@/utils/answerState";
 
 const DRAFT_KEY = "quest_draft";
 const store = useSessionStore();
@@ -118,21 +131,23 @@ function choose(qi: number, key: string) {
 }
 
 function optionClass(q: any, o: any) {
-  if (!revealed[q.id]) return "";
-  const correct = correctSet(q).has(o.key);
-  const sel = (answers[q.id] || []).includes(o.key);
-  if (correct) return "opt-correct";
-  if (sel) return "opt-wrong";
-  return "opt-dim";
+  const st = optionState({
+    revealed: !!revealed[q.id],
+    selected: answers[q.id] || [],
+    correct: [...correctSet(q)],
+    key: o.key,
+  });
+  return st === "idle" ? "" : `opt-${st}`; // opt-correct / opt-wrong / opt-missed / opt-dim
 }
 
 function optionKeyClass(q: any, o: any) {
-  if (!revealed[q.id]) return "";
-  const correct = correctSet(q).has(o.key);
-  const sel = (answers[q.id] || []).includes(o.key);
-  if (correct) return "key-correct";
-  if (sel) return "key-wrong";
-  return "key-dim";
+  const st = optionState({
+    revealed: !!revealed[q.id],
+    selected: answers[q.id] || [],
+    correct: [...correctSet(q)],
+    key: o.key,
+  });
+  return st === "idle" ? "" : `key-${st}`;
 }
 
 function stateText(q: any) {
@@ -146,14 +161,21 @@ function stateText(q: any) {
 const answeredCount = computed(() => questions.value.filter((q) => revealed[q.id]).length);
 
 async function submitAll() {
-  const payload = {
-    session_id: store.sessionId,
-    answers: questions.value.map((q) => ({ question_id: q.id, selected: answers[q.id] || [] })),
-  };
-  const data = (await api("/api/sessions/submit", { method: "POST", data: payload })) as any;
-  const right = data.results.filter((r: any) => r.is_correct).length;
-  Taro.removeStorageSync(DRAFT_KEY); // 提交后清除草稿（Implementation 6）
-  Taro.showToast({ title: `答对 ${right}/${questions.value.length}`, icon: "none" });
+  try {
+    const payload = {
+      session_id: store.sessionId,
+      answers: questions.value.map((q) => ({ question_id: q.id, selected: answers[q.id] || [] })),
+    };
+    const data = (await api("/api/sessions/submit", { method: "POST", data: payload })) as any;
+    const right = data.results.filter((r: any) => r.is_correct).length;
+    Taro.removeStorageSync(DRAFT_KEY); // 提交后清除草稿（Implementation 6）
+    Taro.showToast({ title: `答对 ${right}/${questions.value.length}`, icon: "none" });
+    // R1 / G-01：提交后跳转复盘报告页（redirectTo 避免页面栈过深）
+    redirectNav(`/pages/review/review?session_id=${store.sessionId}`);
+  } catch (e) {
+    // F-04：提交失败兜底；去重锁释放后用户可重试
+    toastApiError(e);
+  }
 }
 
 /** 题目纠错：进入审校队列（票 13）。 */
@@ -164,9 +186,24 @@ async function reportError(q: any) {
       data: { question_id: q.id, error_type: "explanation", detail: `题目《${q.stem}》疑似有误，请审校。` },
     });
     Taro.showToast({ title: "已提交纠错，感谢反馈", icon: "success" });
-  } catch (e: any) {
-    Taro.showToast({ title: e.message || "提交失败", icon: "none" });
+  } catch (e) {
+    toastApiError(e);
   }
+}
+
+/** R8 / O-01：退出二次确认，避免误触返回丢失当前进度。 */
+function confirmExit() {
+  const unanswered = questions.value.filter((q) => !(answers[q.id] || []).length).length;
+  const tip = unanswered > 0 ? `还有 ${unanswered} 题未作答，退出后进度已自动保存为草稿。` : "进度已自动保存为草稿。";
+  Taro.showModal({
+    title: "退出闯关？",
+    content: `${tip}确定退出吗？`,
+    confirmText: "退出",
+    cancelText: "继续答题",
+    confirmColor: "#e54d42",
+  }).then((r) => {
+    if (r.confirm) Taro.navigateBack();
+  });
 }
 
 onMounted(() => {
@@ -179,6 +216,13 @@ onMounted(() => {
     questions.value = store.questions;
   }
   persist();
+  // 生产态最佳努力：微信系统返回前弹确认（H5/其他端无此 API，自动跳过）
+  const g: any = typeof globalThis !== "undefined" ? globalThis : ({} as any);
+  const wxAny = (Taro as any).getCurrentInstance?.()?.mini?.$scope?.enableAlertBeforeUnload
+    || (typeof g.wx !== "undefined" && g.wx?.enableAlertBeforeUnload);
+  if (typeof wxAny === "function") {
+    wxAny({ message: "当前进度已保存为草稿，确定退出？" });
+  }
 });
 </script>
 
@@ -286,6 +330,18 @@ onMounted(() => {
   border-color: var(--danger);
   color: #fff;
 }
+/* 漏选态（R3/E-02）：未选但正确——橙色虚线边框，与已选正确(绿)明确区分 */
+.opt-missed {
+  background: var(--warn-light);
+  border-color: var(--warn);
+  border-style: dashed;
+}
+.key-missed {
+  background: var(--warn);
+  border-color: var(--warn);
+  border-style: dashed;
+  color: #fff;
+}
 .opt-dim {
   opacity: 0.5;
 }
@@ -339,5 +395,54 @@ onMounted(() => {
 
 .submit-wrap {
   margin: 32rpx 0 8rpx;
+}
+
+/* 顶部栏 + 退出（R8 / O-01） */
+.answer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp);
+}
+.exit-btn {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  padding: 8rpx 24rpx;
+  border: 2rpx solid var(--border);
+  border-radius: var(--r-pill);
+}
+.exit-btn--press {
+  background: var(--bg);
+  opacity: 0.85;
+}
+
+/* F-05 提交遮罩 */
+.loading-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 99;
+}
+.loading-spinner {
+  width: 64rpx;
+  height: 64rpx;
+  border: 6rpx solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.loading-text {
+  color: #fff;
+  font-size: var(--fs-sm);
+  margin-top: 20rpx;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
