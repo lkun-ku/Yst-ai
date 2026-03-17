@@ -22,6 +22,7 @@ from .doc_generate import (
     _persist_questions,
     _trim_to_budget,
     build_batches,
+    build_source_chunk,
     normalize_spec,
 )
 from .kb_retrieval import retrieve_by_scope
@@ -46,8 +47,16 @@ MAX_REGEN = 1             # 单批生成自检失败后的重生成上限
 # ---------------- 质量闭环子步骤 ----------------
 
 def _chunk_payloads(chunks: list[dict]) -> list[dict]:
+    """转为喂给模型的切片 payload。携带 `id` 供工单 17 的批级溯源使用
+    （`kb_question_prompt` 只读 seq/heading_path/content，多出的键不影响提示词）。
+    """
     return [
-        {"seq": c.get("seq"), "heading_path": c.get("heading_path"), "content": c.get("content")}
+        {
+            "id": c.get("id"),
+            "seq": c.get("seq"),
+            "heading_path": c.get("heading_path"),
+            "content": c.get("content"),
+        }
         for c in chunks
     ]
 
@@ -175,7 +184,7 @@ def generate_by_scope(
                 payloads = regen or payloads
         created += _persist_questions(
             db, candidate_id, None, payloads or [], seen,
-            source_chunk=picked[0]["content"] if picked else None,
+            source_chunk=build_source_chunk(picked),
         )
         done += count
         progress(min(done, total), total)
@@ -194,7 +203,7 @@ def generate_by_scope(
             )
             created += _persist_questions(
                 db, candidate_id, None, payloads or [], seen,
-                source_chunk=picked[0]["content"] if picked else None,
+                source_chunk=build_source_chunk(picked),
             )
         progress(min(len(created), total), total)
 

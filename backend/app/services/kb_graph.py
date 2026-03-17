@@ -22,7 +22,13 @@ from langgraph.graph import END, START, StateGraph
 
 from ..config import settings
 from ..models import Question
-from .doc_generate import _persist_questions, _trim_to_budget, build_batches, normalize_spec
+from .doc_generate import (
+    _persist_questions,
+    _trim_to_budget,
+    build_batches,
+    build_source_chunk,
+    normalize_spec,
+)
 from .kb_generate import (
     KB_RECALL_K,
     MAX_REGEN,
@@ -120,7 +126,7 @@ def _n_generate(s: KbState) -> dict:
             payloads = regen or payloads
         created += _persist_questions(
             db, s["candidate_id"], None, payloads or [], seen,
-            source_chunk=picked[0]["content"] if picked else None,
+            source_chunk=build_source_chunk(picked),
         )
         done += count
         if on_progress:
@@ -140,7 +146,7 @@ def _n_generate(s: KbState) -> dict:
             )
             created += _persist_questions(
             db, s["candidate_id"], None, payloads or [], seen,
-            source_chunk=picked[0]["content"] if picked else None,
+            source_chunk=build_source_chunk(picked),
         )
         if on_progress:
             on_progress(min(len(created), total), total)
@@ -186,7 +192,7 @@ def _run_simple(db, client, candidate_id, scope, spec, difficulty, focus, embed_
         payloads = _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen)
         created += _persist_questions(
             db, candidate_id, None, payloads or [], seen,
-            source_chunk=picked[0]["content"] if picked else None,
+            source_chunk=build_source_chunk(picked),
         )
         done += count
         if on_progress:

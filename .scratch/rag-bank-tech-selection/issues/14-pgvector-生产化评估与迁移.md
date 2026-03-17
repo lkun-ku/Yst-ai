@@ -9,7 +9,10 @@
 
 评估并将跨文档 embedding 列从 dev 内存/SQLite `LargeBinary` 迁移到生产 PG pgvector `VECTOR(1024)` + HNSW，使跨文档检索在规模化资料库低延迟、可运维。dev SQLite 仍走内存检索。
 
-- 生产 PG：`document_chunks.embedding` 改 `VECTOR(1024)`（维度对齐 text-embedding-v3）。
+- 生产 PG：向量检索列改为 `VECTOR(1024)`（维度对齐 text-embedding-v3）。
+  **措辞修订（工单 16 / 复盘 W-4）**：实现为**新增** `embedding_vec VECTOR(1024)` 列承载 PG 检索，
+  原 `embedding`（LargeBinary）**保留**作为 dev/SQLite 与降级路径——SQLite 无法表达 `VECTOR` 类型，
+  直接改列会让 dev/全量测试崩溃。真迁移（drop 旧列）另见工单 19。
 - Alembic 创建 HNSW（`m=16, ef_construction=64, vector_cosine_ops`）。
 - `retrieve_by_scope` 加分支：PG 走 `cosine_distance` SQL，SQLite/dev 走内存 numpy。
 

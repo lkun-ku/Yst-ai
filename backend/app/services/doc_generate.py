@@ -114,10 +114,35 @@ def build_segments(chunks: list[dict]) -> list[dict]:
 # ---------------- 生成 ----------------
 
 def _chunk_payloads(chunks: list[dict]) -> list[dict]:
+    """转为喂给模型的切片 payload。
+
+    携带 `id` 供工单 17 的批级溯源使用（`kb_question_prompt` 只读
+    seq/heading_path/content，多出的键不影响提示词）。
+    """
     return [
-        {"seq": c.get("seq"), "heading_path": c.get("heading_path"), "content": c.get("content")}
+        {
+            "id": c.get("id"),
+            "seq": c.get("seq"),
+            "heading_path": c.get("heading_path"),
+            "content": c.get("content"),
+        }
         for c in chunks
     ]
+
+
+def build_source_chunk(picked: list[dict] | None) -> str | None:
+    """构造 `Question.source_chunk` 溯源值：该批**全部**召回切片的 id 清单 JSON。
+
+    工单 17：原实现为 `picked[0]["content"]`，同批所有题共享首个切片内容，
+    导致溯源可能指向错误切片（题目实际源自 picked[3]，却指向 picked[0]）。
+    改为记录整批切片 id（全局唯一，可回查 `document_chunks`），消除误导。
+
+    `picked` 为空或无有效 id 时返回 None，行为与原先一致。
+    """
+    if not picked:
+        return None
+    ids = [c.get("id") for c in picked if c.get("id") is not None]
+    return json.dumps(ids, ensure_ascii=False) if ids else None
 
 
 def _trim_to_budget(chunks: list[dict], max_chars: int) -> list[dict]:
