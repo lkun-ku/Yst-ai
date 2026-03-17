@@ -191,16 +191,16 @@ def generate_by_scope(
         done += count
         progress(min(done, total), total)
 
-    # 5) 补偿：不足时按 spec 顺序补足（最多 3 轮，沿用 doc_generate 经验）
+    # 5) 补偿：不足时按 spec 顺序补足（最多 5 轮，每轮多生成余量，确保 count≈sum(spec.count)，#23）
     attempts = 0
-    while len(created) < total and attempts < 3:
+    while len(created) < total and attempts < 5:
         attempts += 1
-        for qtype, count in spec:
+        for qtype, count in batches:
             if len(created) >= total:
                 break
             need = total - len(created)
             payloads = _generate_batch(
-                client, scope, qtype, min(settings.doc_batch_size, need),
+                client, scope, qtype, min(settings.doc_batch_size * 3, need),
                 difficulty, focus, picked, seen,
             )
             created += _persist_questions(
