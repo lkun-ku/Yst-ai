@@ -1,0 +1,73 @@
+<view class="page">
+
+  <!-- 试卷名称 -->
+  <view class="card">
+    <view class="card-title">试卷名称</view>
+    <input class="input" placeholder="如：光合作用专项卷" value="{{title}}" bindinput="onTitle" />
+  </view>
+
+  <!-- 出题范围 -->
+  <view class="card">
+    <view class="card-title">出题范围</view>
+    <textarea class="textarea" placeholder="描述要考的范围，如：光合作用" value="{{scope}}"
+      bindinput="onScope" maxlength="200" auto-height />
+    <view class="hint">会在你已上传的全部资料中检索相关片段出题</view>
+    <view class="link" bindtap="goDocs">还没有资料？去上传 →</view>
+  </view>
+
+  <!-- 题型与数量 -->
+  <view class="card">
+    <view class="card-title">题型与数量</view>
+    <view class="spec-row" wx:for="{{spec}}" wx:key="type">
+      <text class="spec-name">{{item.label}}</text>
+      <view class="counter">
+        <button class="mini" size="mini" bindtap="onMinus" data-type="{{item.type}}">−</button>
+        <text class="spec-count">{{item.count}}</text>
+        <button class="mini" size="mini" bindtap="onPlus" data-type="{{item.type}}">＋</button>
+      </view>
+    </view>
+    <view class="hint">共 {{total}} 题（为 0 的题型不会出）</view>
+  </view>
+
+  <!-- 难度 -->
+  <view class="card">
+    <view class="card-title">难度</view>
+    <view class="seg">
+      <view wx:for="{{difficulties}}" wx:key="key" class="seg-item {{difficulty === item.key ? 'on' : ''}}"
+        bindtap="onDifficulty" data-v="{{item.key}}">{{item.label}}</view>
+    </view>
+  </view>
+
+  <!-- 侧重 -->
+  <view class="card">
+    <view class="card-title">侧重要求（选填）</view>
+    <textarea class="textarea" placeholder="如：重点考察光反应与暗反应的区别" value="{{focus}}"
+      bindinput="onFocus" maxlength="200" auto-height />
+  </view>
+
+  <button class="btn-primary" bindtap="onGenerate" disabled="{{generating}}" loading="{{generating}}">
+    {{generating ? 'AI 出题中…' : 'AI 出题'}}
+  </button>
+
+  <!-- 进度 -->
+  <view wx:if="{{status}}" class="card status-card">
+    <view class="card-title">出题进度</view>
+    <view class="status-line">状态：{{statusText}}</view>
+    <view class="status-line">已完成：{{done}} / {{totalTask}}</view>
+    <view wx:if="{{status === 'failed'}}" class="err">失败：{{error || '未知错误'}}</view>
+  </view>
+
+  <!-- 试题卷 -->
+  <view wx:if="{{questions.length}}" class="card">
+    <view class="card-title">试题卷 · {{title || '未命名'}}（{{questions.length}} 题）</view>
+    <view class="q" wx:for="{{questions}}" wx:key="id">
+      <view class="q-stem">{{index + 1}}. {{item.stem}}</view>
+      <view class="q-opt" wx:for="{{item.options}}" wx:for-item="o" wx:key="key">{{o.key}}. {{o.text}}</view>
+      <view class="q-ans">答案：{{item.answerText}}</view>
+      <view wx:if="{{item.explanation}}" class="q-exp">解析：{{item.explanation}}</view>
+      <view wx:if="{{item.sourceText}}" class="q-src">溯源：{{item.sourceText}}</view>
+    </view>
+  </view>
+
+  <view class="tail"></view>
+</view>

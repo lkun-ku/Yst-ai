@@ -263,11 +263,11 @@ class DocumentChunk(Base):
     char_count: Mapped[int] = mapped_column(Integer, default=0)
     # 结构路径（如 "第三章 > 3.2"）。PDF 无可靠标题结构时为 None，此情形靠向量检索兜底。
     heading_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    # float32 向量序列化后的字节（文档级内存检索用；不引向量数据库）
-    embedding: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
-    # 工单 14：生产 PG 上同向量的 pgvector 形态（VECTOR(1024)），供 HNSW 索引与 SQL 余弦检索。
-    # SQLite/dev 为 LargeBinary 变体且不写入（内存路径用上面的 embedding）。
-    embedding_vec: Mapped[list[float] | None] = mapped_column(
+    # 工单 14 + 20/W-5：单一向量列，按方言自动选择存储形态：
+    #   PostgreSQL → VECTOR(1024)（可建 HNSW 索引、走 SQL 余弦检索）
+    #   SQLite/dev → LargeBinary（float32 字节，走内存 numpy 混合检索）
+    # 早期曾拆成 embedding(bytea) + embedding_vec(vector) 两列，W-5 合并回一列并去掉双写。
+    embedding: Mapped[list[float] | None] = mapped_column(
         _EMBED_VEC_TYPE, nullable=True
     )
     # pending / ok / failed —— embedding 失败不得阻塞上传，降级走关键词检索

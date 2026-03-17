@@ -71,11 +71,13 @@ def _embed_document(doc_id: int) -> None:
         for ch in db.query(DocumentChunk).filter(DocumentChunk.document_id == doc_id).all():
             try:
                 vec = embed_one(ch.content)
-                ch.embedding = encode_vector(vec)
-                # 工单 14：PG 上同步写 pgvector 列。否则新资料的 embedding_vec 恒为 NULL，
-                # 而检索 SQL 带 `embedding_vec IS NOT NULL`，会导致生产检索静默返空。
+                # 工单 20/W-5：单一 embedding 列，按方言写入不同形态
+                #   PG → vector（供 HNSW 索引与 SQL 余弦检索）
+                #   SQLite → float32 字节（供内存 numpy 混合检索）
                 if db.get_bind().dialect.name == "postgresql":
-                    ch.embedding_vec = vec
+                    ch.embedding = vec
+                else:
+                    ch.embedding = encode_vector(vec)
                 ch.embed_status = "ok"
             except Exception:
                 ch.embed_status = "failed"

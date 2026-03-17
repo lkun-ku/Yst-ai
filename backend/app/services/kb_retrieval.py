@@ -16,7 +16,7 @@
 返回带分值（fusion_score / vector_score / keyword_score / heading_bonus）的 chunk 列表，
 供质量闭环的「相关性评分」节点消费。
 **生产 PG 走 pgvector（工单 14）**：`retrieve_by_scope` 按方言自动分发——
-PostgreSQL → `retrieve_by_scope_pg`（`embedding_vec VECTOR(1024)` + HNSW + SQL 余弦距离）；
+PostgreSQL → `retrieve_by_scope_pg`（`embedding VECTOR(1024)` + HNSW + SQL 余弦距离）；
 SQLite / dev → 下面的内存混合检索。两条路径返回结构一致，上层无感。
 
 复用 `embedding.py`：embed_one / decode_vector / keyword_score / uniform_sample。
@@ -194,11 +194,11 @@ def retrieve_by_scope_pg(
     sql = sa_text(
         """
         SELECT dc.id, dc.document_id, dc.seq, dc.content, dc.heading_path, dc.char_count,
-               1 - (dc.embedding_vec <=> CAST(:q AS vector)) AS sim
+               1 - (dc.embedding <=> CAST(:q AS vector)) AS sim
         FROM document_chunks dc
         JOIN documents d ON d.id = dc.document_id
-        WHERE d.candidate_id = :cid AND dc.embedding_vec IS NOT NULL
-        ORDER BY dc.embedding_vec <=> CAST(:q AS vector)
+        WHERE d.candidate_id = :cid AND dc.embedding IS NOT NULL
+        ORDER BY dc.embedding <=> CAST(:q AS vector)
         LIMIT :k
         """
     )

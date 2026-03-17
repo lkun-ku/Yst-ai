@@ -77,6 +77,13 @@ def kb_question_prompt(
     lines.append('6. module 固定为 "个人资料"；knowledge_point 填该切片所属章节/主题。')
     lines.append(f'7. type 固定为 "{qtype}"。')
     idx = 8
+    # 工单 20/W-6：要求模型回传每题所依据的切片编号，实现逐题精确溯源。
+    # 用 **切片 id**（全局唯一）而非 seq（跨文档会重复）作为编号来源。
+    lines.append(
+        f"{idx}. 每道题额外输出字段 source_id：该题所依据的资料切片编号，"
+        "取自下方 [切片 #N] 的 N（整数）。若依据多个切片，填最主要的那一个。"
+    )
+    idx += 1
     if scope:
         lines.append(f"{idx}. 出题范围围绕：{scope}")
         idx += 1
@@ -91,7 +98,8 @@ def kb_question_prompt(
     lines.append("资料切片：")
     for c in chunks or []:
         tag = c.get("heading_path") or "未分章"
-        lines.append(f"[切片 {c.get('seq')}｜{tag}]")
+        # 工单 20/W-6：编号用切片 id（全局唯一），使模型回传的 source_id 无歧义
+        lines.append(f"[切片 #{c.get('id')}｜{tag}]")
         lines.append(str(c.get("content") or ""))
         lines.append("")
     lines.append(f'输出格式：{{"questions": [ {{...}}, {{...}} ]}}，共 {count} 道。')

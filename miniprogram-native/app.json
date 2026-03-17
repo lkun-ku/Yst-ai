@@ -10,7 +10,8 @@
     "pages/benefits/benefits",
     "pages/settings/settings",
     "pages/docs/docs",
-    "pages/generate/generate"
+    "pages/generate/generate",
+    "pages/kb/kb"
   ],
   "window": {
     "backgroundTextStyle": "light",

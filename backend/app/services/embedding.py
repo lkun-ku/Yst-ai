@@ -5,7 +5,8 @@
 在此规模下属过度工程（独立部署 + 双写同步 + 权限重建成本高于收益）。
 
 **跨文档场景已升级（见 ADR-0010，2026-05-26）**：跨文档检索改由 `kb_retrieval.retrieve_by_scope`
-承载，生产 PostgreSQL 上启用 **pgvector 扩展**（`embedding_vec VECTOR(1024)` + HNSW），
+承载。生产 PostgreSQL 上启用 **pgvector 扩展**，切片向量字段 `document_chunks.embedding`
+在该方言下即 `VECTOR(1024)`（工单 20/W-5 合并双列后只有这一个字段），并建 HNSW 索引；
 `retrieve_by_scope` 按方言分发——PG 走 SQL 余弦，SQLite/dev 走本模块的内存检索。
 本模块自身（单文档检索）保持不变，不依赖 pgvector。
 

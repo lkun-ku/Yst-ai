@@ -145,6 +145,17 @@ def build_source_chunk(picked: list[dict] | None) -> str | None:
     return json.dumps(ids, ensure_ascii=False) if ids else None
 
 
+def picked_ids_of(picked: list[dict] | None) -> set[int]:
+    """本次召回切片的 id 集合。
+
+    工单 20/W-6：用于校验模型回传的 `source_id` 是否真实存在于本次召回切片中，
+    防止模型幻觉出不存在的编号导致溯源指向错误。
+    """
+    if not picked:
+        return set()
+    return {c["id"] for c in picked if c.get("id") is not None}
+
+
 def _trim_to_budget(chunks: list[dict], max_chars: int) -> list[dict]:
     """超出上下文预算时**均匀抽样**而非截断，保证覆盖而非只取开头。"""
     total = sum(len(c.get("content") or "") for c in chunks)
@@ -162,8 +173,17 @@ def _persist_questions(
     payloads: list[dict],
     seen: set[str],
     source_chunk: str | None = None,
+    picked_ids: set[int] | None = None,
 ) -> list[Question]:
-    """校验 + 去重后落库，返回新增题目。source_chunk 为溯源切片（跨文档出题用）。"""
+    """校验 + 去重后落库，返回新增题目。
+
+    溯源（工单 17 批级 + 工单 20/W-6 逐题）：
+    - **优先**用模型回传的 `source_id`（提示词要求每题输出所依据切片编号，逐题精确）；
+    - 该 id 必须落在本次召回切片集合 `picked_ids` 内，防模型幻觉出不存在的编号；
+    - 缺失或非法则**回退**到批级 `source_chunk`（id 清单 JSON）。
+
+    两种精度统一存「切片 id 清单 JSON」（`"[12]"` 或 `"[12,35]"`），前端展示逻辑一致。
+    """
     created: list[Question] = []
     for p in payloads:
         if not isinstance(p, dict):
@@ -179,6 +199,17 @@ def _persist_questions(
         if key:
             seen.add(key)
 
+        # 逐题溯源：优先模型回传的 source_id（校验在召回集合内），否则批级兜底
+        sc = source_chunk
+        sid = p.get("source_id")
+        if sid is not None:
+            try:
+                sid_int = int(sid)
+            except (TypeError, ValueError):
+                sid_int = None
+            if sid_int is not None and (picked_ids is None or sid_int in picked_ids):
+                sc = json.dumps([sid_int], ensure_ascii=False)
+
         q = Question(
             module=Module.PERSONAL,
             knowledge_point=str(p.get("knowledge_point") or "")[:128],
@@ -190,7 +221,7 @@ def _persist_questions(
             source=QuestionSource.DOC,
             owner_candidate_id=candidate_id,
             doc_id=doc_id,
-            source_chunk=source_chunk,
+            source_chunk=sc,
         )
         db.add(q)
         created.append(q)

@@ -28,6 +28,7 @@ from .doc_generate import (
     build_batches,
     build_source_chunk,
     normalize_spec,
+    picked_ids_of,
 )
 from .kb_generate import (
     KB_RECALL_K,
@@ -127,6 +128,7 @@ def _n_generate(s: KbState) -> dict:
         created += _persist_questions(
             db, s["candidate_id"], None, payloads or [], seen,
             source_chunk=build_source_chunk(picked),
+            picked_ids=picked_ids_of(picked),
         )
         done += count
         if on_progress:
@@ -147,6 +149,7 @@ def _n_generate(s: KbState) -> dict:
             created += _persist_questions(
             db, s["candidate_id"], None, payloads or [], seen,
             source_chunk=build_source_chunk(picked),
+            picked_ids=picked_ids_of(picked),
         )
         if on_progress:
             on_progress(min(len(created), total), total)
@@ -193,6 +196,7 @@ def _run_simple(db, client, candidate_id, scope, spec, difficulty, focus, embed_
         created += _persist_questions(
             db, candidate_id, None, payloads or [], seen,
             source_chunk=build_source_chunk(picked),
+            picked_ids=picked_ids_of(picked),
         )
         done += count
         if on_progress:

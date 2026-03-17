@@ -97,12 +97,10 @@ def _seed_dataset(db, cand_id: int, dataset_dir: str) -> None:
             )
         )
         paras = [p.strip() for p in text.split("\n\n") if p.strip()]
-        # 工单 18：PG 上必须同时写 embedding_vec，否则检索 SQL 的
-        # `embedding_vec IS NOT NULL` 会过滤掉全部切片，导致 PG 分支静默返空。
+        # 工单 20/W-5：单一 embedding 列按方言写入（PG→vector，SQLite→float32 字节）
         is_pg = db.get_bind().dialect.name == "postgresql"
         for seq, para in enumerate(paras):
             vec = embed_one(para)
-            extra = {"embedding_vec": vec} if is_pg else {}
             db.add(
                 DocumentChunk(
                     document_id=doc_idx,
@@ -110,9 +108,8 @@ def _seed_dataset(db, cand_id: int, dataset_dir: str) -> None:
                     content=para,
                     heading_path=fn.replace(".txt", ""),
                     char_count=len(para),
-                    embedding=encode_vector(vec),
+                    embedding=vec if is_pg else encode_vector(vec),
                     embed_status="ok",
-                    **extra,
                 )
             )
     db.commit()

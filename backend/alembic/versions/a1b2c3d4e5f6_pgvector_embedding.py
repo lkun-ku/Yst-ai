@@ -36,10 +36,31 @@ def _is_pg(bind) -> bool:
     return bind.dialect.name == "postgresql"
 
 
+def _embedding_is_vector(bind) -> bool:
+    """判断 document_chunks.embedding 是否已是 pgvector 的 vector 类型。
+
+    工单 20/W-5 合并双列后，models 里唯一的 embedding 列在 PG 上直接是
+    `VECTOR(1024)`（由 0001_initial 的 create_all 建立）。此时本迁移当初
+    「bytea embedding + 新增 embedding_vec」的双列设计不再需要，必须整体跳过：
+    否则后面的 backfill 会对 vector 值执行 bytes() 而报错。
+    """
+    row = bind.execute(
+        sa.text(
+            "SELECT data_type FROM information_schema.columns "
+            "WHERE table_name='document_chunks' AND column_name='embedding'"
+        )
+    ).fetchone()
+    return bool(row and row[0] == "USER-DEFINED")
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     if not _is_pg(bind):
         return  # SQLite/dev: 维持 LargeBinary 列，路径不变
+
+    # W-5：embedding 已是 vector（单列形态）→ 无需再建 embedding_vec，直接跳过
+    if _embedding_is_vector(bind):
+        return
 
     # 1) 启用 pgvector（幂等）
     op.execute("CREATE EXTENSION IF NOT EXISTS vector;")

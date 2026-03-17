@@ -11,6 +11,7 @@ const ENTRIES = [
   { icon: "错", title: "错题本", desc: "按考点聚合重练", bg: "#fff4e5", url: "/pages/mistakes/mistakes" },
   { icon: "史", title: "历史闯关", desc: "回看往期复盘", bg: "#f3ecfd", url: "/pages/history/history" },
   { icon: "料", title: "我的资料", desc: "上传资料出试题", bg: "#e8f8ee", url: "/pages/docs/docs" },
+  { icon: "卷", title: "新建试卷", desc: "按范围跨资料出题", bg: "#fdeaf0", url: "/pages/kb/kb" },
   { icon: "我", title: "我的设置", desc: "管理学习数据", bg: "#eef1f4", url: "/pages/settings/settings" },
 ];
 

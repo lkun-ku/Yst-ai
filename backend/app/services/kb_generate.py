@@ -24,6 +24,7 @@ from .doc_generate import (
     build_batches,
     build_source_chunk,
     normalize_spec,
+    picked_ids_of,
 )
 from .kb_retrieval import retrieve_by_scope
 from .llm_client import get_llm_client, parse_doc_questions
@@ -185,6 +186,7 @@ def generate_by_scope(
         created += _persist_questions(
             db, candidate_id, None, payloads or [], seen,
             source_chunk=build_source_chunk(picked),
+            picked_ids=picked_ids_of(picked),
         )
         done += count
         progress(min(done, total), total)
@@ -204,6 +206,7 @@ def generate_by_scope(
             created += _persist_questions(
                 db, candidate_id, None, payloads or [], seen,
                 source_chunk=build_source_chunk(picked),
+            picked_ids=picked_ids_of(picked),
             )
         progress(min(len(created), total), total)
 
