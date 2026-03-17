@@ -20,5 +20,28 @@ class Settings:
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
+    # ---------- AI 出题：文档导入与生成（成本硬约束，见 ADR / 方案 2.7） ----------
+    # 解析后不留存原文（A3：降低版权风险），仅保留切片
+    doc_storage_dir: str = os.getenv("DOC_STORAGE_DIR", "./uploads")
+    doc_max_mb: int = int(os.getenv("DOC_MAX_MB", "20"))
+    doc_max_pages: int = int(os.getenv("DOC_MAX_PAGES", "200"))
+    doc_max_chars: int = int(os.getenv("DOC_MAX_CHARS", "300000"))
+    # 两级切分：结构切分 + 滑窗
+    doc_chunk_size: int = int(os.getenv("DOC_CHUNK_SIZE", "1500"))
+    doc_chunk_overlap: int = int(os.getenv("DOC_CHUNK_OVERLAP", "200"))
+    # 成本控制六条硬约束
+    doc_daily_gen_limit: int = int(os.getenv("DOC_DAILY_GEN_LIMIT", "500"))
+    doc_max_q_per_task: int = int(os.getenv("DOC_MAX_Q_PER_TASK", "30"))
+    doc_max_input_chars: int = int(os.getenv("DOC_MAX_INPUT_CHARS", "30000"))
+    # 生成参数
+    doc_batch_size: int = int(os.getenv("DOC_BATCH_SIZE", "6"))  # 每批题数（5~10）
+    doc_top_k: int = int(os.getenv("DOC_TOP_K", "8"))  # 定点模式召回片段数
+
+    # ---------- Embedding（文档级语义检索；fake 模式不耗额度） ----------
+    embedding_mode: str = os.getenv("EMBEDDING_MODE", "fake")  # fake / real
+    embedding_api_base: str = os.getenv("EMBEDDING_API_BASE", "")
+    embedding_api_key: str = os.getenv("EMBEDDING_API_KEY", "")
+    embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-v3")
+
 
 settings = Settings()

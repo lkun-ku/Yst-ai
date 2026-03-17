@@ -11,6 +11,25 @@ def _guest(client):
     return client.post("/api/identity/guest").json()["unionid"]
 
 
+def _mark_task_done(client, db_session, uid):
+    """把今日任务要求的题目标记为已作答（新逻辑：未做题不能直接完成）。"""
+    import json as _json
+    from datetime import date as _date
+
+    from app.models import DailyTask
+    from app.routers.daily import _required_ids
+
+    cid = client.get("/api/identity/me", headers={"X-Unionid": uid}).json()["candidate_id"]
+    task = (
+        db_session.query(DailyTask)
+        .filter(DailyTask.candidate_id == cid, DailyTask.task_date == _date.today().isoformat())
+        .first()
+    )
+    if task:
+        task.done_ids = _json.dumps(_required_ids(_json.loads(task.items or "{}")))
+        db_session.commit()
+
+
 def _mk_items(kp: str, n: int = 1) -> list[dict]:
     items = []
     for i in range(n):
@@ -123,6 +142,9 @@ def test_complete_task_feedback(client, db_session):
     )
     d = client.get("/api/daily", headers={"X-Unionid": uid}).json()
     tid = d["task"]["task_id"]
+
+    # 新逻辑：必须真的做完任务题才能标记完成，故先补齐进度
+    _mark_task_done(client, db_session, uid)
 
     r = client.post("/api/daily/complete", json={"task_id": tid}, headers={"X-Unionid": uid})
     assert r.status_code == 200

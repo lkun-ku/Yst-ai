@@ -4,6 +4,8 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from app.models import Session as Sess
+from app.models import SessionStatus
+from app.routers.quota import FREE_DAILY_LIMIT
 from app.seed.import_questions import import_questions
 
 
@@ -12,26 +14,53 @@ def _guest(client):
 
 
 def test_quota_accumulates_across_sessions(client, db_session):
-    """每日 20 题跨局累计，用尽后友好提示（验收 1/2）。"""
+    """每日额度跨局累计（按「当日发起局的题目数之和」计，验收 1/2）。
+
+    额度上限以 quota.FREE_DAILY_LIMIT 为准（当前 1000，内测期不设紧箍咒），
+    测试不再硬编码具体数值，避免产品口径调整时测试与代码脱节。
+    """
     import_questions(db_session)
     uid = _guest(client)
 
     q = client.get("/api/quota", headers={"X-Unionid": uid}).json()
-    assert q["free_daily_limit"] == 20
-    assert q["used_today"] == 0 and q["remaining"] == 20
+    assert q["free_daily_limit"] == FREE_DAILY_LIMIT
+    assert q["used_today"] == 0 and q["remaining"] == FREE_DAILY_LIMIT
 
     client.post("/api/sessions/start", json={"module": "职业理念", "question_count": 10}, headers={"X-Unionid": uid})
     q = client.get("/api/quota", headers={"X-Unionid": uid}).json()
-    assert q["used_today"] == 10 and q["remaining"] == 10
+    assert q["used_today"] == 10 and q["remaining"] == FREE_DAILY_LIMIT - 10
 
     client.post("/api/sessions/start", json={"module": "职业道德", "question_count": 10}, headers={"X-Unionid": uid})
     q = client.get("/api/quota", headers={"X-Unionid": uid}).json()
-    assert q["used_today"] == 20 and q["remaining"] == 0
+    assert q["used_today"] == 20 and q["remaining"] == FREE_DAILY_LIMIT - 20
+
+
+def test_quota_exhausted_returns_429_without_vip_upsell(client, db_session):
+    """额度用尽返回 429 + 友好提示；VIP 引导已下线，文案不得出现 VIP。
+
+    直接落一个满额局，不依赖题库实际题量（题库可能不足 FREE_DAILY_LIMIT 题）。
+    与前端 utils/errClassify 的「429 不再引导 VIP」口径保持一致。
+    """
+    import_questions(db_session)
+    uid = _guest(client)
+    cid = client.get("/api/identity/me", headers={"X-Unionid": uid}).json()["candidate_id"]
+    db_session.add(
+        Sess(
+            candidate_id=cid,
+            question_count=FREE_DAILY_LIMIT,
+            status=SessionStatus.STARTED,
+            question_ids="[]",
+        )
+    )
+    db_session.commit()
+
+    q = client.get("/api/quota", headers={"X-Unionid": uid}).json()
+    assert q["remaining"] == 0
 
     r = client.post("/api/sessions/start", json={"module": "职业理念", "question_count": 1}, headers={"X-Unionid": uid})
     assert r.status_code == 429
     assert "明天" in r.json()["detail"]
-    assert "VIP" in r.json()["detail"]
+    assert "VIP" not in r.json()["detail"]
 
 
 def test_quota_partial_within_limit_allowed(client, db_session):
@@ -48,7 +77,7 @@ def test_quota_resets_next_day(client, db_session):
     import_questions(db_session)
     uid = _guest(client)
     client.post("/api/sessions/start", json={"module": "职业理念", "question_count": 20}, headers={"X-Unionid": uid})
-    assert client.get("/api/quota", headers={"X-Unionid": uid}).json()["remaining"] == 0
+    assert client.get("/api/quota", headers={"X-Unionid": uid}).json()["remaining"] == FREE_DAILY_LIMIT - 20
 
     cid = client.get("/api/identity/me", headers={"X-Unionid": uid}).json()["candidate_id"]
     for sess in db_session.query(Sess).filter(Sess.candidate_id == cid).all():
@@ -56,7 +85,7 @@ def test_quota_resets_next_day(client, db_session):
     db_session.commit()
 
     q = client.get("/api/quota", headers={"X-Unionid": uid}).json()
-    assert q["used_today"] == 0 and q["remaining"] == 20
+    assert q["used_today"] == 0 and q["remaining"] == FREE_DAILY_LIMIT
 
 
 def test_vip_unlimited(client, db_session):

@@ -1,6 +1,6 @@
 import json
 
-from app.models import Module
+from app.models import OFFICIAL_MODULES
 from app.seed.import_questions import import_questions
 
 
@@ -36,7 +36,8 @@ def _start_and_submit(client, db_session, module="职业理念", count=3, all_co
 def test_review_structure(client, db_session):
     uid, sid = _start_and_submit(client, db_session, count=3, all_correct=False)
     rev = client.get(f"/api/review/{sid}", headers={"X-Unionid": uid}).json()
-    assert set(rev["mastery"].keys()) == {m.value for m in Module}  # 五维
+    # 五维：A1 裁决，PERSONAL 为用户资料独立维度，不串入官方五维雷达
+    assert set(rev["mastery"].keys()) == {m.value for m in OFFICIAL_MODULES}
     assert len(rev["weak_points"]) <= 3
     assert rev["next_step"]
     assert rev["aigc_flag"] is True

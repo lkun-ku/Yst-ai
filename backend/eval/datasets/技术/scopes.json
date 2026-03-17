@@ -1,0 +1,5 @@
+[
+  {"scope": "JavaScript 闭包怎么理解", "kind": "口语化"},
+  {"scope": "let、const 与块级作用域", "kind": "术语化"},
+  {"scope": "异步编程：事件循环、Promise 与模块化", "kind": "跨文档混合"}
+]

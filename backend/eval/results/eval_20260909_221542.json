@@ -1,0 +1,351 @@
+{
+  "metadata": {
+    "time": "2026-05-25T22:15:42",
+    "mode": "fake",
+    "llm_mode": "fake",
+    "embedding_mode": "fake",
+    "spec": [
+      {
+        "type": "single",
+        "count": 3
+      },
+      {
+        "type": "judge",
+        "count": 1
+      }
+    ],
+    "routes": [
+      "baseline",
+      "kb_handwritten",
+      "kb_langgraph"
+    ]
+  },
+  "per_scope": [
+    {
+      "domain": "教资",
+      "scope": "教育的本质到底是什么",
+      "kind": "口语化",
+      "route": "baseline",
+      "n_questions": 8,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 4,
+      "prompt_chars": 1428
+    },
+    {
+      "domain": "教资",
+      "scope": "教育的本质到底是什么",
+      "kind": "口语化",
+      "route": "kb_handwritten",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6026
+    },
+    {
+      "domain": "教资",
+      "scope": "教育的本质到底是什么",
+      "kind": "口语化",
+      "route": "kb_langgraph",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6026
+    },
+    {
+      "domain": "教资",
+      "scope": "个体身心发展的规律",
+      "kind": "术语化",
+      "route": "baseline",
+      "n_questions": 8,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 4,
+      "prompt_chars": 1352
+    },
+    {
+      "domain": "教资",
+      "scope": "个体身心发展的规律",
+      "kind": "术语化",
+      "route": "kb_handwritten",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6018
+    },
+    {
+      "domain": "教资",
+      "scope": "个体身心发展的规律",
+      "kind": "术语化",
+      "route": "kb_langgraph",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6018
+    },
+    {
+      "domain": "教资",
+      "scope": "教育观、学生观与教师职业道德",
+      "kind": "跨文档混合",
+      "route": "baseline",
+      "n_questions": 8,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 4,
+      "prompt_chars": 1898
+    },
+    {
+      "domain": "教资",
+      "scope": "教育观、学生观与教师职业道德",
+      "kind": "跨文档混合",
+      "route": "kb_handwritten",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6058
+    },
+    {
+      "domain": "教资",
+      "scope": "教育观、学生观与教师职业道德",
+      "kind": "跨文档混合",
+      "route": "kb_langgraph",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6058
+    },
+    {
+      "domain": "技术",
+      "scope": "JavaScript 闭包怎么理解",
+      "kind": "口语化",
+      "route": "baseline",
+      "n_questions": 8,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 4,
+      "prompt_chars": 2386
+    },
+    {
+      "domain": "技术",
+      "scope": "JavaScript 闭包怎么理解",
+      "kind": "口语化",
+      "route": "kb_handwritten",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6740
+    },
+    {
+      "domain": "技术",
+      "scope": "JavaScript 闭包怎么理解",
+      "kind": "口语化",
+      "route": "kb_langgraph",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6740
+    },
+    {
+      "domain": "技术",
+      "scope": "let、const 与块级作用域",
+      "kind": "术语化",
+      "route": "baseline",
+      "n_questions": 8,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 4,
+      "prompt_chars": 1606
+    },
+    {
+      "domain": "技术",
+      "scope": "let、const 与块级作用域",
+      "kind": "术语化",
+      "route": "kb_handwritten",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6732
+    },
+    {
+      "domain": "技术",
+      "scope": "let、const 与块级作用域",
+      "kind": "术语化",
+      "route": "kb_langgraph",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6732
+    },
+    {
+      "domain": "技术",
+      "scope": "异步编程：事件循环、Promise 与模块化",
+      "kind": "跨文档混合",
+      "route": "baseline",
+      "n_questions": 8,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 4,
+      "prompt_chars": 2456
+    },
+    {
+      "domain": "技术",
+      "scope": "异步编程：事件循环、Promise 与模块化",
+      "kind": "跨文档混合",
+      "route": "kb_handwritten",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6780
+    },
+    {
+      "domain": "技术",
+      "scope": "异步编程：事件循环、Promise 与模块化",
+      "kind": "跨文档混合",
+      "route": "kb_langgraph",
+      "n_questions": 4,
+      "scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "llm_calls": 12,
+      "prompt_chars": 6780
+    }
+  ],
+  "route_summary": {
+    "baseline": {
+      "avg_scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "total_llm_calls": 24,
+      "total_prompt_chars": 11126,
+      "avg_calls_per_question": 0.5
+    },
+    "kb_handwritten": {
+      "avg_scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "total_llm_calls": 72,
+      "total_prompt_chars": 38354,
+      "avg_calls_per_question": 3.0
+    },
+    "kb_langgraph": {
+      "avg_scores": {
+        "factuality": 4.0,
+        "coverage": 4.0,
+        "uniqueness": 4.0,
+        "explanation": 4.0,
+        "difficulty": 4.0
+      },
+      "total_llm_calls": 72,
+      "total_prompt_chars": 38354,
+      "avg_calls_per_question": 3.0
+    }
+  }
+}

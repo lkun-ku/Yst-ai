@@ -1,15 +1,16 @@
 import json
 
-from app.models import Module, Question, QuestionSource
+from app.models import OFFICIAL_MODULES, Question, QuestionSource
 from app.seed.import_questions import build_questions, import_questions
 
 
 def test_build_questions_coverage_and_count():
     items = build_questions()
     assert len(items) >= 300
-    assert set(Module) <= {it["module"] for it in items}
-    # 每模块都有题
-    per_module = {m: 0 for m in Module}
+    # 覆盖度只针对官方五维：PERSONAL 由用户上传资料生成，种子题本就不该覆盖它（A1）
+    assert set(OFFICIAL_MODULES) <= {it["module"] for it in items}
+    # 每个官方模块都有题
+    per_module = {m: 0 for m in OFFICIAL_MODULES}
     for it in items:
         per_module[it["module"]] += 1
     assert all(v > 0 for v in per_module.values())

@@ -8,6 +8,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -17,6 +18,17 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+# 工单 14：生产 PG 的 pgvector 列类型 VECTOR(1024)（可建 HNSW 索引）；
+# dev/test SQLite 退化为 LargeBinary 变体，不参与检索（检索仍走 embedding 内存路径）。
+# pgvector 未安装时整体退化为 LargeBinary，保证纯 dev 环境不因缺依赖而崩。
+try:
+    from pgvector.sqlalchemy import Vector as _PgVector
+
+    _EMBED_VEC_TYPE = _PgVector(1024).with_variant(LargeBinary, "sqlite")
+except ImportError:  # pragma: no cover
+    _EMBED_VEC_TYPE = LargeBinary
 
 
 class Base(DeclarativeBase):
@@ -30,16 +42,27 @@ class Module(str, Enum):
     EDU_LAW = "教育法律法规"
     CULTURE_LITERACY = "文化素养"
     BASIC_ABILITY = "基本能力"
+    PERSONAL = "个人资料"  # 资料出题：用户上传文档生成，掌握度独立成维，不串入官方五维
+
+
+# 官方五维（考纲模块）：用于题库覆盖度、掌握度雷达、复盘统计、薄弱考点排序。
+# PERSONAL 是用户资料生成的独立维度，不属于官方考纲，不参与上述任何统计（A1 裁决）。
+# 任何表达「官方模块」语义的地方都必须用此常量，严禁直接遍历 Module。
+OFFICIAL_MODULES: tuple["Module", ...] = tuple(m for m in Module if m is not Module.PERSONAL)
 
 
 class QuestionType(str, Enum):
     SINGLE = "single"
     MULTIPLE = "multiple"
+    JUDGE = "judge"      # 判断题（复用选项结构，答案为 正确/错误）
+    BLANK = "blank"      # 填空题（answer 为可接受答案文本列表）
+    SHORT = "short"      # 简答/名词解释（answer 为参考答案，不自动判分）
 
 
 class QuestionSource(str, Enum):
     POOL = "pool"
     REALTIME = "realtime"
+    DOC = "doc"  # 用户文档生成（个人题）
 
 
 class ProofreadStatus(str, Enum):
@@ -84,7 +107,7 @@ class Question(Base):
     knowledge_point: Mapped[str] = mapped_column(String(128), index=True)
     stem: Mapped[str] = mapped_column(Text)
     options: Mapped[str] = mapped_column(Text)  # JSON: [{"key","text"}]
-    answer: Mapped[str] = mapped_column(String(64))  # JSON: ["A", ...]
+    answer: Mapped[str] = mapped_column(Text)  # JSON: ["A", ...] / 填空可接受答案列表 / 简答参考答案
     explanation: Mapped[str] = mapped_column(Text)
     type: Mapped[QuestionType] = mapped_column(SAEnum(QuestionType), default=QuestionType.SINGLE)
     source: Mapped[QuestionSource] = mapped_column(SAEnum(QuestionSource), default=QuestionSource.POOL)
@@ -93,6 +116,14 @@ class Question(Base):
     )
     aigc_flag: Mapped[bool] = mapped_column(Boolean, default=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
+    owner_candidate_id: Mapped[int | None] = mapped_column(
+        ForeignKey("candidates.id"), nullable=True, index=True
+    )  # NULL=官方池；非 NULL=个人题归属上传者
+    doc_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documents.id"), nullable=True, index=True
+    )  # 来源文档（个人题）
+    # 溯源：生成该题目所依据的资料切片片段（跨文档出题用，便于回溯到原文）
+    source_chunk: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
@@ -111,6 +142,11 @@ class Session(Base):
     result_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # 提交结果（幂等缓存）
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # S3 模考：normal=普通闯关 / mock=模考（限时、不可回退、统一交卷）
+    mode: Mapped[str] = mapped_column(String(16), default="normal")
+    duration_sec: Mapped[int] = mapped_column(Integer, default=0)  # 0 表示不限时
+    deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    timeout: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否超时交卷
 
 
 class MistakeBook(Base):
@@ -140,6 +176,9 @@ class DailyTask(Base):
     exam_date: Mapped[str | None] = mapped_column(String(32), nullable=True)  # ISO date
     task_date: Mapped[str] = mapped_column(String(32), index=True)  # 本地日期 YYYY-MM-DD
     items: Mapped[str] = mapped_column(Text, default="[]")  # JSON: 任务项引用
+    # JSON: 已作答的题目 id 列表。用于校验"任务是否真的完成"，
+    # 避免未做任何题目就直接点完成（逻辑漏洞）。
+    done_ids: Mapped[str] = mapped_column(Text, default="[]")
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
     valid_hours: Mapped[int] = mapped_column(Integer, default=12)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
@@ -189,3 +228,120 @@ class Mastery(Base):
     __table_args__ = (
         UniqueConstraint("candidate_id", "module", name="uq_mastery_candidate_module"),
     )
+
+
+class Document(Base):
+    """用户上传的资料（文档出题模块）。解析后落纯文本与切片，归属上传者本人。"""
+
+    __tablename__ = "documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    file_type: Mapped[str] = mapped_column(String(16))  # pdf / docx / txt / md
+    char_count: Mapped[int] = mapped_column(Integer, default=0)
+    page_count: Mapped[int] = mapped_column(Integer, default=0)
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/parsed/failed
+    storage_path: Mapped[str] = mapped_column(String(512))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class DocumentChunk(Base):
+    """资料切片。
+
+    采用「RAG 检索 + 分批生成」：切片经 embedding 后用于文档级语义检索（单文档约 200 chunk，
+    内存余弦即可，不引向量数据库）；二期若做跨文档检索，可直接用本表 embedding 增量建索引。
+    """
+
+    __tablename__ = "document_chunks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), index=True)
+    seq: Mapped[int] = mapped_column(Integer, default=0)
+    content: Mapped[str] = mapped_column(Text)
+    char_count: Mapped[int] = mapped_column(Integer, default=0)
+    # 结构路径（如 "第三章 > 3.2"）。PDF 无可靠标题结构时为 None，此情形靠向量检索兜底。
+    heading_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # float32 向量序列化后的字节（文档级内存检索用；不引向量数据库）
+    embedding: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    # 工单 14：生产 PG 上同向量的 pgvector 形态（VECTOR(1024)），供 HNSW 索引与 SQL 余弦检索。
+    # SQLite/dev 为 LargeBinary 变体且不写入（内存路径用上面的 embedding）。
+    embedding_vec: Mapped[list[float] | None] = mapped_column(
+        _EMBED_VEC_TYPE, nullable=True
+    )
+    # pending / ok / failed —— embedding 失败不得阻塞上传，降级走关键词检索
+    embed_status: Mapped[str] = mapped_column(String(16), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class DocTask(Base):
+    """文档出题异步任务。后台线程执行，前端轮询进度（done/total/status）。"""
+
+    __tablename__ = "doc_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id"), index=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/running/done/failed
+    # paper=整卷（章节配额分配，覆盖均匀） / spot=定点（Top-K 语义检索，精准命中）
+    mode: Mapped[str] = mapped_column(String(16), default="paper")
+    spec: Mapped[str] = mapped_column(Text, default="[]")  # JSON: [{"type","count"}]
+    difficulty: Mapped[str] = mapped_column(String(16), default="medium")  # easy/medium/hard
+    # JSON: 知识点范围（章节 heading_path 列表）；None=全文档
+    scope: Mapped[str | None] = mapped_column(Text, nullable=True)
+    focus: Mapped[str | None] = mapped_column(Text, nullable=True)  # 用户补充的侧重说明
+    done: Mapped[int] = mapped_column(Integer, default=0)
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generated_question_ids: Mapped[str] = mapped_column(Text, default="[]")  # JSON: [id,...]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+
+class KbTask(Base):
+    """知识库出题异步任务（跨文档范围出题）。
+
+    独立于 doc_tasks：后者绑定单文档（document_id 非空外键），本表仅按 candidate_id
+    跨其个人资料库出题，进度/结果持久化到库（替代早期模块级内存字典 _tasks，进程重启不丢）。
+    """
+
+    __tablename__ = "kb_tasks"
+
+    task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id"), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/running/done/failed
+    done: Mapped[int] = mapped_column(Integer, default=0)
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generated_question_ids: Mapped[str] = mapped_column(Text, default="[]")  # JSON: [id,...]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class Streak(Base):
+    """S1：连续完成每日任务的自然日数（强留存机制）。"""
+
+    __tablename__ = "streaks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id"), unique=True, index=True)
+    current: Mapped[int] = mapped_column(Integer, default=0)  # 当前连胜
+    max: Mapped[int] = mapped_column(Integer, default=0)  # 历史最高
+    last_date: Mapped[str | None] = mapped_column(String(10), nullable=True)  # 最近完成日 YYYY-MM-DD
+    cards: Mapped[int] = mapped_column(Integer, default=0)  # 补签卡余量，上限 MAX_MAKEUP_CARDS
+    total_days: Mapped[int] = mapped_column(Integer, default=0)  # 累计达标天数
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+
+class StreakMakeup(Base):
+    """S1：补签流水。唯一约束保证同一天不可重复补（幂等）。"""
+
+    __tablename__ = "streak_makeups"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id"), index=True)
+    missed_date: Mapped[str] = mapped_column(String(10))  # 被补的那一天
+    used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (UniqueConstraint("candidate_id", "missed_date", name="uq_streak_makeup"),)

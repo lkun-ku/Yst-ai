@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import get_current_candidate
 from ..models import Candidate, DailyTask, MistakeBook, Question, QuestionSource
+from .streak import advance_on_daily_complete
 from ..schemas import (
     DailyCompleteIn,
     DailyCompleteOut,
@@ -64,6 +65,31 @@ def set_exam_date(
     c.exam_date = body.exam_date
     db.commit()
     return ExamDateOut(exam_date=c.exam_date, countdown_days=_countdown(c.exam_date) or 0)
+
+
+def _required_ids(items: dict) -> list:
+    """今日任务要求作答的全部题目 id（错题复习 + 新题）。"""
+    ids = [int(m["question_id"]) for m in (items.get("mistake_review") or [])]
+    ids += [int(i) for i in (items.get("new_questions") or [])]
+    return ids
+
+
+def mark_task_progress(db: Session, candidate_id: int, question_ids) -> None:
+    """把已作答题目记入今日任务进度（幂等）。由提交闯关局时调用；不在此处 commit。"""
+    if not question_ids:
+        return
+    today = date.today().isoformat()
+    task = (
+        db.query(DailyTask)
+        .filter(DailyTask.candidate_id == candidate_id, DailyTask.task_date == today)
+        .first()
+    )
+    if task is None:
+        return
+    done = set(json.loads(task.done_ids or "[]"))
+    done.update(int(i) for i in question_ids)
+    task.done_ids = json.dumps(sorted(done))
+    db.add(task)
 
 
 def _get_or_create_task(db: Session, candidate_id: int) -> DailyTask:
@@ -128,16 +154,33 @@ def _task_out(task: DailyTask, db: Session) -> DailyTaskOut:
     qs = db.query(Question).filter(Question.id.in_(qids)).all() if qids else []
     by_id = {q.id: q for q in qs}
     ordered = [by_id[i] for i in qids if i in by_id]
+    deadline = None
+    created = task.created_at
+    if created is not None:
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        deadline = (created + timedelta(hours=task.valid_hours)).isoformat()
+
+    # 完成进度：用于校验"是否真的做过题"，避免直接点完成
+    required = _required_ids(items)
+    done = set(json.loads(task.done_ids or "[]"))
+    required_count = len(required)
+    done_count = sum(1 for i in required if i in done)
+
     return DailyTaskOut(
         task_id=task.id,
         task_date=task.task_date,
         valid_hours=task.valid_hours,
         completed=task.completed,
         feedback=None,
+        deadline=deadline,
         items=DailyTaskItems(
             mistake_review=items.get("mistake_review", []),
             new_questions=[QuestionOut.model_validate(q) for q in ordered],
         ),
+        required_count=required_count,
+        done_count=done_count,
+        can_complete=done_count >= required_count,
     )
 
 
@@ -174,8 +217,25 @@ def complete_task(
     ):
         raise HTTPException(status_code=410, detail="任务已超时（12 小时时限），未算完成")
 
+    # 逻辑校验：必须先真的做完任务题，才能标记完成
+    required = _required_ids(json.loads(task.items or "{}"))
+    done = set(json.loads(task.done_ids or "[]"))
+    missing = [i for i in required if i not in done]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"还有 {len(missing)} 道任务题未完成，做完后才能标记完成",
+        )
+
     task.completed = True
     db.commit()
+
+    # S1：推进连胜。连胜是锦上添花，失败不得阻塞每日任务完成，故单独提交并兜底。
+    try:
+        advance_on_daily_complete(db, c.id)
+        db.commit()
+    except Exception:
+        db.rollback()
 
     days = _countdown(c.exam_date)
     feedback = (

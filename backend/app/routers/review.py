@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import get_current_candidate
-from ..models import Candidate, Mastery, MistakeBook, Module, Session
+from ..models import OFFICIAL_MODULES, Candidate, Mastery, MistakeBook, Session
 from ..schemas import ReviewOut
 from ..services import get_content_safety, get_llm_client
 from ..services.llm_client import GenerationRequest
@@ -31,7 +31,8 @@ def get_review(
     # 五维掌握度（缺省 0）
     mrows = db.query(Mastery).filter(Mastery.candidate_id == c.id).all()
     mdict = {str(m.module.value): m.score for m in mrows}
-    mastery = {str(m.value): mdict.get(str(m.value), 0.0) for m in Module}
+    # A1：只统计官方五维。PERSONAL 为用户资料独立维度，纳入会让五维雷达变六维。
+    mastery = {str(m.value): mdict.get(str(m.value), 0.0) for m in OFFICIAL_MODULES}
 
     # 薄弱考点：错题本 wrong_count 降序 top3；不足则用最低掌握度模块补齐
     mistakes = (

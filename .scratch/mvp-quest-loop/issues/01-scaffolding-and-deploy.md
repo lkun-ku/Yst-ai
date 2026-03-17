@@ -1,4 +1,4 @@
-Status: resolved
+Status: ready-for-agent
 
 # 01 脚手架与部署
 
@@ -32,7 +32,3 @@ Status: resolved
 ## 备注
 - 模型客户端封装必须作为唯一 AI 出口（Implementation 3），本票先留接口与假实现。
 - 向量库待 V1.1/RAG 时再引入，不在本票范围。
-
-## Comments
-
-- 2026-05-21：实现完成。FastAPI + SQLAlchemy(2.0) 骨架、`/health`、6 张核心表（candidates/questions/sessions/mistake_book/daily_tasks/mastery）、Alembic 配置（target_metadata=Base.metadata）、接缝 B 假 LLM 客户端、内容安全占位、AIGC 首次说明占位组件、Taro4+Vue3 脚手架。测试 `pytest` 2/2 通过（健康 + 建表）。DB 在 dev/test 用 SQLite（可经 DATABASE_URL 换 MySQL，不违反架构）；MySQL 用于生产部署。前端 `npm install && npm run dev:weapp` 需联网与微信开发者工具，本环境未实跑。

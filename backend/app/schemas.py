@@ -9,6 +9,8 @@ class SessionStartIn(BaseModel):
     module: Optional[Module] = None
     knowledge_point: Optional[str] = None
     question_count: int = 10
+    doc_id: Optional[int] = None  # 个人题库：从指定资料生成的题目中选题（B3 不消耗每日额度）
+    mode: str = "normal"  # normal=普通闯关 / mock=模考（限时、不可回退、统一交卷）
 
 
 class QuestionOut(BaseModel):
@@ -26,6 +28,24 @@ class QuestionOut(BaseModel):
     aigc_flag: bool
 
 
+class KbQuestionOut(BaseModel):
+    """知识库出题结果交付：复用题目字段 + source_chunk 溯源（生成所依据的资料切片）。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    module: Module
+    knowledge_point: str
+    stem: str
+    options: str
+    answer: str
+    explanation: str
+    type: QuestionType
+    source: QuestionSource
+    aigc_flag: bool
+    source_chunk: Optional[str] = None  # 题目对应的资料切片片段（溯源）
+
+
 class SessionStartOut(BaseModel):
     session_id: int
     candidate_id: int
@@ -33,6 +53,11 @@ class SessionStartOut(BaseModel):
     knowledge_point: Optional[str]
     question_count: int
     questions: List[QuestionOut]
+    # S3 模考附加字段：server_now 供前端校正本地时钟；deadline_at 为服务端绝对截止时间
+    mode: str = "normal"
+    duration_sec: int = 0
+    deadline_at: Optional[str] = None
+    server_now: Optional[str] = None
 
 
 # ---------- 提交判定 ----------
@@ -99,7 +124,12 @@ class DailyTaskOut(BaseModel):
     valid_hours: int = 12
     completed: bool = False
     feedback: Optional[str] = None
+    deadline: Optional[str] = None  # ISO，任务失效时刻（R6 / K-02 12h 倒计时）
     items: DailyTaskItems
+    # 完成进度：required=任务要求作答的总题数，done=已作答题数；can_complete=False 时前端应禁用「完成」按钮
+    required_count: int = 0
+    done_count: int = 0
+    can_complete: bool = True
 
 
 class DailyOut(BaseModel):
@@ -150,3 +180,71 @@ class ReviewOut(BaseModel):
     next_step: str  # 下一步做一件事
     paragraph: str  # AI 个性化段落（票 14 接实时生成，本票为模板占位）
     aigc_flag: bool = True
+
+
+# ---------- AI 出题：资料与异步任务 ----------
+class DocumentOut(BaseModel):
+    id: int
+    title: str
+    file_type: str
+    char_count: int
+    page_count: int
+    chunk_count: int
+    status: str  # pending / parsed / failed
+    created_at: str
+    question_count: int = 0  # 该资料已生成的题目数
+
+
+class DocumentDetailOut(DocumentOut):
+    """含章节树，供出题页选择「知识点范围」。"""
+    headings: List[str] = []
+
+
+class QuestionSpec(BaseModel):
+    type: str  # single / multiple / judge / blank / short
+    count: int
+
+
+class GenerateIn(BaseModel):
+    mode: str = "paper"  # paper=整卷（章节配额） / spot=定点（Top-K）
+    spec: List[QuestionSpec]
+    difficulty: str = "medium"  # easy / medium / hard
+    scope: Optional[List[str]] = None  # 章节 heading_path 列表；None=全文档
+    focus: Optional[str] = None  # 补充要求
+
+
+class GenerateOut(BaseModel):
+    task_id: int
+    total: int
+
+
+class DocTaskOut(BaseModel):
+    id: int
+    document_id: int
+    status: str  # pending / running / done / failed
+    mode: str
+    done: int
+    total: int
+    error: Optional[str] = None
+    question_count: int = 0
+
+
+# ---------- S1：连胜与补签卡 ----------
+class StreakOut(BaseModel):
+    current: int
+    max: int
+    last_date: Optional[str] = None
+    cards: int
+    total_days: int
+    can_makeup: bool = False
+    makeup_date: Optional[str] = None  # 建议补签的日期（最近漏掉的一天）
+
+
+class MakeupIn(BaseModel):
+    date: str  # YYYY-MM-DD
+
+
+class MakeupOut(BaseModel):
+    ok: bool
+    current: int
+    cards: int

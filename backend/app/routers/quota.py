@@ -9,24 +9,33 @@
 from datetime import date, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session as DBSession
 
 from ..db import get_db
 from ..deps import get_current_candidate
-from ..models import Candidate, Session
+from ..models import Candidate, Module, Session
 from ..schemas import QuotaOut, VipActivateOut
 
 router = APIRouter(prefix="/api/quota", tags=["quota"])
 
-FREE_DAILY_LIMIT = 20
+FREE_DAILY_LIMIT = 1000
 RESET_RULE = "每日 0 点按本地时区自然日重置"
 
 
 def used_today(db: DBSession, candidate_id: int, day: date) -> int:
-    """今日已消耗额度：当日创建的闯关局 question_count 之和（Python 侧聚合，规避 SQLite 时区比较问题）。"""
+    """今日已消耗额度：当日创建的闯关局 question_count 之和（Python 侧聚合，规避 SQLite 时区比较问题）。
+
+    B3：排除个人题库（module = 个人资料）的闯关局——题目由用户自己上传资料生成，
+    边际成本为零，不应消耗每日免费额度。
+    """
+    # 注意 NULL 陷阱：SQL 中 `NULL != x` 不为真，需显式把 module IS NULL 的局计入
     rows = (
         db.query(Session.created_at, Session.question_count)
-        .filter(Session.candidate_id == candidate_id)
+        .filter(
+            Session.candidate_id == candidate_id,
+            or_(Session.module.is_(None), Session.module != Module.PERSONAL),
+        )
         .all()
     )
     used = 0
@@ -51,8 +60,7 @@ def enforce_quota(db: DBSession, c: Candidate, requested: int) -> None:
         raise HTTPException(
             status_code=429,
             detail=(
-                f"今日免费额度已用完（{FREE_DAILY_LIMIT} 题，剩余 {remaining}）。"
-                f"明天再来继续刷；VIP 可不限量刷题，详见权益说明。"
+                f"今日免费额度已用完（{FREE_DAILY_LIMIT} 题，剩余 {remaining}），明天再来继续刷。"
             ),
         )
 
