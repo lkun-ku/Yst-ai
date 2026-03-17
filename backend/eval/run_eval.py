@@ -21,11 +21,13 @@ import sys
 from datetime import datetime
 
 # 必须在导入 app 之前设定 DATABASE_URL，避免污染 dev.db / 测试库。
-# 强制覆盖（而非 setdefault）：评测 harness 必须用独立的 eval_kb.db；若继承外部
-# DATABASE_URL 会落到 dev/测试库，与既有 candidate id（如 9101）撞唯一约束。
+# 默认用独立 eval_kb.db 并强制覆盖（而非 setdefault）：若继承外部 DATABASE_URL 会落到
+# dev/测试库，与既有 candidate id（如 9101）撞唯一约束。
+# 工单 18：需要跑 PG 分支时，用 EVAL_DATABASE_URL 显式指定即可（如腾讯云 PG），
+# 此时 retrieve_by_scope 会自动走 retrieve_by_scope_pg（pgvector + HNSW）。
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(_ROOT, "backend"))
-os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(
+os.environ["DATABASE_URL"] = os.environ.get("EVAL_DATABASE_URL") or "sqlite:///" + os.path.join(
     _ROOT, "backend", "eval", "eval_kb.db"
 )
 
@@ -95,7 +97,12 @@ def _seed_dataset(db, cand_id: int, dataset_dir: str) -> None:
             )
         )
         paras = [p.strip() for p in text.split("\n\n") if p.strip()]
+        # 工单 18：PG 上必须同时写 embedding_vec，否则检索 SQL 的
+        # `embedding_vec IS NOT NULL` 会过滤掉全部切片，导致 PG 分支静默返空。
+        is_pg = db.get_bind().dialect.name == "postgresql"
         for seq, para in enumerate(paras):
+            vec = embed_one(para)
+            extra = {"embedding_vec": vec} if is_pg else {}
             db.add(
                 DocumentChunk(
                     document_id=doc_idx,
@@ -103,8 +110,9 @@ def _seed_dataset(db, cand_id: int, dataset_dir: str) -> None:
                     content=para,
                     heading_path=fn.replace(".txt", ""),
                     char_count=len(para),
-                    embedding=encode_vector(embed_one(para)),
+                    embedding=encode_vector(vec),
                     embed_status="ok",
+                    **extra,
                 )
             )
     db.commit()

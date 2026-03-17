@@ -188,14 +188,17 @@ def retrieve_by_scope_pg(
         return []
 
     vec_literal = "[" + ",".join(f"{x:.7f}" for x in qv) + "]"
+    # 注意：必须用 CAST(:q AS vector) 而非 :q::vector —— SQLAlchemy 的 text() 会把
+    # `::` 视为转义/转换符，导致 :q 不被识别为绑定参数而静默丢失（参数里只剩 cid/k，
+    # 运行时报 "could not determine data type of parameter"）。
     sql = sa_text(
         """
         SELECT dc.id, dc.document_id, dc.seq, dc.content, dc.heading_path, dc.char_count,
-               1 - (dc.embedding_vec <=> :q::vector) AS sim
+               1 - (dc.embedding_vec <=> CAST(:q AS vector)) AS sim
         FROM document_chunks dc
         JOIN documents d ON d.id = dc.document_id
         WHERE d.candidate_id = :cid AND dc.embedding_vec IS NOT NULL
-        ORDER BY dc.embedding_vec <=> :q::vector
+        ORDER BY dc.embedding_vec <=> CAST(:q AS vector)
         LIMIT :k
         """
     )
