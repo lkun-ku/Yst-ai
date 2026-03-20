@@ -26,6 +26,7 @@ from ..deps import get_current_candidate
 from ..models import Candidate, DocTask, KbTask, Question
 from ..schemas import KbQuestionOut
 from ..services import kb_generate, kb_graph
+from ..services.embedding import wait_embed_ready
 from ..services.kb_retrieval import retrieve_by_scope
 
 # 出题编排路线：graph=路线③ LangGraph StateGraph；handwritten=路线② 手写质量闭环
@@ -86,6 +87,13 @@ def _run(task_id: str, candidate_id: int, payload: KbGenerateIn) -> None:
     try:
         rec.status = "running"
         db.commit()
+
+        # 出题前等待该考生切片向量就绪（#23）：超时不阻塞，按三级降级继续
+        if not wait_embed_ready(db, candidate_id=candidate_id):
+            logger.warning(
+                "kb_task=%s candidate=%s 切片向量在超时上限内未就绪，按三级降级继续出题",
+                task_id, candidate_id,
+            )
 
         def on_progress(done: int, total: int) -> None:
             rec.done = done

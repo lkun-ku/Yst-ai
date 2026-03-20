@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import threading
@@ -28,9 +29,11 @@ from ..schemas import (
 )
 from ..services import doc_parser
 from ..services.doc_generate import generate_for_document, normalize_spec
-from ..services.embedding import embed_one, encode_vector
+from ..services.embedding import embed_one, encode_vector, wait_embed_ready
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_EXT = {"pdf", "docx", "txt", "md"}
 
@@ -98,6 +101,13 @@ def _run_task(task_id: int) -> None:
         db.commit()
 
         doc = db.get(Document, task.document_id)
+        # 出题前等待切片向量就绪：否则检索会在向量就绪前静默降级为纯关键词
+        # （vector_score 全 0，出题质量下降且调用方无感知，#23）；超时不阻塞出题。
+        if not wait_embed_ready(db, document_id=task.document_id):
+            logger.warning(
+                "doc_task=%s document=%s 切片向量在超时上限内未就绪，按三级降级继续出题",
+                task_id, task.document_id,
+            )
         chunks = [
             {
                 "seq": c.seq,

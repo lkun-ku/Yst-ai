@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import math
 import re
+import time
 
 from ..config import settings
 
@@ -102,6 +103,47 @@ def embed_one(text: str) -> list[float]:
         except Exception:
             pass
     return _fake_embed(text)
+
+
+def wait_embed_ready(
+    db,
+    *,
+    document_id: int | None = None,
+    candidate_id: int | None = None,
+    timeout: float = 20.0,
+    interval: float = 0.5,
+) -> bool:
+    """等待切片向量化完成——供出题任务在检索之前调用（#23）。
+
+    上传接口为保响应速度把 embedding 放到后台线程；出题任务若在其完成前检索，
+    `vector_rank` 的 usable 为空 → `vector_score` 恒为 0 → 静默退化为纯关键词检索，
+    出题质量下降且调用方完全无感知。实测：上传后不等待即检索 vector_score=0，
+    等待后为 0.82。
+
+    - 判据：范围内切片的 `embed_status` 不再为 `"pending"`（落定为 ok / failed）
+    - 返回 True=全部就绪；False=超时——**调用方按三级降级继续，绝不阻塞出题**
+    """
+    from ..models import Document, DocumentChunk  # 延迟导入：避免与 models 的模块级循环依赖
+
+    def _pending_count() -> int:
+        q = db.query(DocumentChunk.id)
+        if document_id is not None:
+            q = q.filter(DocumentChunk.document_id == document_id)
+        elif candidate_id is not None:
+            q = q.join(Document, Document.id == DocumentChunk.document_id).filter(
+                Document.candidate_id == candidate_id
+            )
+        return q.filter(DocumentChunk.embed_status == "pending").count()
+
+    deadline = time.time() + timeout
+    while True:
+        # rollback 结束当前事务快照，否则读不到 embed 线程已提交的新状态（会一直等到超时）
+        db.rollback()
+        if _pending_count() == 0:
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(interval)
 
 
 # ---------------- 关键词通道 ----------------
