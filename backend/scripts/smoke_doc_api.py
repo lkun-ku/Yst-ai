@@ -156,11 +156,13 @@ def main():
 
     # 5) 轮询
     st, t = 0, {}
-    for _ in range(120):
+    # 真实模型生成较慢（实测 qwen-plus 出 6 题约 45s），轮询窗口须覆盖该耗时；
+    # fake 模式秒回，不受影响。窗口上限 150s，超时按失败计。
+    for _ in range(300):
         st, t = req("GET", f"/api/tasks/{task_id}", base, headers=H)
         if st == 200 and t.get("status") in ("done", "failed"):
             break
-        time.sleep(0.2)
+        time.sleep(0.5)
     want = g.get("total", 0)
     report(
         "5. 轮询任务进度（题数须与选择题量一致）",
