@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import get_current_candidate
-from ..models import OFFICIAL_MODULES, Candidate, Mastery, MistakeBook, Session
+from ..models import OFFICIAL_MODULES, Candidate, Mastery, MistakeBook, Module, Question, Session
 from ..schemas import ReviewOut
 from ..services import get_content_safety, get_llm_client
 from ..services.llm_client import GenerationRequest
@@ -34,10 +34,14 @@ def get_review(
     # A1：只统计官方五维。PERSONAL 为用户资料独立维度，纳入会让五维雷达变六维。
     mastery = {str(m.value): mdict.get(str(m.value), 0.0) for m in OFFICIAL_MODULES}
 
-    # 薄弱考点：错题本 wrong_count 降序 top3；不足则用最低掌握度模块补齐
+    # 薄弱考点：错题本 wrong_count 降序 top3；不足则用最低掌握度模块补齐。
+    # A1：与 mastery 保持同一裁决——个人资料（PERSONAL）是用户上传资料生成的独立维度，
+    # 不串入官方五维统计（此前未过滤，导致官方复盘里出现「第一章 …」这类个人资料考点）。
+    # inner join 同时天然处理级联删除：个人题被删除（A5）后 join 不到，不会残留。
     mistakes = (
         db.query(MistakeBook)
-        .filter(MistakeBook.candidate_id == c.id)
+        .join(Question, Question.id == MistakeBook.question_id)
+        .filter(MistakeBook.candidate_id == c.id, Question.module != Module.PERSONAL)
         .order_by(MistakeBook.wrong_count.desc())
         .limit(3)
         .all()
