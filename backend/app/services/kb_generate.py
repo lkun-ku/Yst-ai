@@ -26,6 +26,7 @@ from .doc_generate import (
     normalize_spec,
     picked_ids_of,
 )
+from .kb_events import slice_previews
 from .kb_retrieval import retrieve_by_scope
 from .llm_client import get_llm_client, parse_doc_questions
 from .prompts_kb import (
@@ -142,8 +143,13 @@ def generate_by_scope(
     client=None,
     embed_fn=None,
     on_progress=None,
+    on_event=None,
 ) -> list[Question]:
-    """跨文档知识库出题主入口（路线②）。返回生成的 Question 列表。"""
+    """跨文档知识库出题主入口（路线②）。返回生成的 Question 列表。
+
+    `on_event(type, text, detail)`：#25 过程事件回调，供前端渲染时间线；
+    取消信号由该回调抛出（见 routers/kb.py），故此处不吞异常。
+    """
     client = client or get_llm_client()
     spec = normalize_spec(spec)
     if not spec:
@@ -155,10 +161,15 @@ def generate_by_scope(
         if on_progress:
             on_progress(done, total)
 
+    def emit(type_: str, text: str, detail=None) -> None:
+        if on_event:
+            on_event(type_, text, detail)
+
     # 1) 召回
     chunks = retrieve_by_scope(db, candidate_id, scope, k=KB_RECALL_K, embed_fn=embed_fn)
     if not chunks:
         return []
+    emit("retrieve", f"已检索到 {len(chunks)} 个相关片段", slice_previews(chunks))
 
     # 2) 相关性评分 + 改写重检索（≤MAX_REWRITE）
     if enable_loop:
@@ -168,10 +179,12 @@ def generate_by_scope(
             new_scope = _rewrite_scope(client, scope, "相关切片不足")
             if new_scope == scope:
                 break
+            emit("rewrite", f"查询改写：「{scope}」→「{new_scope}」")
             scope = new_scope
             chunks = retrieve_by_scope(db, candidate_id, scope, k=KB_RECALL_K, embed_fn=embed_fn)
             graded, sufficient = _grade_and_filter(client, scope, chunks)
             rewrites += 1
+        emit("grade", f"相关性评分 · 通过 {len(graded or [])}/{len(chunks)} 片")
         if graded:
             chunks = graded
 
@@ -183,7 +196,8 @@ def generate_by_scope(
     batches = build_batches(spec)
     total = sum(c for _, c in batches)
     done = 0
-    for qtype, count in batches:
+    for bi, (qtype, count) in enumerate(batches, 1):
+        emit("batch", f"生成第 {bi}/{len(batches)} 批 · {qtype} × {count}")
         payloads = _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen)
         if enable_loop:
             payloads, ok = _selfcheck_batch(client, payloads, chunks)
@@ -194,11 +208,20 @@ def generate_by_scope(
                 )
                 regen, _ = _selfcheck_batch(client, regen, chunks)
                 payloads = regen or payloads
-        created += _persist_questions(
+                emit("selfcheck", f"第 {bi} 批自检未完全通过，已重生成一次")
+        base = len(created)
+        new_qs = _persist_questions(
             db, candidate_id, None, payloads or [], seen,
             source_chunk=build_source_chunk(picked),
             picked_ids=picked_ids_of(picked),
         )
+        created += new_qs
+        for i, q in enumerate(new_qs, 1):
+            emit(
+                "question",
+                f"已出第 {base + i} 题",
+                {"id": q.id, "stem": (q.stem or "")[:80], "type": str(getattr(q.type, "value", q.type))},
+            )
         done += count
         progress(min(done, total), total)
 
@@ -210,6 +233,7 @@ def generate_by_scope(
             if len(created) >= total:
                 break
             need = total - len(created)
+            emit("stage", f"第 {attempts} 轮补偿 · 还差 {need} 题")
             payloads = _generate_batch(
                 client, scope, qtype, compensation_count(need),
                 difficulty, focus, picked, seen,

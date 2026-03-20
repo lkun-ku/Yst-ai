@@ -316,6 +316,33 @@ class KbTask(Base):
     count: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     generated_question_ids: Mapped[str] = mapped_column(Text, default="[]")  # JSON: [id,...]
+    # #25：协作式取消——置 True 后任务线程在批次边界停止，**已生成的题目保留**（D3）
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 原始请求参数 JSON（scope/spec/difficulty/focus/route），供失败后「仅重试缺口」使用（D5）
+    request_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class KbTaskEvent(Base):
+    """出题过程事件（#25 生题流式展示）。
+
+    为什么用独立表而不是 `KbTask` 上的 JSON 列（D2）：
+    - 写入：append 单行即可；JSON 列是「读整列→改→写整列」，事件多时 O(n²) 放大
+    - 查询：`WHERE task_id=? AND seq>?` 走索引，天然支持 `since` 增量拉取
+    - 清理：可按 task_id 单独删除，不必重写整列
+
+    `seq` 为全局自增主键，单调递增，兼作前端增量游标。
+    """
+
+    __tablename__ = "kb_task_events"
+
+    seq: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[str] = mapped_column(String(64), ForeignKey("kb_tasks.task_id"), index=True)
+    # stage/retrieve/grade/rewrite/batch/selfcheck/question/done/failed/cancelled
+    type: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text)  # 时间线一句话
+    # 可展开内容：切片摘要 / 题数据 JSON。按 D1 只存摘要，全文由 /api/kb/chunk/{id} 按需取
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

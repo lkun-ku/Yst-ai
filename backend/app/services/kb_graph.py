@@ -41,6 +41,7 @@ from .kb_generate import (
     _selfcheck_batch,
     compensation_count,
 )
+from .kb_events import slice_previews
 from .kb_retrieval import retrieve_by_scope
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,14 @@ class KbState(TypedDict, total=False):
     created: list
     done: int
     on_progress: object
+    on_event: object
+
+
+def _emit(s: KbState, type_: str, text: str, detail=None) -> None:
+    """上报过程事件（#25）。取消信号由回调抛出以中断出题，故此处不吞异常。"""
+    fn = s.get("on_event")
+    if fn:
+        fn(type_, text, detail)
 
 
 # ---------------- 图节点（普通函数，返回状态增量） ----------------
@@ -73,11 +82,13 @@ def _n_retrieve(s: KbState) -> dict:
     chunks = retrieve_by_scope(
         s["db"], s["candidate_id"], s["scope"], k=s.get("k", KB_RECALL_K), embed_fn=s.get("embed_fn")
     )
+    _emit(s, "retrieve", f"已检索到 {len(chunks)} 个相关片段", slice_previews(chunks))
     return {"chunks": chunks}
 
 
 def _n_grade(s: KbState) -> dict:
     graded, sufficient = _grade_and_filter(s["client"], s["scope"], s["chunks"])
+    _emit(s, "grade", f"相关性评分 · 通过 {len(graded or [])}/{len(s.get('chunks') or [])} 片")
     return {"graded": graded, "sufficient": sufficient}
 
 
@@ -91,6 +102,7 @@ def _n_rewrite(s: KbState) -> dict:
     new_scope = _rewrite_scope(s["client"], s["scope"], "相关切片不足")
     if new_scope == s["scope"]:
         return {"rewrites": MAX_REWRITE}  # 改写无效 → 强制终止循环，避免死循环
+    _emit(s, "rewrite", f"查询改写：「{s['scope']}」→「{new_scope}」")
     return {"scope": new_scope, "rewrites": s.get("rewrites", 0) + 1}
 
 
@@ -116,7 +128,8 @@ def _n_generate(s: KbState) -> dict:
     total = sum(c for _, c in batches)
     done = s.get("done", 0)
 
-    for qtype, count in batches:
+    for bi, (qtype, count) in enumerate(batches, 1):
+        _emit(s, "batch", f"生成第 {bi}/{len(batches)} 批 · {qtype} × {count}")
         payloads = _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen)
         payloads, ok = _selfcheck_batch(client, payloads, s["chunks"])
         if not ok and MAX_REGEN > 0:
@@ -126,11 +139,21 @@ def _n_generate(s: KbState) -> dict:
             )
             regen, _ = _selfcheck_batch(client, regen, s["chunks"])
             payloads = regen or payloads
-        created += _persist_questions(
+            _emit(s, "selfcheck", f"第 {bi} 批自检未完全通过，已重生成一次")
+        base = len(created)
+        new_qs = _persist_questions(
             db, s["candidate_id"], None, payloads or [], seen,
             source_chunk=build_source_chunk(picked),
             picked_ids=picked_ids_of(picked),
         )
+        created += new_qs
+        for i, q in enumerate(new_qs, 1):
+            _emit(
+                s,
+                "question",
+                f"已出第 {base + i} 题",
+                {"id": q.id, "stem": (q.stem or "")[:80], "type": str(getattr(q.type, "value", q.type))},
+            )
         done += count
         if on_progress:
             on_progress(min(done, total), total)
@@ -143,6 +166,7 @@ def _n_generate(s: KbState) -> dict:
             if len(created) >= total:
                 break
             need = total - len(created)
+            _emit(s, "stage", f"第 {attempts} 轮补偿 · 还差 {need} 题")
             payloads = _generate_batch(
                 client, scope, qtype, compensation_count(need),
                 difficulty, focus, picked, seen,
@@ -217,8 +241,12 @@ def generate_by_scope_graph(
     client=None,
     embed_fn=None,
     on_progress=None,
+    on_event=None,
 ) -> list[Question]:
-    """跨文档知识库出题主入口（路线③，LangGraph 编排）。返回生成的 Question 列表。"""
+    """跨文档知识库出题主入口（路线③，LangGraph 编排）。返回生成的 Question 列表。
+
+    `on_event(type, text, detail)`：#25 过程事件回调；取消信号由该回调抛出以中断出题。
+    """
     from .llm_client import get_llm_client
 
     client = client or get_llm_client()
@@ -248,6 +276,7 @@ def generate_by_scope_graph(
         "created": [],
         "done": 0,
         "on_progress": on_progress,
+        "on_event": on_event,
     }
     result = _GRAPH.invoke(state)
     return result.get("created") or []
