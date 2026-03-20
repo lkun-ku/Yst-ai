@@ -92,7 +92,9 @@ def kb_question_prompt(
         idx += 1
     if existing_stems:
         lines.append(f"{idx}. 禁止与以下已有题干重复或高度相似：")
-        for s in (existing_stems or [])[-20:]:
+        # 上限与 doc_max_q_per_task 对齐：长卷（可达 100 题）若只回传最后 20 条题干，
+        # 模型看不到更早的已有题目，重复率显著上升，补偿轮余量也会被去重耗尽（#23）。
+        for s in (existing_stems or [])[-100:]:
             lines.append(f"   - {s}")
     lines.append("")
     lines.append("资料切片：")

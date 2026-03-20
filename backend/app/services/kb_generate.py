@@ -45,6 +45,17 @@ MAX_REWRITE = 1           # 查询改写重检索上限（控制成本 ~1.5~2x�
 MAX_REGEN = 1             # 单批生成自检失败后的重生成上限
 
 
+def compensation_count(need: int) -> int:
+    """补偿轮生成题数：带余量、有上限（#23 出题欠产修复）。
+
+    此前用 `min(doc_batch_size * 3, need)`，当 need=1 时只生成 1 道题——
+    该题一旦因与已有题干重复被 seen 去重、或未通过结构化校验，本轮即完全空转，
+    5 轮耗尽后仍永久欠产。故保证下限 doc_batch_size（缺口小也有候选），
+    上限 doc_batch_size * 3（控制 token 成本）；超产由 _persist_questions(limit=) 截断。
+    """
+    return min(max(need * 2, settings.doc_batch_size), settings.doc_batch_size * 3)
+
+
 # ---------------- 质量闭环子步骤 ----------------
 
 def _chunk_payloads(chunks: list[dict]) -> list[dict]:
@@ -191,7 +202,7 @@ def generate_by_scope(
         done += count
         progress(min(done, total), total)
 
-    # 5) 补偿：不足时按 spec 顺序补足（最多 5 轮，每轮多生成余量，确保 count≈sum(spec.count)，#23）
+    # 5) 补偿：不足时按 spec 顺序补足（最多 5 轮；带余量生成 + 按 need 截断落库，#23）
     attempts = 0
     while len(created) < total and attempts < 5:
         attempts += 1
@@ -200,13 +211,14 @@ def generate_by_scope(
                 break
             need = total - len(created)
             payloads = _generate_batch(
-                client, scope, qtype, min(settings.doc_batch_size * 3, need),
+                client, scope, qtype, compensation_count(need),
                 difficulty, focus, picked, seen,
             )
             created += _persist_questions(
                 db, candidate_id, None, payloads or [], seen,
                 source_chunk=build_source_chunk(picked),
-            picked_ids=picked_ids_of(picked),
+                picked_ids=picked_ids_of(picked),
+                limit=need,
             )
         progress(min(len(created), total), total)
 

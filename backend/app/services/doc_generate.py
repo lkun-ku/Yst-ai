@@ -174,8 +174,12 @@ def _persist_questions(
     seen: set[str],
     source_chunk: str | None = None,
     picked_ids: set[int] | None = None,
+    limit: int | None = None,
 ) -> list[Question]:
     """校验 + 去重后落库，返回新增题目。
+
+    `limit`：最多落库条数，在**校验与去重通过之后**生效（None 表示不限制，默认保持
+    原有行为）。补偿轮会带余量生成以防去重损耗，靠它截断到真实缺口，避免超产（#23）。
 
     溯源（工单 17 批级 + 工单 20/W-6 逐题）：
     - **优先**用模型回传的 `source_id`（提示词要求每题输出所依据切片编号，逐题精确）；
@@ -225,6 +229,9 @@ def _persist_questions(
         )
         db.add(q)
         created.append(q)
+        if limit is not None and len(created) >= limit:
+            logger.info("doc_generate: 达到 limit=%d，停止落库（补偿轮避免超产）", limit)
+            break
     return created
 
 

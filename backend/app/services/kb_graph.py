@@ -39,6 +39,7 @@ from .kb_generate import (
     _grade_and_filter,
     _rewrite_scope,
     _selfcheck_batch,
+    compensation_count,
 )
 from .kb_retrieval import retrieve_by_scope
 
@@ -134,7 +135,7 @@ def _n_generate(s: KbState) -> dict:
         if on_progress:
             on_progress(min(done, total), total)
 
-    # 补偿：不足时按 spec 顺序补足（最多 5 轮，每轮多生成余量，确保 count≈sum(spec.count)，#23）
+    # 补偿：不足时按 spec 顺序补足（最多 5 轮；带余量生成 + 按 need 截断落库，#23）
     attempts = 0
     while len(created) < total and attempts < 5:
         attempts += 1
@@ -143,14 +144,15 @@ def _n_generate(s: KbState) -> dict:
                 break
             need = total - len(created)
             payloads = _generate_batch(
-                client, scope, qtype, min(settings.doc_batch_size * 3, need),
+                client, scope, qtype, compensation_count(need),
                 difficulty, focus, picked, seen,
             )
             created += _persist_questions(
-            db, s["candidate_id"], None, payloads or [], seen,
-            source_chunk=build_source_chunk(picked),
-            picked_ids=picked_ids_of(picked),
-        )
+                db, s["candidate_id"], None, payloads or [], seen,
+                source_chunk=build_source_chunk(picked),
+                picked_ids=picked_ids_of(picked),
+                limit=need,
+            )
         if on_progress:
             on_progress(min(len(created), total), total)
 
