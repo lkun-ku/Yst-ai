@@ -44,6 +44,7 @@ from .kb_generate import (
 )
 from .kb_events import slice_previews
 from .kb_retrieval import retrieve_by_scope
+from .prompts_kb import bloom_distribution
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ class KbState(TypedDict, total=False):
     done: int
     on_progress: object
     on_event: object
+    bloom: object
 
 
 def _emit(s: KbState, type_: str, text: str, detail=None) -> None:
@@ -136,6 +138,7 @@ def _n_generate(s: KbState) -> dict:
             client, scope, qtype, count, difficulty, focus, picked, seen, s["chunks"],
             emit=lambda t, x, d=None: _emit(s, t, x, d),
             sample=settings.doc_selfcheck_sample,  # P1：抽检（规则校验已前置）
+            bloom=s.get("bloom"),
         )
         base = len(created)
         new_qs = _persist_questions(
@@ -167,7 +170,7 @@ def _n_generate(s: KbState) -> dict:
             payloads = _generate_batch_with_fallback(
                 client, scope, qtype, need, difficulty, focus, picked, seen, s["chunks"],
                 emit=lambda t, x, d=None: _emit(s, t, x, d),
-                sample=settings.doc_selfcheck_sample,
+                sample=settings.doc_selfcheck_sample, bloom=s.get("bloom"),
             )
             created += _persist_questions(
                 db, s["candidate_id"], None, payloads or [], seen,
@@ -204,8 +207,10 @@ def _build_graph() -> "CompiledGraph":
 _GRAPH = _build_graph()
 
 
-def _run_simple(db, client, candidate_id, scope, spec, difficulty, focus, embed_fn, on_progress) -> list[Question]:
+def _run_simple(db, client, candidate_id, scope, spec, difficulty, focus, embed_fn, on_progress,
+                bloom: list[str] | None = None) -> list[Question]:
     """enable_loop=False：跳过评分/改写，直接 召回→拼上下文→分批生成。"""
+    levels = [s.strip() for s in (bloom or settings.doc_bloom_levels or "").split(",") if s.strip()]
     chunks = retrieve_by_scope(db, candidate_id, scope, k=KB_RECALL_K, embed_fn=embed_fn)
     if not chunks:
         return []
@@ -216,7 +221,10 @@ def _run_simple(db, client, candidate_id, scope, spec, difficulty, focus, embed_
     total = sum(c for _, c in batches)
     done = 0
     for qtype, count in batches:
-        payloads = _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen)
+        payloads = _generate_batch(
+            client, scope, qtype, count, difficulty, focus, picked, seen,
+            bloom_mix=bloom_distribution(count, levels),
+        )
         created += _persist_questions(
             db, candidate_id, None, payloads or [], seen,
             source_chunk=build_source_chunk(picked),
@@ -240,8 +248,11 @@ def generate_by_scope_graph(
     embed_fn=None,
     on_progress=None,
     on_event=None,
+    bloom: list[str] | None = None,
 ) -> list[Question]:
     """跨文档知识库出题主入口（路线③，LangGraph 编排）。返回生成的 Question 列表。
+
+    `bloom`：布鲁姆认知层级池（#26 A）；None 表示用配置默认值。
 
     `on_event(type, text, detail)`：#25 过程事件回调；取消信号由该回调抛出以中断出题。
     """
@@ -257,7 +268,8 @@ def generate_by_scope_graph(
         return []
 
     if not enable_loop:
-        return _run_simple(db, client, candidate_id, scope, spec, difficulty, focus, embed_fn, on_progress)
+        return _run_simple(db, client, candidate_id, scope, spec, difficulty, focus, embed_fn,
+                           on_progress, bloom=bloom)
 
     state: KbState = {
         "db": db,
@@ -275,6 +287,7 @@ def generate_by_scope_graph(
         "done": 0,
         "on_progress": on_progress,
         "on_event": on_event,
+        "bloom": bloom,
     }
     result = _GRAPH.invoke(state)
     return result.get("created") or []

@@ -31,6 +31,7 @@ from .kb_retrieval import retrieve_by_scope
 from .validation import validate_question_payload
 from .llm_client import get_llm_client, parse_doc_questions
 from .prompts_kb import (
+    bloom_distribution,
     kb_question_prompt,
     parse_relevance,
     parse_selfcheck,
@@ -172,6 +173,7 @@ def _generate_batch_with_fallback(
     chunks,
     emit=None,
     sample=None,
+    bloom: list[str] | None = None,
 ) -> list[dict]:
     """生成一批题：规则校验 → 自检 → 不通过则降粒度重试（如 6→3→2→1），#26。
 
@@ -179,12 +181,15 @@ def _generate_batch_with_fallback(
     而是**任何一轮都保留规则校验通过的题目**——自检用于标记风险，不应成为
     欠产的原因（与既有「LLM 不可用保守放行」的降级哲学一致）。
     """
+    # 认知层级（#26 A）：未显式指定时用配置默认池（刻意不含 remember，避免整卷记忆题）
+    levels = [s.strip() for s in (bloom or settings.doc_bloom_levels or "").split(",") if s.strip()]
+
     sizes: list[int] = []
     # 单次生成不超过 doc_batch_size：大批次结构化输出失败率显著上升（#26）
     n = min(int(count), settings.doc_batch_size)
     while n > 1:
         sizes.append(n)
-        n = n // 2
+        n = (n + 1) // 2  # 向上取整：粒度序列连续（3→2→1），不跳级
     sizes.append(1)
     sizes = list(dict.fromkeys(sizes))  # 去重保序
 
@@ -194,7 +199,10 @@ def _generate_batch_with_fallback(
     for size in sizes:
         if len(accepted) >= count:
             break
-        payloads = _generate_batch(client, scope, qtype, size, difficulty, focus, picked, seen)
+        payloads = _generate_batch(
+            client, scope, qtype, size, difficulty, focus, picked, seen,
+            bloom_mix=bloom_distribution(size, levels),
+        )
         ok_payloads: list[dict] = []
         for p in payloads or []:
             if not isinstance(p, dict):
@@ -223,11 +231,11 @@ def _generate_batch_with_fallback(
     return accepted[:count]
 
 
-def _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen, extra=None):
+def _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen, extra=None, bloom_mix=None):
     prompt = kb_question_prompt(
         picked, qtype, count, difficulty,
         ((focus or "") + ("；" + extra if extra else "")),
-        sorted(seen), scope,
+        sorted(seen), scope, bloom_mix=bloom_mix,
     )
     text = client.ask(prompt)
     if text is None:
@@ -249,8 +257,11 @@ def generate_by_scope(
     embed_fn=None,
     on_progress=None,
     on_event=None,
+    bloom: list[str] | None = None,
 ) -> list[Question]:
     """跨文档知识库出题主入口（路线②）。返回生成的 Question 列表。
+
+    `bloom`：布鲁姆认知层级池（如 ["understand","apply"]）；None 表示用配置默认值。
 
     `on_event(type, text, detail)`：#25 过程事件回调，供前端渲染时间线；
     取消信号由该回调抛出（见 routers/kb.py），故此处不吞异常。
@@ -308,6 +319,7 @@ def generate_by_scope(
             payloads = _generate_batch_with_fallback(
                 client, scope, qtype, count, difficulty, focus, picked, seen, chunks, emit=emit,
                 sample=settings.doc_selfcheck_sample,  # P1：抽检（规则校验已前置为第一道闸）
+                bloom=bloom,
             )
         else:
             payloads = _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen)
@@ -340,7 +352,7 @@ def generate_by_scope(
                 # 补偿同样走降粒度重试：大批量一次生成失败率高（#26）
                 payloads = _generate_batch_with_fallback(
                     client, scope, qtype, need, difficulty, focus, picked, seen, chunks, emit=emit,
-                    sample=settings.doc_selfcheck_sample,
+                    sample=settings.doc_selfcheck_sample, bloom=bloom,
                 )
             else:
                 payloads = _generate_batch(

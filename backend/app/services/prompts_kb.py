@@ -27,6 +27,28 @@ DIFF_DESC = {
     "hard": "需要跨段落综合或推理后作答",
 }
 
+#: 布鲁姆认知层级（#26 A）。研究显示 AI 默认约 62% 生成「记忆」层级题目，
+#: 而记忆题对备考价值最低；故默认层级池刻意不含 remember，按分布显式约束。
+BLOOM_DESC = {
+    "remember": "记忆：识别与回忆资料中的事实、定义",
+    "understand": "理解：解释、归纳、比较资料要点",
+    "apply": "应用：在新情境中使用资料知识解决问题",
+    "analyze": "分析：拆解关系、识别证据与推论",
+}
+
+
+def bloom_distribution(count: int, levels: list[str]) -> dict[str, int]:
+    """把题量按层级池均分，保证总和 == count（余数分给靠前层级）。"""
+    if count <= 0 or not levels:
+        return {}
+    base, extra = divmod(count, len(levels))
+    out: dict[str, int] = {}
+    for i, lv in enumerate(levels):
+        n = base + (1 if i < extra else 0)
+        if n > 0:
+            out[lv] = n
+    return out
+
 
 # ---------------- 提示词构建 ----------------
 
@@ -58,6 +80,7 @@ def kb_question_prompt(
     focus: str | None = None,
     existing_stems: list[str] | None = None,
     scope: str | None = None,
+    bloom_mix: dict[str, int] | None = None,
 ) -> str:
     lines = [
         f"你是个人知识库出题助手。请依据下方资料切片，生成 {count} 道{TYPE_DESC.get(qtype, TYPE_DESC['single'])}。",
@@ -89,6 +112,12 @@ def kb_question_prompt(
         idx += 1
     if focus:
         lines.append(f"{idx}. 侧重要求：{focus}")
+        idx += 1
+    if bloom_mix:
+        # 认知层级显式约束：不指定时模型倾向全出记忆题（#26 A）
+        lines.append(f"{idx}. 认知层级分布（布鲁姆）——严格按此比例出题，不要全部出成记忆复述题：")
+        for lv, n in bloom_mix.items():
+            lines.append(f"   - {n} 道：{BLOOM_DESC.get(lv, lv)}")
         idx += 1
     if existing_stems:
         lines.append(f"{idx}. 禁止与以下已有题干重复或高度相似：")

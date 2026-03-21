@@ -36,7 +36,9 @@ class Settings:
     doc_max_q_per_task: int = int(os.getenv("DOC_MAX_Q_PER_TASK", "100"))
     doc_max_input_chars: int = int(os.getenv("DOC_MAX_INPUT_CHARS", "30000"))
     # 生成参数
-    doc_batch_size: int = int(os.getenv("DOC_BATCH_SIZE", "6"))  # 每批题数（5~10）
+    # 每批题数：由 6 下调为 3——实测一次生成 6 题时模型常只输出 3 题（提示词含认知层级后更明显），
+    # 反而要靠多轮补偿补齐，总耗时更高（133s vs 3 题批约 50s）；小批量成功率更高、总量更可控（#26 A）。
+    doc_batch_size: int = int(os.getenv("DOC_BATCH_SIZE", "3"))
     doc_top_k: int = int(os.getenv("DOC_TOP_K", "8"))  # 定点模式召回片段数
     # 自检参数（#26）：自检依据必须与生成量级可比——此前自检只看 800 字而生成可看 3 万字，
     # 依据后段切片出的题会被必然判为「无依据」而误杀，导致大卷 0 产出。
@@ -45,6 +47,8 @@ class Settings:
     # 后台任务并发上限（#26 P2）：出题与向量化分池，避免互相等待导致死锁
     doc_gen_workers: int = int(os.getenv("DOC_GEN_WORKERS", "4"))  # 出题并发
     doc_embed_workers: int = int(os.getenv("DOC_EMBED_WORKERS", "2"))  # 向量化并发
+    # 认知层级（#26 A）：默认层级池刻意不含 remember——研究显示 AI 默认约 62% 出「记忆」题
+    doc_bloom_levels: str = os.getenv("DOC_BLOOM_LEVELS", "understand,apply,analyze")
 
     # ---------- Embedding（文档级语义检索；fake 模式不耗额度） ----------
     embedding_mode: str = os.getenv("EMBEDDING_MODE", "fake")  # fake / real

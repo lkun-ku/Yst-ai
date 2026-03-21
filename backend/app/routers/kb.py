@@ -59,6 +59,8 @@ class KbGenerateIn(BaseModel):
     focus: str | None = None
     enable_loop: bool = True
     route: str = "graph"  # "graph"=路线③ LangGraph；"handwritten"=路线② 手写
+    # #26 A：布鲁姆认知层级池，逗号分隔（如 "understand,apply"）；None = 用配置默认
+    bloom: str | None = None
 
 
 class KbRetrieveOut(BaseModel):
@@ -146,6 +148,8 @@ def _run(task_id: str, candidate_id: int, payload: KbGenerateIn) -> None:
             if rec.cancel_requested:
                 raise _TaskCancelled()
 
+        # #26 A：认知层级池（逗号分隔字符串 → 列表；空则用配置默认）
+        bloom = [s.strip() for s in (payload.bloom or "").split(",") if s.strip()] or None
         gen_fn = _select_generator(payload.route)
         created = gen_fn(
             db,
@@ -157,6 +161,7 @@ def _run(task_id: str, candidate_id: int, payload: KbGenerateIn) -> None:
             payload.enable_loop,
             on_progress=on_progress,
             on_event=on_event,
+            bloom=bloom,
         )
         db.flush()
         # 合并已有 id：重试任务会带上原任务已完成的题目，避免被本次结果覆盖
@@ -217,6 +222,7 @@ def generate(
             "focus": body.focus,
             "enable_loop": body.enable_loop,
             "route": body.route,
+            "bloom": body.bloom,
         },
         ensure_ascii=False,
     )
