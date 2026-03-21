@@ -307,6 +307,7 @@ def generate_by_scope(
             # #26：一次生成 + 规则校验 + 自检 + 降粒度重试，失败也保留规则通过项
             payloads = _generate_batch_with_fallback(
                 client, scope, qtype, count, difficulty, focus, picked, seen, chunks, emit=emit,
+                sample=settings.doc_selfcheck_sample,  # P1：抽检（规则校验已前置为第一道闸）
             )
         else:
             payloads = _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen)
@@ -339,6 +340,7 @@ def generate_by_scope(
                 # 补偿同样走降粒度重试：大批量一次生成失败率高（#26）
                 payloads = _generate_batch_with_fallback(
                     client, scope, qtype, need, difficulty, focus, picked, seen, chunks, emit=emit,
+                    sample=settings.doc_selfcheck_sample,
                 )
             else:
                 payloads = _generate_batch(

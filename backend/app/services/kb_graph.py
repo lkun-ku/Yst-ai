@@ -135,6 +135,7 @@ def _n_generate(s: KbState) -> dict:
         payloads = _generate_batch_with_fallback(
             client, scope, qtype, count, difficulty, focus, picked, seen, s["chunks"],
             emit=lambda t, x, d=None: _emit(s, t, x, d),
+            sample=settings.doc_selfcheck_sample,  # P1：抽检（规则校验已前置）
         )
         base = len(created)
         new_qs = _persist_questions(
@@ -166,6 +167,7 @@ def _n_generate(s: KbState) -> dict:
             payloads = _generate_batch_with_fallback(
                 client, scope, qtype, need, difficulty, focus, picked, seen, s["chunks"],
                 emit=lambda t, x, d=None: _emit(s, t, x, d),
+                sample=settings.doc_selfcheck_sample,
             )
             created += _persist_questions(
                 db, s["candidate_id"], None, payloads or [], seen,
