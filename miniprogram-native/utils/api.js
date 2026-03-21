@@ -170,6 +170,28 @@ export function request(path, options = {}) {
 /** 兼容原 Taro 版命名。 */
 export const api = request;
 
+/* ---------------- #25 生题流式展示 ---------------- */
+
+/** 增量拉取出题过程事件；since = 上次拿到的最大 seq（断线续拉不丢事件）。 */
+export function requestEvents(taskId, since = 0) {
+  return request(`/api/kb/task/${taskId}/events?since=${since}`, { loading: false, lock: false });
+}
+
+/** 请求取消出题（协作式：下一个批次边界生效，已出题保留为部分卷）。 */
+export function cancelTask(taskId) {
+  return request(`/api/kb/task/${taskId}/cancel`, { method: "POST", loading: false, lock: false });
+}
+
+/** 失败 / 取消后仅重试缺口，返回新任务。 */
+export function retryTask(taskId) {
+  return request(`/api/kb/task/${taskId}/retry`, { method: "POST", loading: false, lock: false });
+}
+
+/** 按需取切片全文（时间线卡片展开时用，事件里只存 60 字摘要）。 */
+export function requestChunk(chunkId) {
+  return request(`/api/kb/chunk/${chunkId}`, { loading: false, lock: false });
+}
+
 /* ---------------- R4 / O-03：统一错误兜底 ---------------- */
 
 export function toastApiError(e) {

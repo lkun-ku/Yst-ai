@@ -1,73 +1,132 @@
 <view class="page">
 
-  <!-- 试卷名称 -->
-  <view class="card">
-    <view class="card-title">试卷名称</view>
-    <input class="input" placeholder="如：光合作用专项卷" value="{{title}}" bindinput="onTitle" />
-  </view>
+  <!-- ============ 表单态（提交后折叠为过程区） ============ -->
+  <block wx:if="{{stage === 'form'}}">
 
-  <!-- 出题范围 -->
-  <view class="card">
-    <view class="card-title">出题范围</view>
-    <textarea class="textarea" placeholder="描述要考的范围，如：光合作用" value="{{scope}}"
-      bindinput="onScope" maxlength="200" auto-height />
-    <view class="hint">会在你已上传的全部资料中检索相关片段出题</view>
-    <view class="link" bindtap="goDocs">还没有资料？去上传 →</view>
-  </view>
+    <!-- 试卷名称 -->
+    <view class="card">
+      <view class="card-title">试卷名称</view>
+      <input class="input" placeholder="如：光合作用专项卷" value="{{title}}" bindinput="onTitle" />
+    </view>
 
-  <!-- 题型与数量 -->
-  <view class="card">
-    <view class="card-title">题型与数量</view>
-    <view class="spec-row" wx:for="{{spec}}" wx:key="type">
-      <text class="spec-name">{{item.label}}</text>
-      <view class="counter">
-        <button class="mini" size="mini" bindtap="onMinus" data-type="{{item.type}}">−</button>
-        <text class="spec-count">{{item.count}}</text>
-        <button class="mini" size="mini" bindtap="onPlus" data-type="{{item.type}}">＋</button>
+    <!-- 出题范围 -->
+    <view class="card">
+      <view class="card-title">出题范围</view>
+      <textarea class="textarea" placeholder="描述要考的范围，如：光合作用" value="{{scope}}"
+        bindinput="onScope" maxlength="50" auto-height />
+      <view class="hint">出题范围 ≤ 50 字；会在你已上传的全部资料中检索相关片段出题</view>
+      <view class="link" bindtap="goDocs">还没有资料？去上传 →</view>
+    </view>
+
+    <!-- 题型与数量 -->
+    <view class="card">
+      <view class="card-title">题型与数量</view>
+      <view class="spec-row" wx:for="{{spec}}" wx:key="type">
+        <text class="spec-name">{{item.label}}</text>
+        <view class="counter">
+          <button class="mini" size="mini" bindtap="onMinus" data-type="{{item.type}}">−</button>
+          <text class="spec-count">{{item.count}}</text>
+          <button class="mini" size="mini" bindtap="onPlus" data-type="{{item.type}}">＋</button>
+        </view>
+      </view>
+      <view class="hint">共 {{total}} 题（为 0 的题型不会出；单类上限 100 题）</view>
+    </view>
+
+    <!-- 难度 -->
+    <view class="card">
+      <view class="card-title">难度</view>
+      <view class="seg">
+        <view wx:for="{{difficulties}}" wx:key="key" class="seg-item {{difficulty === item.key ? 'on' : ''}}"
+          bindtap="onDifficulty" data-v="{{item.key}}">{{item.label}}</view>
       </view>
     </view>
-    <view class="hint">共 {{total}} 题（为 0 的题型不会出）</view>
-  </view>
 
-  <!-- 难度 -->
-  <view class="card">
-    <view class="card-title">难度</view>
-    <view class="seg">
-      <view wx:for="{{difficulties}}" wx:key="key" class="seg-item {{difficulty === item.key ? 'on' : ''}}"
-        bindtap="onDifficulty" data-v="{{item.key}}">{{item.label}}</view>
+    <!-- 侧重 -->
+    <view class="card">
+      <view class="card-title">侧重要求（选填）</view>
+      <textarea class="textarea" placeholder="如：重点考察光反应与暗反应的区别" value="{{focus}}"
+        bindinput="onFocus" maxlength="200" auto-height />
     </view>
-  </view>
 
-  <!-- 侧重 -->
-  <view class="card">
-    <view class="card-title">侧重要求（选填）</view>
-    <textarea class="textarea" placeholder="如：重点考察光反应与暗反应的区别" value="{{focus}}"
-      bindinput="onFocus" maxlength="200" auto-height />
-  </view>
+    <button class="btn-primary" bindtap="onGenerate" disabled="{{generating}}" loading="{{generating}}">
+      {{generating ? 'AI 出题中…' : 'AI 出题'}}
+    </button>
 
-  <button class="btn-primary" bindtap="onGenerate" disabled="{{generating}}" loading="{{generating}}">
-    {{generating ? 'AI 出题中…' : 'AI 出题'}}
-  </button>
-
-  <!-- 进度 -->
-  <view wx:if="{{status}}" class="card status-card">
-    <view class="card-title">出题进度</view>
-    <view class="status-line">状态：{{statusText}}</view>
-    <view class="status-line">已完成：{{done}} / {{totalTask}}</view>
-    <view wx:if="{{status === 'failed'}}" class="err">失败：{{error || '未知错误'}}</view>
-  </view>
-
-  <!-- 试题卷 -->
-  <view wx:if="{{questions.length}}" class="card">
-    <view class="card-title">试题卷 · {{title || '未命名'}}（{{questions.length}} 题）</view>
-    <view class="q" wx:for="{{questions}}" wx:key="id">
-      <view class="q-stem">{{index + 1}}. {{item.stem}}</view>
-      <view class="q-opt" wx:for="{{item.options}}" wx:for-item="o" wx:key="key">{{o.key}}. {{o.text}}</view>
-      <view class="q-ans">答案：{{item.answerText}}</view>
-      <view wx:if="{{item.explanation}}" class="q-exp">解析：{{item.explanation}}</view>
-      <view wx:if="{{item.sourceText}}" class="q-src">溯源：{{item.sourceText}}</view>
+    <!-- 停止 / 失败后：部分卷 + 重试（配置已回填，可改完直接重出） -->
+    <view wx:if="{{questions.length}}" class="card">
+      <view class="card-title">
+        {{stopped ? '已停止 · 保留 ' : ''}}{{title || '未命名'}}（{{questions.length}} 题）
+      </view>
+      <view wx:if="{{status === 'failed' && error}}" class="err">失败：{{error}}</view>
+      <view class="q" wx:for="{{questions}}" wx:key="id">
+        <view class="q-stem">{{index + 1}}. {{item.stem}}</view>
+        <view class="q-opt" wx:for="{{item.options}}" wx:for-item="o" wx:key="key">{{o.key}}. {{o.text}}</view>
+        <view wx:if="{{item.answerText}}" class="q-ans">答案：{{item.answerText}}</view>
+        <view wx:if="{{item.explanation}}" class="q-exp">解析：{{item.explanation}}</view>
+        <view wx:if="{{item.sourceText}}" class="q-src">溯源：{{item.sourceText}}</view>
+      </view>
+      <button wx:if="{{status === 'failed' || status === 'cancelled'}}" class="btn-retry" bindtap="onRetry">
+        仅重试未完成的部分
+      </button>
     </view>
-  </view>
+
+  </block>
+
+  <!-- ============ 过程态（全屏置顶，参照 WorkBuddy 深度思考区） ============ -->
+  <block wx:else>
+
+    <view class="run-head">
+      <view class="run-title">出题范围：{{scopeText}}</view>
+      <view class="run-sub">AI 正在阅读你的资料并组卷</view>
+    </view>
+
+    <!-- 过程时间线：叙事 + 可展开动作卡片 -->
+    <scroll-view class="timeline" scroll-y scroll-into-view="tl-last" enhanced show-scrollbar="{{false}}">
+      <view wx:for="{{phases}}" wx:key="seq" id="{{index === phases.length - 1 ? 'tl-last' : ''}}"
+        class="tl-item {{item.done ? '' : 'tl-typing'}}">
+        <text class="tl-icon">{{item.icon}}</text>
+        <view class="tl-body" bindtap="onTogglePhase" data-idx="{{index}}">
+          <text class="tl-text">{{item.text}}<text wx:if="{{!item.done}}" class="tl-cursor">▌</text></text>
+          <text wx:if="{{item.detail}}" class="tl-caret">{{item.expanded ? '收起' : '展开'}}</text>
+          <view wx:if="{{item.expanded}}" class="tl-detail">
+            <block wx:if="{{item.type === 'retrieve'}}">
+              <view wx:for="{{item._list}}" wx:for-item="s" wx:key="id" class="tl-slice">
+                <text class="tl-slice-h">#{{s.id}} {{s.heading}}</text>
+                <text class="tl-slice-p">{{item._full || s.preview}}</text>
+              </view>
+            </block>
+            <block wx:else>
+              <text class="tl-detail-raw">{{item.detail}}</text>
+            </block>
+          </view>
+        </view>
+      </view>
+      <view id="tl-last" class="tl-anchor"></view>
+    </scroll-view>
+
+    <!-- 已出题目渐现 -->
+    <view wx:if="{{questions.length}}" class="card">
+      <view class="card-title">已出 {{questions.length}} 题</view>
+      <view class="q q-fade" wx:for="{{questions}}" wx:key="id">
+        <view class="q-stem">{{index + 1}}. {{item.stem}}</view>
+        <view class="q-opt" wx:for="{{item.options}}" wx:for-item="o" wx:key="key">{{o.key}}. {{o.text}}</view>
+        <view wx:if="{{item.answerText}}" class="q-ans">答案：{{item.answerText}}</view>
+        <view wx:if="{{item.explanation}}" class="q-exp">解析：{{item.explanation}}</view>
+        <view wx:if="{{item.sourceText}}" class="q-src">溯源：{{item.sourceText}}</view>
+      </view>
+    </view>
+
+    <!-- 底部：状态行 + 停止 + 返回（D6：必须有出口） -->
+    <view class="run-footer">
+      <view class="run-status">
+        <text wx:if="{{generating}}" class="dot-pulse"></text>{{currentPhase}}
+        <text wx:if="{{statusText}}" class="run-status-tag"> · {{statusText}}</text>
+      </view>
+      <button wx:if="{{generating}}" class="btn-stop" bindtap="onStop">停止生成</button>
+      <view class="run-back" bindtap="onBackToForm">返回修改配置</view>
+    </view>
+
+  </block>
 
   <view class="tail"></view>
 </view>

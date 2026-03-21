@@ -164,6 +164,187 @@
   margin-top: 8rpx;
 }
 
+/* ---------- #25 生题过程区（WorkBuddy 式） ---------- */
+
+.run-head {
+  padding: 8rpx 8rpx 20rpx;
+}
+
+.run-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #222;
+  line-height: 1.5;
+}
+
+.run-sub {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 8rpx;
+}
+
+.timeline {
+  max-height: 46vh;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 24rpx;
+  box-sizing: border-box;
+}
+
+.tl-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+
+.tl-item:last-of-type {
+  border-bottom: none;
+}
+
+/* 最新一条呼吸动画：让用户明确「还在跑」 */
+.tl-typing {
+  animation: breathe 1.4s ease-in-out infinite;
+}
+
+.tl-icon {
+  font-size: 28rpx;
+  width: 44rpx;
+  flex-shrink: 0;
+}
+
+.tl-body {
+  flex: 1;
+}
+
+.tl-text {
+  font-size: 26rpx;
+  color: #666;
+  line-height: 1.6;
+}
+
+.tl-cursor {
+  color: #3b7cff;
+}
+
+.tl-caret {
+  font-size: 22rpx;
+  color: #3b7cff;
+  margin-left: 12rpx;
+}
+
+.tl-detail {
+  margin-top: 10rpx;
+  background: #f7f8fa;
+  border-radius: 12rpx;
+  padding: 16rpx;
+}
+
+.tl-slice {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12rpx;
+}
+
+.tl-slice-h {
+  font-size: 24rpx;
+  color: #333;
+  margin-bottom: 6rpx;
+}
+
+.tl-slice-p {
+  font-size: 22rpx;
+  color: #888;
+  line-height: 1.6;
+}
+
+.tl-detail-raw {
+  font-size: 22rpx;
+  color: #888;
+  word-break: break-all;
+}
+
+.tl-anchor {
+  height: 2rpx;
+}
+
+/* 题卡渐现 */
+.q-fade {
+  animation: fadein 0.45s ease;
+}
+
+.run-footer {
+  padding: 8rpx 8rpx 24rpx;
+}
+
+.run-status {
+  font-size: 26rpx;
+  color: #666;
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.run-status-tag {
+  color: #999;
+}
+
+.dot-pulse {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: #3b7cff;
+  margin-right: 12rpx;
+  animation: breathe 1.2s ease-in-out infinite;
+}
+
+.btn-stop {
+  background: #fff;
+  color: #e0483c;
+  border: 1rpx solid #f0c5c0;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+  margin-bottom: 16rpx;
+}
+
+.btn-retry {
+  margin-top: 20rpx;
+  background: #fff;
+  color: #3b7cff;
+  border: 1rpx solid #c7d9ff;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+}
+
+.run-back {
+  font-size: 26rpx;
+  color: #3b7cff;
+  text-align: center;
+  padding: 10rpx 0;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes fadein {
+  from {
+    opacity: 0;
+    transform: translateY(8rpx);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .tail {
   height: 40rpx;
 }
