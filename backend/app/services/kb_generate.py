@@ -28,6 +28,7 @@ from .doc_generate import (
 )
 from .kb_events import slice_previews
 from .kb_retrieval import retrieve_by_scope
+from .validation import validate_question_payload
 from .llm_client import get_llm_client, parse_doc_questions
 from .prompts_kb import (
     kb_question_prompt,
@@ -96,26 +97,130 @@ def _rewrite_scope(client, scope: str, reason: str = "") -> str:
     return text.strip() or scope
 
 
-def _selfcheck_batch(client, payloads: list[dict], chunks: list[dict]) -> tuple[list[dict], bool]:
-    """逐题自检；LLM 不可用则全部放行（退化）。返回 (通过项, 是否全部通过)。"""
-    ctx = "\n".join(c.get("content", "") for c in chunks[:6])
-    passed_list: list[dict] = []
-    all_ok = True
-    for p in payloads or []:
-        text = client.ask(
-            self_check_prompt(
-                p.get("stem"), p.get("options"), p.get("answer"), p.get("explanation"), ctx
-            )
+def _ctx_for_question(p: dict, chunks: list[dict], limit: int) -> str:
+    """自检依据：优先取该题**自己溯源到的切片**（#26）。
+
+    此前把 `chunks[:6]` 拼接后再截 800 字，而生成侧可看 `doc_max_input_chars=30000`
+    字——依据后段切片出的题在自检时看不到原文，会被必然判为「无依据」而误杀，
+    这是大卷（8 题）0 产出的直接根因。
+    """
+    sid = p.get("source_id")
+    if sid is not None:
+        hit = next((c for c in chunks if str(c.get("id")) == str(sid)), None)
+        if hit:
+            return (hit.get("content") or "")[:limit]
+    return "\n".join(c.get("content", "") for c in chunks[:6])[:limit]
+
+
+def _ask_selfcheck(client, p: dict, chunks: list[dict], limit: int) -> bool | None:
+    """单题自检。返回 True/False；None = LLM 不可用（调用方按「放行」处理）。"""
+    ctx = _ctx_for_question(p, chunks, limit)
+    text = client.ask(
+        self_check_prompt(
+            p.get("stem"), p.get("options"), p.get("answer"), p.get("explanation"), ctx
         )
-        if text is None:
-            passed_list.append(p)
+    )
+    if text is None:
+        return None
+    ok, _score, _issues = parse_selfcheck(text)
+    return ok
+
+
+def _selfcheck_batch(
+    client,
+    payloads: list[dict],
+    chunks: list[dict],
+    sample: int | None = None,
+    ctx_limit: int | None = None,
+) -> tuple[list[dict], bool]:
+    """自检：LLM 不可用放行；支持抽检，抽检发现问题再升级为全批检（#26）。
+
+    返回 (通过项, 是否全部通过)。sample 为 None 时全检（保持既有行为）。
+    """
+    limit = ctx_limit if ctx_limit is not None else settings.doc_selfcheck_chars
+    targets = list(payloads or [])
+    if not targets:
+        return [], True
+
+    checked = targets
+    if sample and 0 < sample < len(targets):
+        # 均匀取样（覆盖首尾），避免只检前几题
+        step = len(targets) / sample
+        idxs = sorted({min(len(targets) - 1, int(i * step)) for i in range(sample)})
+        checked = [targets[i] for i in idxs]
+
+    for p in checked:
+        if _ask_selfcheck(client, p, chunks, limit) is False:
+            if len(checked) < len(targets):
+                # 抽检发现一例 → 升级为全批检，精确定位
+                return _selfcheck_batch(client, targets, chunks, sample=None, ctx_limit=limit)
+            keep = [q for q in targets if _ask_selfcheck(client, q, chunks, limit) is not False]
+            return keep, False
+
+    return list(targets), True
+
+
+def _generate_batch_with_fallback(
+    client,
+    scope,
+    qtype,
+    count,
+    difficulty,
+    focus,
+    picked,
+    seen,
+    chunks,
+    emit=None,
+    sample=None,
+) -> list[dict]:
+    """生成一批题：规则校验 → 自检 → 不通过则降粒度重试（如 6→3→2→1），#26。
+
+    语义变更：不再 `payloads = regen or payloads`（自检不过即整批归零），
+    而是**任何一轮都保留规则校验通过的题目**——自检用于标记风险，不应成为
+    欠产的原因（与既有「LLM 不可用保守放行」的降级哲学一致）。
+    """
+    sizes: list[int] = []
+    # 单次生成不超过 doc_batch_size：大批次结构化输出失败率显著上升（#26）
+    n = min(int(count), settings.doc_batch_size)
+    while n > 1:
+        sizes.append(n)
+        n = n // 2
+    sizes.append(1)
+    sizes = list(dict.fromkeys(sizes))  # 去重保序
+
+    accepted: list[dict] = []
+    local_seen: set[str] = set()
+
+    for size in sizes:
+        if len(accepted) >= count:
+            break
+        payloads = _generate_batch(client, scope, qtype, size, difficulty, focus, picked, seen)
+        ok_payloads: list[dict] = []
+        for p in payloads or []:
+            if not isinstance(p, dict):
+                continue
+            if validate_question_payload(p, set()):  # 规则校验：第一道闸
+                continue
+            stem = str(p.get("stem") or "").strip()
+            if not stem or stem in local_seen:
+                continue
+            local_seen.add(stem)
+            ok_payloads.append(p)
+        if not ok_payloads:
+            if emit and size != sizes[0]:
+                emit("stage", "第 %d 题粒度生成未通过规则校验，继续降粒度" % size)
             continue
-        ok, _score, _issues = parse_selfcheck(text)
-        if ok:
-            passed_list.append(p)
-        else:
-            all_ok = False
-    return passed_list, all_ok
+
+        passed, all_ok = _selfcheck_batch(client, ok_payloads, chunks, sample=sample)
+        if emit:
+            emit(
+                "selfcheck",
+                "自检 · %d/%d 通过%s"
+                % (len(passed), len(ok_payloads), "（全部通过）" if all_ok else "（保留规则通过项）"),
+            )
+        accepted += passed
+
+    return accepted[:count]
 
 
 def _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen, extra=None):
@@ -198,17 +303,13 @@ def generate_by_scope(
     done = 0
     for bi, (qtype, count) in enumerate(batches, 1):
         emit("batch", f"生成第 {bi}/{len(batches)} 批 · {qtype} × {count}")
-        payloads = _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen)
         if enable_loop:
-            payloads, ok = _selfcheck_batch(client, payloads, chunks)
-            if not ok and MAX_REGEN > 0:
-                regen = _generate_batch(
-                    client, scope, qtype, count, difficulty, focus, picked, seen,
-                    extra="请更严格忠于资料、避免幻觉与超纲",
-                )
-                regen, _ = _selfcheck_batch(client, regen, chunks)
-                payloads = regen or payloads
-                emit("selfcheck", f"第 {bi} 批自检未完全通过，已重生成一次")
+            # #26：一次生成 + 规则校验 + 自检 + 降粒度重试，失败也保留规则通过项
+            payloads = _generate_batch_with_fallback(
+                client, scope, qtype, count, difficulty, focus, picked, seen, chunks, emit=emit,
+            )
+        else:
+            payloads = _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen)
         base = len(created)
         new_qs = _persist_questions(
             db, candidate_id, None, payloads or [], seen,
@@ -234,10 +335,16 @@ def generate_by_scope(
                 break
             need = total - len(created)
             emit("stage", f"第 {attempts} 轮补偿 · 还差 {need} 题")
-            payloads = _generate_batch(
-                client, scope, qtype, compensation_count(need),
-                difficulty, focus, picked, seen,
-            )
+            if enable_loop:
+                # 补偿同样走降粒度重试：大批量一次生成失败率高（#26）
+                payloads = _generate_batch_with_fallback(
+                    client, scope, qtype, need, difficulty, focus, picked, seen, chunks, emit=emit,
+                )
+            else:
+                payloads = _generate_batch(
+                    client, scope, qtype, compensation_count(need),
+                    difficulty, focus, picked, seen,
+                )
             created += _persist_questions(
                 db, candidate_id, None, payloads or [], seen,
                 source_chunk=build_source_chunk(picked),

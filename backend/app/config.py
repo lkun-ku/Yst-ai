@@ -4,14 +4,16 @@ from dataclasses import dataclass
 
 @dataclass
 class Settings:
-    # 生产用 MySQL（如 mysql+pymysql://user:pwd@host/db）；
+    # 生产用 PostgreSQL（如 postgresql+psycopg://user:pwd@host/db，RAG 向量检索依赖 pgvector 扩展）；
     # 本地/测试默认 SQLite，通过环境变量覆盖，DB 引擎可换不影响架构（ADR 未禁止 dev/test 用 SQLite）。
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
     auto_migrate: bool = os.getenv("AUTO_MIGRATE", "true").lower() == "true"
     app_env: str = os.getenv("APP_ENV", "dev")
-    # 票 13：最小审校后台令牌与内容安全模式（stub=占位放行；wx=微信 msgSecCheck）
+    # 票 13：最小审校后台令牌与内容安全模式。
+    # wx=真实微信 msgSecCheck（生产默认）；stub=占位放行。
+    # 缺 WX_APPID/WX_SECRET 时 get_content_safety() 自动降级 stub，故默认 wx 安全（#18）。
     admin_token: str = os.getenv("ADMIN_TOKEN", "dev-admin")
-    content_safety_mode: str = os.getenv("CONTENT_SAFETY_MODE", "stub")
+    content_safety_mode: str = os.getenv("CONTENT_SAFETY_MODE", "wx")
     wx_appid: str = os.getenv("WX_APPID", "")
     wx_secret: str = os.getenv("WX_SECRET", "")
     # 票 14：实时生成管线（fake=假实现不耗额度；real=OpenAI 兼容接口）
@@ -31,11 +33,15 @@ class Settings:
     doc_chunk_overlap: int = int(os.getenv("DOC_CHUNK_OVERLAP", "200"))
     # 成本控制六条硬约束
     doc_daily_gen_limit: int = int(os.getenv("DOC_DAILY_GEN_LIMIT", "500"))
-    doc_max_q_per_task: int = int(os.getenv("DOC_MAX_Q_PER_TASK", "30"))
+    doc_max_q_per_task: int = int(os.getenv("DOC_MAX_Q_PER_TASK", "100"))
     doc_max_input_chars: int = int(os.getenv("DOC_MAX_INPUT_CHARS", "30000"))
     # 生成参数
     doc_batch_size: int = int(os.getenv("DOC_BATCH_SIZE", "6"))  # 每批题数（5~10）
     doc_top_k: int = int(os.getenv("DOC_TOP_K", "8"))  # 定点模式召回片段数
+    # 自检参数（#26）：自检依据必须与生成量级可比——此前自检只看 800 字而生成可看 3 万字，
+    # 依据后段切片出的题会被必然判为「无依据」而误杀，导致大卷 0 产出。
+    doc_selfcheck_chars: int = int(os.getenv("DOC_SELFCHECK_CHARS", "8000"))  # 自检依据字符上限
+    doc_selfcheck_sample: int = int(os.getenv("DOC_SELFCHECK_SAMPLE", "2"))  # 每批抽检题数（P1）
 
     # ---------- Embedding（文档级语义检索；fake 模式不耗额度） ----------
     embedding_mode: str = os.getenv("EMBEDDING_MODE", "fake")  # fake / real

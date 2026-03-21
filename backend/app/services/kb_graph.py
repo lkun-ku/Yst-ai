@@ -36,6 +36,7 @@ from .kb_generate import (
     MAX_REWRITE,
     _chunk_payloads,
     _generate_batch,
+    _generate_batch_with_fallback,
     _grade_and_filter,
     _rewrite_scope,
     _selfcheck_batch,
@@ -130,16 +131,11 @@ def _n_generate(s: KbState) -> dict:
 
     for bi, (qtype, count) in enumerate(batches, 1):
         _emit(s, "batch", f"生成第 {bi}/{len(batches)} 批 · {qtype} × {count}")
-        payloads = _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen)
-        payloads, ok = _selfcheck_batch(client, payloads, s["chunks"])
-        if not ok and MAX_REGEN > 0:
-            regen = _generate_batch(
-                client, scope, qtype, count, difficulty, focus, picked, seen,
-                extra="请更严格忠于资料、避免幻觉与超纲",
-            )
-            regen, _ = _selfcheck_batch(client, regen, s["chunks"])
-            payloads = regen or payloads
-            _emit(s, "selfcheck", f"第 {bi} 批自检未完全通过，已重生成一次")
+        # #26：与路线②共享同一实现（规则校验 + 自检 + 降粒度重试，失败保留规则通过项）
+        payloads = _generate_batch_with_fallback(
+            client, scope, qtype, count, difficulty, focus, picked, seen, s["chunks"],
+            emit=lambda t, x, d=None: _emit(s, t, x, d),
+        )
         base = len(created)
         new_qs = _persist_questions(
             db, s["candidate_id"], None, payloads or [], seen,
@@ -167,9 +163,9 @@ def _n_generate(s: KbState) -> dict:
                 break
             need = total - len(created)
             _emit(s, "stage", f"第 {attempts} 轮补偿 · 还差 {need} 题")
-            payloads = _generate_batch(
-                client, scope, qtype, compensation_count(need),
-                difficulty, focus, picked, seen,
+            payloads = _generate_batch_with_fallback(
+                client, scope, qtype, need, difficulty, focus, picked, seen, s["chunks"],
+                emit=lambda t, x, d=None: _emit(s, t, x, d),
             )
             created += _persist_questions(
                 db, s["candidate_id"], None, payloads or [], seen,

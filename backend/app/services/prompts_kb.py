@@ -121,7 +121,9 @@ def self_check_prompt(
     return (
         "你是出题质量审查员。判断下面这道生成的题目是否忠于所给资料、且格式自洽。\n"
         f"题目题干：{stem}\n选项：{opts}\n答案：{ans}\n解析：{explanation}\n"
-        f"依据资料：{chunk_content[:800]}\n"
+        # 截断由调用方按 settings.doc_selfcheck_chars 控制：自检依据必须与生成上下文量级可比，
+        # 否则依据后段切片出的题会被必然判为「无依据」（#26）
+        f"依据资料：{chunk_content}\n"
         "检查项：①答案是否能在资料中找到依据（无幻觉）；②选项是否互斥且包含正确答案；③解析是否解释正确选项。\n"
         '只输出 JSON：{"passed": true/false, "score": 0~1, "issues": [问题列表]}\n'
         "【生成自检】"
