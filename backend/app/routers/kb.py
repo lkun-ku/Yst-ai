@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import date
 
@@ -41,6 +42,8 @@ from ..services.kb_retrieval import retrieve_by_scope
 VALID_ROUTES = ("graph", "handwritten")
 
 router = APIRouter(prefix="/api/kb", tags=["kb"])
+
+logger = logging.getLogger(__name__)
 
 
 def _select_generator(route: str):

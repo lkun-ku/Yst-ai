@@ -32,7 +32,6 @@ from .doc_generate import (
 )
 from .kb_generate import (
     KB_RECALL_K,
-    MAX_REGEN,
     MAX_REWRITE,
     _chunk_payloads,
     _generate_batch,
@@ -40,7 +39,6 @@ from .kb_generate import (
     _grade_and_filter,
     _rewrite_scope,
     _selfcheck_batch,
-    compensation_count,
 )
 from .kb_events import slice_previews
 from .kb_retrieval import retrieve_by_scope

@@ -150,15 +150,21 @@ def _selfcheck_batch(
         idxs = sorted({min(len(targets) - 1, int(i * step)) for i in range(sample)})
         checked = [targets[i] for i in idxs]
 
+    # 单趟遍历收集结果：避免在「发现不通过」后再对同一批重复调用一次（#26 P1）
+    keep: list[dict] = []
+    all_ok = True
     for p in checked:
         if _ask_selfcheck(client, p, chunks, limit) is False:
-            if len(checked) < len(targets):
-                # 抽检发现一例 → 升级为全批检，精确定位
-                return _selfcheck_batch(client, targets, chunks, sample=None, ctx_limit=limit)
-            keep = [q for q in targets if _ask_selfcheck(client, q, chunks, limit) is not False]
-            return keep, False
+            all_ok = False
+        else:
+            keep.append(p)
 
-    return list(targets), True
+    if all_ok:
+        return list(targets), True
+    if len(checked) < len(targets):
+        # 抽检发现问题 → 升级为全批检（递归一次，全量遍历，不重复检测已检项）
+        return _selfcheck_batch(client, targets, chunks, sample=None, ctx_limit=limit)
+    return keep, False
 
 
 def _generate_batch_with_fallback(
@@ -312,6 +318,8 @@ def generate_by_scope(
     batches = build_batches(spec)
     total = sum(c for _, c in batches)
     done = 0
+    # 认知层级池（#26 A）：enable_loop=False 路径不走 fallback，需在此自行计算分布
+    levels = [s.strip() for s in (bloom or settings.doc_bloom_levels or "").split(",") if s.strip()]
     for bi, (qtype, count) in enumerate(batches, 1):
         emit("batch", f"生成第 {bi}/{len(batches)} 批 · {qtype} × {count}")
         if enable_loop:
@@ -322,7 +330,10 @@ def generate_by_scope(
                 bloom=bloom,
             )
         else:
-            payloads = _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen)
+            payloads = _generate_batch(
+                client, scope, qtype, count, difficulty, focus, picked, seen,
+                bloom_mix=bloom_distribution(count, levels),
+            )
         base = len(created)
         new_qs = _persist_questions(
             db, candidate_id, None, payloads or [], seen,
@@ -358,6 +369,7 @@ def generate_by_scope(
                 payloads = _generate_batch(
                     client, scope, qtype, compensation_count(need),
                     difficulty, focus, picked, seen,
+                    bloom_mix=bloom_distribution(compensation_count(need), levels),
                 )
             created += _persist_questions(
                 db, candidate_id, None, payloads or [], seen,

@@ -40,9 +40,4 @@ def submit(fn, *args, pool: str = GEN, **kwargs) -> Future:
     return get_pool(pool).submit(fn, *args, **kwargs)
 
 
-def in_flight(name: str = GEN) -> int:
-    """粗略在途任务数（排队 + 执行中）。仅用于可观测，失败返回 -1。"""
-    try:
-        return int(get_pool(name)._work_queue.qsize())  # noqa: SLF001
-    except Exception:
-        return -1
+
