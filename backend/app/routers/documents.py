@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import shutil
-import threading
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -30,6 +29,7 @@ from ..schemas import (
 from ..services import doc_parser
 from ..services.doc_generate import generate_for_document, normalize_spec
 from ..services.embedding import embed_one, encode_vector, wait_embed_ready
+from ..services.task_pool import EMBED, submit
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -220,7 +220,8 @@ def upload_document(
         except Exception:
             pass
 
-    threading.Thread(target=_embed_document, args=(doc.id,), daemon=True).start()
+    # #26 P2：向量化走独立池，避免与出题任务互抢 worker 造成互等
+    submit(_embed_document, doc.id, pool=EMBED)
     return _doc_out(db, doc)
 
 
@@ -316,5 +317,5 @@ def generate(
     db.add(task)
     db.commit()
 
-    threading.Thread(target=_run_task, args=(task.id,), daemon=True).start()
+    submit(_run_task, task.id)
     return GenerateOut(task_id=task.id, total=total)

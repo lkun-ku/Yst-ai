@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import json
-import threading
 import uuid
 from datetime import date
 
@@ -34,6 +33,7 @@ from ..models import (
 )
 from ..schemas import KbQuestionOut
 from ..services import kb_events, kb_generate, kb_graph
+from ..services.task_pool import submit
 from ..services.embedding import wait_embed_ready
 from ..services.kb_retrieval import retrieve_by_scope
 
@@ -222,7 +222,8 @@ def generate(
     )
     db.add(KbTask(task_id=task_id, candidate_id=c.id, status="pending", request_json=request_json))
     db.commit()
-    threading.Thread(target=_run, args=(task_id, c.id, body), daemon=True).start()
+    # #26 P2：走有界线程池而非裸起线程，避免并发打爆 LLM 供应商限流
+    submit(_run, task_id, c.id, body)
     return {"task_id": task_id, "scope": body.scope}
 
 
@@ -399,7 +400,7 @@ def retry_task(
         )
     )
     db.commit()
-    threading.Thread(target=_run, args=(new_id, c.id, KbGenerateIn(**req)), daemon=True).start()
+    submit(_run, new_id, c.id, KbGenerateIn(**req))
     return {"task_id": new_id, "from_task_id": task_id, "spec": spec}
 
 
