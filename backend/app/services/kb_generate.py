@@ -201,6 +201,7 @@ def _generate_batch_with_fallback(
 
     accepted: list[dict] = []
     local_seen: set[str] = set()
+    last_ok: list[dict] = []  # 最后一轮的「规则校验通过项」：自检全否时据此降级放行
 
     for size in sizes:
         if len(accepted) >= count:
@@ -224,6 +225,7 @@ def _generate_batch_with_fallback(
             if emit and size != sizes[0]:
                 emit("stage", "第 %d 题粒度生成未通过规则校验，继续降粒度" % size)
             continue
+        last_ok = ok_payloads
 
         passed, all_ok = _selfcheck_batch(client, ok_payloads, chunks, sample=sample)
         if emit:
@@ -233,6 +235,13 @@ def _generate_batch_with_fallback(
                 % (len(passed), len(ok_payloads), "（全部通过）" if all_ok else "（保留规则通过项）"),
             )
         accepted += passed
+
+    # 兜底：自检若把所有题都否决（例如模型评判偏严），仍保留规则校验通过项。
+    # 自检用于标记风险，不应成为欠产的原因——这正是本次修复的核心语义（#26）。
+    if not accepted and last_ok:
+        if emit:
+            emit("selfcheck", "自检全部未通过，降级保留规则校验通过项（风险已记录）")
+        return last_ok[:count]
 
     return accepted[:count]
 
