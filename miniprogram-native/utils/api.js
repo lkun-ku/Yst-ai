@@ -200,6 +200,11 @@ export function requestChunk(chunkId) {
   return request(`/api/kb/chunk/${chunkId}`, { loading: false, lock: false });
 }
 
+/** 增量拉取文档出题（路线①）过程事件；since = 上次拿到的最大 seq。 */
+export function requestDocEvents(taskId, since = 0) {
+  return request(`/api/tasks/${taskId}/events?since=${since}`, { loading: false, lock: false });
+}
+
 /* ---------------- R4 / O-03：统一错误兜底 ---------------- */
 
 export function toastApiError(e) {

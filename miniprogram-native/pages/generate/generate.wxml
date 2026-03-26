@@ -20,6 +20,22 @@
       </view>
       <text class="t-dim ring-stage">{{stageText}}</text>
     </view>
+
+    <!-- 生成过程时间线（#26 第二批）：让等待可感知，参照 WorkBuddy 过程区 -->
+    <view class="card tl-card">
+      <text class="tl-head">生成过程</text>
+      <view
+        class="tl-item {{item.done ? '' : 'tl-typing'}}"
+        wx:for="{{phases}}"
+        wx:key="seq"
+      >
+        <text class="tl-icon">{{item.icon}}</text>
+        <view class="tl-body">
+          <text class="tl-text">{{item.text}}<text wx:if="{{!item.done}}" class="tl-cursor">▌</text></text>
+        </view>
+      </view>
+      <view wx:if="{{phases.length === 0}}" class="t-dim">正在准备…</view>
+    </view>
   </block>
 
   <block wx:elif="{{status === 'done'}}">

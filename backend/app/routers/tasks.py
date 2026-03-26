@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import get_current_candidate
-from ..models import Candidate, DocTask
+from ..models import Candidate, DocTask, DocTaskEvent
 from ..schemas import DocTaskOut
+from ..services import kb_events
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -39,3 +40,41 @@ def get_task(
         error=t.error,
         question_count=len(ids),
     )
+
+
+@router.get("/{task_id}/events")
+def task_events(
+    task_id: int,
+    since: int = 0,
+    c: Candidate = Depends(get_current_candidate),
+    db: Session = Depends(get_db),
+):
+    """增量拉取文档出题过程事件（#26 第二批）。
+
+    前端按 `since`（上次拿到的最大 seq）续拉，断线 / 切后台后不丢事件。
+    事件落库（doc_task_events）而非存内存，故跨进程与重启均可回放。
+    """
+    t = db.get(DocTask, task_id)
+    if t is None or t.candidate_id != c.id:
+        raise HTTPException(404, "任务不存在")
+    rows = (
+        db.query(DocTaskEvent)
+        .filter(DocTaskEvent.task_id == task_id, DocTaskEvent.seq > since)
+        .order_by(DocTaskEvent.seq)
+        .limit(kb_events.MAX_EVENTS_PER_TASK)
+        .all()
+    )
+    return {
+        "status": t.status,
+        "latest_seq": rows[-1].seq if rows else since,
+        "events": [
+            {
+                "seq": r.seq,
+                "type": r.type,
+                "text": r.text,
+                "detail": r.detail,
+                "ts": r.created_at.isoformat() if r.created_at else "",
+            }
+            for r in rows
+        ],
+    }

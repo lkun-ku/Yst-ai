@@ -1,3 +1,52 @@
+/* ---------- 生成过程时间线（#26 第二批） ---------- */
+.tl-card {
+  margin-top: 20rpx;
+}
+.tl-head {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #222;
+  display: block;
+  margin-bottom: 12rpx;
+}
+.tl-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid #f2f2f2;
+}
+.tl-item:last-of-type {
+  border-bottom: none;
+}
+.tl-typing {
+  animation: breathe 1.4s ease-in-out infinite;
+}
+.tl-icon {
+  font-size: 26rpx;
+  width: 44rpx;
+  flex-shrink: 0;
+}
+.tl-body {
+  flex: 1;
+}
+.tl-text {
+  font-size: 25rpx;
+  color: #666;
+  line-height: 1.6;
+}
+.tl-cursor {
+  color: #3b7cff;
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
 .doc-title {
   flex: 1;
   min-width: 0;

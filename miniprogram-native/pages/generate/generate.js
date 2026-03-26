@@ -1,4 +1,16 @@
-import { navTo, redirectNav, request, toastApiError } from "../../utils/api.js";
+import { navTo, redirectNav, request, requestDocEvents, toastApiError } from "../../utils/api.js";
+
+/** 过程事件类型到图标的映射（#26 第二批，与 kb 页一致） */
+const EVENT_ICON = {
+  retrieve: "🔍",
+  grade: "⚖️",
+  rewrite: "🔁",
+  batch: "✏️",
+  selfcheck: "🛡",
+  question: "📝",
+  stage: "⚙️",
+};
+const TYPE_MS = 26;
 
 const TYPE_OPTIONS = [
   { type: "single", name: "单选题" },
@@ -32,6 +44,11 @@ Page({
     error: "",
     questionCount: 0,
     stageText: "",
+
+    // 过程时间线（#26 第二批）
+    phases: [],
+    since: 0,
+    eventsDowngraded: false,
   },
 
   _timer: null,
@@ -43,6 +60,8 @@ Page({
       return;
     }
     this.setData({ docId: id });
+    this._queue = []; // 待打字机渲染的事件队列（不进 data，避免 setData 开销）
+    this._typing = false;
     this.loadDoc(id);
   },
 
@@ -157,7 +176,12 @@ Page({
         status: "running",
         done: 0,
         stageText: "正在生成…",
+        phases: [],
+        since: 0,
+        eventsDowngraded: false,
       });
+      this._queue = [];
+      this._typing = false;
       this._drawRing(0);
       this._startPoll();
     } catch (e) {
@@ -178,8 +202,58 @@ Page({
     }
   },
 
+  /** 增量拉取过程事件；接口不可用时静默降级（保留原进度轮询） */
+  async _pollEvents() {
+    try {
+      const r = await requestDocEvents(this.data.taskId, this.data.since);
+      if (r.events && r.events.length) {
+        this._enqueue(r.events);
+        this.setData({ since: r.latest_seq });
+        this._tick();
+      }
+    } catch (e) {
+      if (!this.data.eventsDowngraded) this.setData({ eventsDowngraded: true });
+    }
+  },
+
+  _enqueue(events) {
+    const phases = this.data.phases.concat(
+      events.map((e) => ({ seq: e.seq, icon: EVENT_ICON[e.type] || "•", text: "", done: false }))
+    );
+    this.setData({ phases });
+    this._queue = (this._queue || []).concat(events);
+  },
+
+  /** 打字机逐字渲染：流式感由前端补，与传输粒度解耦 */
+  _tick() {
+    if (this._typing) return;
+    const ev = (this._queue || []).shift();
+    if (!ev) return;
+    this._typing = true;
+    const full = ev.text || "";
+    let i = 0;
+    const step = () => {
+      i += 2;
+      const arr = this.data.phases.slice();
+      const idx = arr.findIndex((p) => p.seq === ev.seq);
+      if (idx >= 0) {
+        arr[idx].text = full.slice(0, i);
+        arr[idx].done = i >= full.length;
+      }
+      this.setData({ phases: arr });
+      if (i >= full.length) {
+        this._typing = false;
+        this._tick();
+      } else {
+        setTimeout(step, TYPE_MS);
+      }
+    };
+    setTimeout(step, TYPE_MS);
+  },
+
   async _poll() {
     if (!this.data.taskId) return;
+    await this._pollEvents(); // 过程时间线优先；失败自动降级为纯进度
     try {
       const t = await request(`/api/tasks/${this.data.taskId}`, { loading: false, lock: false });
       const pct = t.total ? Math.round((t.done / t.total) * 100) : 0;
