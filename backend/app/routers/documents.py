@@ -19,6 +19,7 @@ from ..config import settings
 from ..db import SessionLocal, get_db
 from ..deps import get_current_candidate
 from ..models import Candidate, Document, DocumentChunk, DocTask, Question
+from ..utils import local_day
 from ..schemas import (
     DocTaskOut,
     DocumentDetailOut,
@@ -42,12 +43,9 @@ def _ext(name: str) -> str:
     return (name.rsplit(".", 1)[-1] if "." in (name or "") else "").lower()
 
 
-def _local_day(dt: datetime | None) -> str:
-    if dt is None:
-        return ""
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone().date().isoformat()
+def _local_day(dt):
+    """按本地时区取日期。实现收口到 app/utils.local_day，避免与 kb.py 行为分叉（#26）。"""
+    return local_day(dt)
 
 
 def _doc_out(db: Session, doc: Document) -> DocumentOut:

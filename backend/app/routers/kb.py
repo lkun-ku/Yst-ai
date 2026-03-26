@@ -35,6 +35,7 @@ from ..models import (
 from ..schemas import KbQuestionOut
 from ..services import kb_events, kb_generate, kb_graph
 from ..services.task_pool import submit
+from ..utils import local_day
 from ..services.embedding import wait_embed_ready
 from ..services.kb_retrieval import retrieve_by_scope
 
@@ -77,9 +78,9 @@ class KbRetrieveOut(BaseModel):
 
 
 def _local_day(dt) -> str:
-    if dt is None:
-        return ""
-    return dt.isoformat()[:10]
+    """按本地时区取日期（此前直接截 isoformat 前 10 位得到的是 UTC 日，与 date.today() 的
+    本地日比较会在跨日时段算错，导致每日出题配额失效）。统一走 app/utils.local_day（#26）。"""
+    return local_day(dt)
 
 
 def _daily_gen_count(db: Session, candidate_id: int) -> int:
