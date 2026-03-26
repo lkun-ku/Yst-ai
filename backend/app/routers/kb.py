@@ -35,7 +35,7 @@ from ..models import (
 from ..schemas import KbQuestionOut
 from ..services import kb_events, kb_generate, kb_graph
 from ..services.task_pool import submit
-from ..utils import local_day
+from ..utils import local_day, parse_bloom_levels
 from ..services.embedding import wait_embed_ready
 from ..services.kb_retrieval import retrieve_by_scope
 
@@ -153,7 +153,7 @@ def _run(task_id: str, candidate_id: int, payload: KbGenerateIn) -> None:
                 raise _TaskCancelled()
 
         # #26 A：认知层级池（逗号分隔字符串 → 列表；空则用配置默认）
-        bloom = [s.strip() for s in (payload.bloom or "").split(",") if s.strip()] or None
+        bloom = parse_bloom_levels(payload.bloom) or None
         gen_fn = _select_generator(payload.route)
         created = gen_fn(
             db,

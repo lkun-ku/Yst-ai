@@ -18,6 +18,7 @@ import logging
 
 from ..config import settings
 from ..models import Question
+from ..utils import parse_bloom_levels
 from .doc_generate import (
     _persist_questions,
     _trim_to_budget,
@@ -188,7 +189,7 @@ def _generate_batch_with_fallback(
     欠产的原因（与既有「LLM 不可用保守放行」的降级哲学一致）。
     """
     # 认知层级（#26 A）：未显式指定时用配置默认池（刻意不含 remember，避免整卷记忆题）
-    levels = [s.strip() for s in (bloom or settings.doc_bloom_levels or "").split(",") if s.strip()]
+    levels = bloom or parse_bloom_levels(settings.doc_bloom_levels)
 
     sizes: list[int] = []
     # 单次生成不超过 doc_batch_size：大批次结构化输出失败率显著上升（#26）
@@ -329,7 +330,7 @@ def generate_by_scope(
     total = sum(c for _, c in batches)
     done = 0
     # 认知层级池（#26 A）：enable_loop=False 路径不走 fallback，需在此自行计算分布
-    levels = [s.strip() for s in (bloom or settings.doc_bloom_levels or "").split(",") if s.strip()]
+    levels = bloom or parse_bloom_levels(settings.doc_bloom_levels)
     for bi, (qtype, count) in enumerate(batches, 1):
         emit("batch", f"生成第 {bi}/{len(batches)} 批 · {qtype} × {count}")
         if enable_loop:

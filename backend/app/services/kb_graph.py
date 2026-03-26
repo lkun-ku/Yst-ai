@@ -22,6 +22,7 @@ from langgraph.graph import END, START, StateGraph
 
 from ..config import settings
 from ..models import Question
+from ..utils import parse_bloom_levels
 from .doc_generate import (
     _persist_questions,
     _trim_to_budget,
@@ -210,7 +211,7 @@ _GRAPH = _build_graph()
 def _run_simple(db, client, candidate_id, scope, spec, difficulty, focus, embed_fn, on_progress,
                 bloom: list[str] | None = None) -> list[Question]:
     """enable_loop=False：跳过评分/改写，直接 召回→拼上下文→分批生成。"""
-    levels = [s.strip() for s in (bloom or settings.doc_bloom_levels or "").split(",") if s.strip()]
+    levels = bloom or parse_bloom_levels(settings.doc_bloom_levels)
     chunks = retrieve_by_scope(db, candidate_id, scope, k=KB_RECALL_K, embed_fn=embed_fn)
     if not chunks:
         return []

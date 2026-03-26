@@ -29,6 +29,14 @@ def local_day(dt: datetime | None) -> str:
     return dt.astimezone().date().isoformat()
 
 
+def parse_bloom_levels(value: str | None) -> list[str]:
+    """解析逗号分隔的认知层级字符串（如 "understand,apply"）为空列表时返回 []。
+
+    此前该解析在 kb.py / kb_generate.py / kb_graph.py 各写一份（#26 遗留 4）。
+    """
+    return [s.strip() for s in (value or "").split(",") if s.strip()]
+
+
 def _shingles(text: str, n: int = 3) -> set[str]:
     """字符 n-gram 集合（去空白后），用于近似文本比较。"""
     s = re.sub(r"\s+", "", text or "")
