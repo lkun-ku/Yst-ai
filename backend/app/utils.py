@@ -11,6 +11,7 @@ kb 版会把当日创建的任务算成「昨天」，导致每日出题配额�
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 
@@ -26,3 +27,32 @@ def local_day(dt: datetime | None) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone().date().isoformat()
+
+
+def _shingles(text: str, n: int = 3) -> set[str]:
+    """字符 n-gram 集合（去空白后），用于近似文本比较。"""
+    s = re.sub(r"\s+", "", text or "")
+    if not s:
+        return set()
+    return {s[i : i + n] for i in range(max(0, len(s) - n + 1))}
+
+
+def near_duplicate(a: str, b: str, threshold: float = 0.9) -> bool:
+    """判断两段文本是否近似重复（字符 3-gram 的 Jaccard 相似度 ≥ 阈值）。
+
+    用途（#26 遗留 3）：拦住「字面微差」的重复题——精确去重（normalize_stem 后比集合）
+    对「仅差一个空格/标点」这类无能为力。
+
+    **为什么默认阈值高达 0.9**：实测两类样本的相似度分布是
+    - 同模板生成的伪题（仅编号不同）：约 0.8
+    - 语义相同但措辞不同的真重复：约 0.5~0.6
+
+    二者区间相邻，0.75 会两头不讨好——既误杀伪题（12 题只剩 3 题），又漏掉真重复。
+    因此默认保守（0.9）只拦几乎字面一致的重复，**宁可漏、不可误杀**（误杀会直接导致欠产）。
+    阈值可由 DOC_STEM_DUP_THRESHOLD 调整。
+    """
+    sa, sb = _shingles(a), _shingles(b)
+    if not sa or not sb:
+        return False
+    union = len(sa | sb)
+    return union > 0 and (len(sa & sb) / union) >= threshold

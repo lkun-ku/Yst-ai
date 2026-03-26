@@ -17,7 +17,7 @@ from app.services.kb_generate import (
 )
 from app.services.prompts_kb import bloom_distribution
 from app.services.task_pool import EMBED, GEN, get_pool
-from app.utils import local_day
+from app.utils import local_day, near_duplicate
 
 
 class _StubClient:
@@ -144,6 +144,30 @@ def test_fallback_respects_count_cap():
         client, "scope", "single", 2, "medium", None, [], set(), [], emit=None,
     )
     assert len(got) == 2
+
+
+# ---------------- 题干近似判重（#26 遗留 3） ----------------
+
+def test_near_duplicate_catches_space_only_difference():
+    """精确去重拦不住的「仅差空格」重复。"""
+    a = "根据资料切片 #169，教育区别于其他社会活动的根本特征是什么？"
+    b = "根据资料切片#169，教育区别于其他社会活动的根本特征是什么？"
+    assert near_duplicate(a, b, 0.6) is True
+
+
+def test_near_duplicate_catches_reworded_duplicate():
+    """真实场景出现过的措辞不同但语义相同的重复（实测相似度约 0.68）。"""
+    a = "根据资料切片 #169，教育区别于其他社会活动的根本特征是什么？"
+    b = "根据资料切片#169，教育区别于其他社会活动的根本特征，可归纳为以下哪一项？"
+    assert near_duplicate(a, b, 0.6) is True
+
+
+def test_near_duplicate_rejects_unrelated_questions():
+    assert near_duplicate("教育的本质是什么？", "教学原则包括哪些内容？", 0.6) is False
+
+
+def test_near_duplicate_handles_empty():
+    assert near_duplicate("", "", 0.6) is False
 
 
 # ---------------- 任务池分池（#26 P2） ----------------

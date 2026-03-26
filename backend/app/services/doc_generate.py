@@ -19,6 +19,7 @@ from ..models import Module, Question, QuestionSource, QuestionType
 from .doc_parser import normalize_stem
 from .embedding import retrieve
 from .llm_client import GenerationRequest, get_llm_client
+from ..utils import near_duplicate
 from .validation import validate_question_payload
 
 logger = logging.getLogger(__name__)
@@ -175,8 +176,12 @@ def _persist_questions(
     source_chunk: str | None = None,
     picked_ids: set[int] | None = None,
     limit: int | None = None,
+    stems: list[str] | None = None,
 ) -> list[Question]:
     """校验 + 去重后落库，返回新增题目。
+
+    `stems`：跨批次累积的已落库题干（归一化后）。传入后启用**近似判重**（#26 遗留 3），
+    拦住「字面微差、语义相同」的重复题；不传则只做精确去重（保持旧行为）。
 
     `limit`：最多落库条数，在**校验与去重通过之后**生效（None 表示不限制，默认保持
     原有行为）。补偿轮会带余量生成以防去重损耗，靠它截断到真实缺口，避免超产（#23）。
@@ -200,8 +205,20 @@ def _persist_questions(
         if key and key in seen:
             logger.info("doc_generate: 重复题干，丢弃：%s", (p.get("stem") or "")[:30])
             continue
+        # 近似判重（#26 遗留 3）：精确去重拦不住「差一个空格/换种措辞」的语义重复题。
+        # fake 模式跳过：它生成的是同模板伪题，彼此相似度约 0.8，判重会误杀（12 题只剩 3 题）。
+        if (
+            key
+            and stems is not None
+            and settings.llm_mode != "fake"
+            and any(near_duplicate(key, s, settings.doc_stem_dup_threshold) for s in stems[-300:])
+        ):
+            logger.info("doc_generate: 与题干近似重复，丢弃：%s", (p.get("stem") or "")[:30])
+            continue
         if key:
             seen.add(key)
+            if stems is not None:
+                stems.append(key)
 
         # 逐题溯源：优先模型回传的 source_id（校验在召回集合内），否则批级兜底
         sc = source_chunk
@@ -241,6 +258,7 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
     spec = normalize_spec(spec)
     seen: set[str] = set()
     created: list[Question] = []
+    all_stems: list[str] = []  # 跨批次累积的已落库题干，供近似判重（#26 遗留 3）
 
     def progress(done: int, total: int) -> None:
         if on_progress:
@@ -268,7 +286,9 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
                     },
                 )
             ).payloads
-            created += _persist_questions(db, doc.candidate_id, doc.id, payloads or [], seen)
+            created += _persist_questions(
+                db, doc.candidate_id, doc.id, payloads or [], seen, stems=all_stems,
+            )
             done += count
             progress(done, total)
         return created
@@ -320,7 +340,9 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
                 },
             )
         ).payloads
-        created.extend(_persist_questions(db, doc.candidate_id, doc.id, payloads or [], seen))
+        created.extend(
+            _persist_questions(db, doc.candidate_id, doc.id, payloads or [], seen, stems=all_stems)
+        )
 
     done = 0
     for heading, qtype, count in batches:

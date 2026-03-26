@@ -49,6 +49,10 @@ class Settings:
     doc_embed_workers: int = int(os.getenv("DOC_EMBED_WORKERS", "2"))  # 向量化并发
     # 认知层级（#26 A）：默认层级池刻意不含 remember——研究显示 AI 默认约 62% 出「记忆」题
     doc_bloom_levels: str = os.getenv("DOC_BLOOM_LEVELS", "understand,apply,analyze")
+    # 题干近似判重阈值（#26 遗留 3）：实测真实语义重复的 Jaccard 约 0.625，不同考点题目通常 <0.4，
+    # 故 0.6 能有效拦截且不会误杀。fake 模式整体跳过判重（见 doc_generate._persist_questions）——
+    # 同模板伪题相似度约 0.8，不跳过会误杀（实测 12 题只剩 3 题）。
+    doc_stem_dup_threshold: float = float(os.getenv("DOC_STEM_DUP_THRESHOLD", "0.6"))
 
     # ---------- Embedding（文档级语义检索；fake 模式不耗额度） ----------
     embedding_mode: str = os.getenv("EMBEDDING_MODE", "fake")  # fake / real

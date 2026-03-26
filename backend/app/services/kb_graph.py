@@ -125,6 +125,7 @@ def _n_generate(s: KbState) -> dict:
     on_progress = s.get("on_progress")
 
     created: list[Question] = list(s.get("created") or [])
+    all_stems: list[str] = []  # 跨批次累积的已落库题干，供近似判重（#26 遗留 3）
     batches = build_batches(spec)
     total = sum(c for _, c in batches)
     done = s.get("done", 0)
@@ -143,6 +144,7 @@ def _n_generate(s: KbState) -> dict:
             db, s["candidate_id"], None, payloads or [], seen,
             source_chunk=build_source_chunk(picked),
             picked_ids=picked_ids_of(picked),
+            stems=all_stems,
         )
         created += new_qs
         for i, q in enumerate(new_qs, 1):
@@ -174,7 +176,7 @@ def _n_generate(s: KbState) -> dict:
                 db, s["candidate_id"], None, payloads or [], seen,
                 source_chunk=build_source_chunk(picked),
                 picked_ids=picked_ids_of(picked),
-                limit=need,
+                limit=need, stems=all_stems,
             )
         if on_progress:
             on_progress(min(len(created), total), total)

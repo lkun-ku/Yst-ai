@@ -287,6 +287,7 @@ def generate_by_scope(
         return []
     seen: set[str] = set()
     created: list[Question] = []
+    all_stems: list[str] = []  # 跨批次累积的已落库题干，供近似判重（#26 遗留 3）
 
     def progress(done: int, total: int) -> None:
         if on_progress:
@@ -348,6 +349,7 @@ def generate_by_scope(
             db, candidate_id, None, payloads or [], seen,
             source_chunk=build_source_chunk(picked),
             picked_ids=picked_ids_of(picked),
+            stems=all_stems,
         )
         created += new_qs
         for i, q in enumerate(new_qs, 1):
@@ -384,7 +386,7 @@ def generate_by_scope(
                 db, candidate_id, None, payloads or [], seen,
                 source_chunk=build_source_chunk(picked),
                 picked_ids=picked_ids_of(picked),
-                limit=need,
+                limit=need, stems=all_stems,
             )
         progress(min(len(created), total), total)
 
