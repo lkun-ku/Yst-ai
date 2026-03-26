@@ -26,6 +26,13 @@ logger = logging.getLogger(__name__)
 
 VALID_TYPES = ("single", "multiple", "judge", "blank", "short")
 
+#: 路线①（按资料出题、章节配额）的近似判重阈值。
+#: 与路线②③（跨文档自由出题，0.6）不同：章节配额模式下同一章节同一题型的题干
+#: **天然高度相似**（模型会输出「下列关于 X 的表述，正确的是？」这类同模板变体），
+#: 0.6 会把它们成批误杀——这正是此前「选 30 题只出几道」的直接原因。此处只拦
+#: 几乎字面一致的重复（0.85）。
+ROUTE1_DUP_THRESHOLD = 0.85
+
 
 # ---------------- 纯逻辑：配比归一化 / 分批 / 配额分配 ----------------
 
@@ -177,11 +184,15 @@ def _persist_questions(
     picked_ids: set[int] | None = None,
     limit: int | None = None,
     stems: list[str] | None = None,
+    dup_threshold: float | None = None,
 ) -> list[Question]:
     """校验 + 去重后落库，返回新增题目。
 
     `stems`：跨批次累积的已落库题干（归一化后）。传入后启用**近似判重**（#26 遗留 3），
     拦住「字面微差、语义相同」的重复题；不传则只做精确去重（保持旧行为）。
+
+    `dup_threshold`：覆盖配置的判重阈值。路线①（章节配额）同章节同题型题干天然相似，
+    默认 0.6 会成批误杀，需传 0.85 只拦几乎字面一致的重复。
 
     `limit`：最多落库条数，在**校验与去重通过之后**生效（None 表示不限制，默认保持
     原有行为）。补偿轮会带余量生成以防去重损耗，靠它截断到真实缺口，避免超产（#23）。
@@ -207,11 +218,12 @@ def _persist_questions(
             continue
         # 近似判重（#26 遗留 3）：精确去重拦不住「差一个空格/换种措辞」的语义重复题。
         # fake 模式跳过：它生成的是同模板伪题，彼此相似度约 0.8，判重会误杀（12 题只剩 3 题）。
+        threshold = dup_threshold if dup_threshold is not None else settings.doc_stem_dup_threshold
         if (
             key
             and stems is not None
             and settings.llm_mode != "fake"
-            and any(near_duplicate(key, s, settings.doc_stem_dup_threshold) for s in stems[-300:])
+            and any(near_duplicate(key, s, threshold) for s in stems[-300:])
         ):
             logger.info("doc_generate: 与题干近似重复，丢弃：%s", (p.get("stem") or "")[:30])
             continue
@@ -252,9 +264,17 @@ def _persist_questions(
     return created
 
 
-def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: str, difficulty: str, focus, scope, on_progress=None) -> list[Question]:
-    """执行生成（调用方需提供**独立 DB Session**，见 A6）。"""
+def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: str, difficulty: str, focus, scope,
+                         on_progress=None, on_event=None) -> list[Question]:
+    """执行生成（调用方需提供**独立 DB Session**，见 A6）。
+
+    `on_event(type, text, detail)`：#26 首批新增，用于「按资料出题」页展示过程时间线。
+    """
     client = get_llm_client()
+
+    def emit(type_: str, text: str, detail=None) -> None:
+        if on_event:
+            on_event(type_, text, detail)
     spec = normalize_spec(spec)
     seen: set[str] = set()
     created: list[Question] = []
@@ -264,6 +284,22 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
         if on_progress:
             on_progress(done, total)
 
+    def fallback_generate(qtype: str, count: int, ctx_chunks: list[dict], gen_fn) -> list[dict]:
+        """复用 #26 的质量闭环：规则校验 → 降粒度重试（不通过时 3→2→1）。
+
+        说明：
+        - 延迟导入 _generate_batch_with_fallback：kb_generate 依赖本模块的 _persist_questions
+          等，顶层互导会形成循环依赖。
+        - 关闭 LLM 自检：路线① 是章节配额、批数多（30 题约 10 批），逐批自检会额外增加
+          大量 LLM 调用；路线① 原本就没有自检，这里不引入新开销。
+        """
+        from .kb_generate import _generate_batch_with_fallback
+
+        return _generate_batch_with_fallback(
+            client, scope, qtype, count, difficulty, focus, ctx_chunks, seen, ctx_chunks,
+            gen_fn=gen_fn, selfcheck=False, emit=emit,
+        )
+
     if mode == "spot":
         # 定点：Top-K 检索后按题型分批
         picked = retrieve(focus or "", chunks, k=settings.doc_top_k, scope=scope) or chunks
@@ -272,22 +308,26 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
         total = sum(c for _, c in batches)
         done = 0
         for qtype, count in batches:
-            payloads = client.generate(
-                GenerationRequest(
-                    kind="doc_question",
-                    knowledge_point=(focus or doc.title)[:128],
-                    context={
-                        "chunks": _chunk_payloads(picked),
-                        "qtype": qtype,
-                        "count": count,
-                        "difficulty": difficulty,
-                        "focus": focus,
-                        "existing_stems": sorted(seen),
-                    },
-                )
-            ).payloads
+            def gen_fn(size, mix):
+                return client.generate(
+                    GenerationRequest(
+                        kind="doc_question",
+                        knowledge_point=(focus or doc.title)[:128],
+                        context={
+                            "chunks": _chunk_payloads(picked),
+                            "qtype": qtype,
+                            "count": size,
+                            "difficulty": difficulty,
+                            "focus": focus,
+                            "existing_stems": sorted(seen),
+                        },
+                    )
+                ).payloads
+
+            payloads = fallback_generate(qtype, count, picked, gen_fn)
             created += _persist_questions(
-                db, doc.candidate_id, doc.id, payloads or [], seen, stems=all_stems,
+                db, doc.candidate_id, doc.id, payloads or [], seen,
+                stems=all_stems, dup_threshold=ROUTE1_DUP_THRESHOLD,
             )
             done += count
             progress(done, total)
@@ -324,24 +364,43 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
 
     grand_total = sum(n for _, _, n in batches)
 
-    def gen_batch(heading: str | None, qtype: str, count: int, pool_chunks: list[dict]) -> None:
-        picked = _trim_to_budget(pool_chunks, settings.doc_max_input_chars)
-        payloads = client.generate(
-            GenerationRequest(
-                kind="doc_question",
-                knowledge_point=(heading or doc.title)[:128],
-                context={
-                    "chunks": _chunk_payloads(picked),
-                    "qtype": qtype,
-                    "count": count,
-                    "difficulty": difficulty,
-                    "focus": focus,
-                    "existing_stems": sorted(seen),
-                },
-            )
-        ).payloads
+    # 取整损耗校正：每段每题型各自 round() 会让计划总数**小于**用户选择的题数
+    # （实测 30 题 → grand_total 只有 25），而补偿轮以 grand_total 为目标，导致最终交付不足。
+    # 这里把差额轮流均摊到各批次，保证计划总数 == 用户选择数，且分布尽量均匀。
+    deficit = int(sum(i["count"] for i in spec)) - grand_total
+    i = 0
+    while deficit > 0 and batches:
+        heading, qtype_, n = batches[i % len(batches)]
+        batches[i % len(batches)] = (heading, qtype_, n + 1)
+        deficit -= 1
+        i += 1
+    grand_total = sum(n for _, _, n in batches)
+
+    def gen_batch(heading: str | None, qtype: str, count: int, pool_chunks: list[dict],
+                  limit: int | None = None, dup_threshold: float = ROUTE1_DUP_THRESHOLD) -> None:
+        def gen_fn(size, mix):
+            picked = _trim_to_budget(pool_chunks, settings.doc_max_input_chars)
+            return client.generate(
+                GenerationRequest(
+                    kind="doc_question",
+                    knowledge_point=(heading or doc.title)[:128],
+                    context={
+                        "chunks": _chunk_payloads(picked),
+                        "qtype": qtype,
+                        "count": size,
+                        "difficulty": difficulty,
+                        "focus": focus,
+                        "existing_stems": sorted(seen),
+                    },
+                )
+            ).payloads
+
+        payloads = fallback_generate(qtype, count, pool_chunks, gen_fn)
         created.extend(
-            _persist_questions(db, doc.candidate_id, doc.id, payloads or [], seen, stems=all_stems)
+            _persist_questions(
+                db, doc.candidate_id, doc.id, payloads or [], seen,
+                stems=all_stems, dup_threshold=dup_threshold, limit=limit,
+            )
         )
 
     done = 0
@@ -353,15 +412,25 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
         done += count
         progress(min(done, grand_total), grand_total)
 
-    # 补偿：因重复/校验被丢弃导致不足时，按 spec 顺序补足（最多 3 轮，避免死循环）
+    # 补偿：因重复/校验被丢弃导致不足时，按 spec 顺序补足（最多 6 轮）。
+    # 每轮**多生成候选**（need*2）：补偿阶段的题干与已落库题目重复率高，只生成 need 道大概率
+    # 仍被判重丢弃；多生成后用 limit=need 截断落库——既不会超产，又显著提高命中率。
     attempts = 0
-    while len(created) < grand_total and attempts < 3:
+    while len(created) < grand_total and attempts < 6:
         attempts += 1
         for item in spec:
             if len(created) >= grand_total:
                 break
             need = grand_total - len(created)
-            gen_batch(None, item["type"], min(settings.doc_batch_size, need), chunks)
+            want = min(settings.doc_batch_size * 2, max(need * 2, 2))
+            gen_batch(None, item["type"], want, chunks, limit=need)
         progress(min(len(created), grand_total), grand_total)
+
+    # 兜底：补偿后仍不足，说明资料内容已接近穷尽（小文档出大量题本就受限）。
+    # 此时放宽判重到 0.95（只拦几乎完全相同的题干）再补一轮——
+    # 宁可少数题干略有相近，也不让用户拿不到自己选择的题量。
+    if len(created) < grand_total:
+        need = grand_total - len(created)
+        gen_batch(None, spec[0]["type"], max(need * 2, 4), chunks, limit=need, dup_threshold=0.95)
 
     return created

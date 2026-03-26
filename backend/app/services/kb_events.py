@@ -24,14 +24,19 @@ def emit(
     type_: str,
     text: str,
     detail: dict | list | str | None = None,
+    model=None,
 ) -> None:
-    """写入一条过程事件。失败静默（仅回滚），绝不向上传播。"""
+    """写入一条过程事件。失败静默（仅回滚），绝不向上传播。
+
+    `model`：事件模型类，默认 KbTaskEvent（路线②③）；路线① 传 DocTaskEvent
+    （doc_tasks 与 kb_tasks 是两张表，事件各自记录）。
+    """
     try:
         payload: str | None = None
         if detail is not None:
             payload = detail if isinstance(detail, str) else json.dumps(detail, ensure_ascii=False)
         db.add(
-            KbTaskEvent(
+            (model or KbTaskEvent)(
                 task_id=task_id,
                 type=str(type_)[:16],
                 text=text,

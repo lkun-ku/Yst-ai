@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..db import SessionLocal, get_db
 from ..deps import get_current_candidate
-from ..models import Candidate, Document, DocumentChunk, DocTask, Question
+from ..models import Candidate, Document, DocumentChunk, DocTask, DocTaskEvent, Question
 from ..utils import local_day
 from ..schemas import (
     DocTaskOut,
@@ -27,7 +27,7 @@ from ..schemas import (
     GenerateIn,
     GenerateOut,
 )
-from ..services import doc_parser
+from ..services import doc_parser, kb_events
 from ..services.doc_generate import generate_for_document, normalize_spec
 from ..services.embedding import embed_one, encode_vector, wait_embed_ready
 from ..services.task_pool import EMBED, submit
@@ -128,8 +128,14 @@ def _run_task(task_id: int) -> None:
             task.total = total
             db.commit()
 
+        def on_event(type_: str, text: str, detail=None) -> None:
+            """#26 首批：过程事件落到 doc_task_events，供「按资料出题」页展示时间线。"""
+            kb_events.emit(db, task_id, type_, text, detail, model=DocTaskEvent)
+
+        on_event("stage", "已读取 %d 个资料切片，开始组卷" % len(chunks))
         created = generate_for_document(
-            db, doc, chunks, spec, task.mode, task.difficulty, task.focus, scope, on_progress
+            db, doc, chunks, spec, task.mode, task.difficulty, task.focus, scope,
+            on_progress, on_event,
         )
         db.flush()  # 取得题目 id
         task.generated_question_ids = json.dumps([q.id for q in created])

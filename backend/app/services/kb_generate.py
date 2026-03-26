@@ -181,12 +181,20 @@ def _generate_batch_with_fallback(
     emit=None,
     sample=None,
     bloom: list[str] | None = None,
+    gen_fn=None,
+    selfcheck: bool = True,
 ) -> list[dict]:
-    """生成一批题：规则校验 → 自检 → 不通过则降粒度重试（如 6→3→2→1），#26。
+    """生成一批题：规则校验 → 自检 → 不通过则降粒度重试（如 3→2→1），#26。
 
     语义变更：不再 `payloads = regen or payloads`（自检不过即整批归零），
     而是**任何一轮都保留规则校验通过的题目**——自检用于标记风险，不应成为
     欠产的原因（与既有「LLM 不可用保守放行」的降级哲学一致）。
+
+    为让**路线①（doc_generate，按资料出题）**复用同一套闭环，新增两个注入点：
+    - `gen_fn(size, bloom_mix) -> payloads`：路线① 用 `client.generate(GenerationRequest)`
+      取题，与路线②③ 的 `client.ask` 接口不同，故由调用方注入；None 时走 _generate_batch。
+    - `selfcheck`：路线① 是章节配额模式、批数多（30 题约 10 批），逐批自检会额外增加
+      大量 LLM 调用，故默认关闭，仅保留规则校验 + 降粒度重试（原本就没有自检，不引入新开销）。
     """
     # 认知层级（#26 A）：未显式指定时用配置默认池（刻意不含 remember，避免整卷记忆题）
     levels = bloom or parse_bloom_levels(settings.doc_bloom_levels)
@@ -207,10 +215,16 @@ def _generate_batch_with_fallback(
     for size in sizes:
         if len(accepted) >= count:
             break
-        payloads = _generate_batch(
-            client, scope, qtype, size, difficulty, focus, picked, seen,
-            bloom_mix=bloom_distribution(size, levels),
-        )
+        if emit and not selfcheck:
+            # 路线① 的批次事件（路线②③ 在外层循环已发 batch，此处避免重复）
+            emit("batch", "生成 %d 道题 · %s" % (size, qtype))
+        mix = bloom_distribution(size, levels)
+        if gen_fn is not None:
+            payloads = gen_fn(size, mix)
+        else:
+            payloads = _generate_batch(
+                client, scope, qtype, size, difficulty, focus, picked, seen, bloom_mix=mix,
+            )
         ok_payloads: list[dict] = []
         for p in payloads or []:
             if not isinstance(p, dict):
@@ -227,6 +241,11 @@ def _generate_batch_with_fallback(
                 emit("stage", "第 %d 题粒度生成未通过规则校验，继续降粒度" % size)
             continue
         last_ok = ok_payloads
+
+        if not selfcheck:
+            # 路线①：只做规则校验 + 降粒度重试，不额外发起自检调用
+            accepted += ok_payloads
+            continue
 
         passed, all_ok = _selfcheck_batch(client, ok_payloads, chunks, sample=sample)
         if emit:

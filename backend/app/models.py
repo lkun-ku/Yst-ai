@@ -346,6 +346,24 @@ class KbTaskEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class DocTaskEvent(Base):
+    """文档出题（路线①）过程事件，与 KbTaskEvent 同构（#26 首批）。
+
+    为什么独立建表而不复用 `kb_task_events`：后者外键挂在 `kb_tasks` 上，
+    而「按资料出题」用的是 `doc_tasks`（整型的 task.id），无法写入同一张表。
+    """
+
+    __tablename__ = "doc_task_events"
+
+    seq: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[int] = mapped_column(Integer, ForeignKey("doc_tasks.id"), index=True)
+    # stage/retrieve/batch/selfcheck/question/done/failed/cancelled
+    type: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text)  # 时间线一句话
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class Streak(Base):
     """S1：连续完成每日任务的自然日数（强留存机制）。"""
 
