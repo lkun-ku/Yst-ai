@@ -15,8 +15,16 @@
 
 import { ApiRequestError } from "./errClassify.js";
 
-/** 手机「预览/真机调试」时 localhost 指向手机自己，必须用 dev 机局域网 IP。换 WiFi 后需同步改这里。 */
-export let BASE = "http://172.20.10.2:8000";
+/**
+ * 后端地址，按调试场景二选一：
+ * - **开发者工具**（与后端同一台机器）：`http://127.0.0.1:8000` ← 当前值
+ * - **真机预览**（手机与电脑同一 WiFi）：`http://<dev 机局域网 IP>:8000`，
+ *   例如 `http://172.20.10.2:8000`。局域网 IP 用 `ipconfig` / `ifconfig` 查，换 WiFi 后需同步改。
+ *
+ * ⚠️ 不要填公网 IP（如 39.144.249.155）：公网 IP 到开发机需要路由器端口映射，
+ * 没做映射时所有请求都会 `ERR_CONNECTION_TIMED_OUT`。真机请先连与电脑相同的 WiFi。
+ */
+export let BASE = "http://127.0.0.1:8000";
 
 /** 允许运行时覆盖（如按环境变量/构建期注入）。 */
 export function setBase(url) {
