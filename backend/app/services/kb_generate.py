@@ -36,6 +36,7 @@ from .prompts_kb import (
     kb_question_prompt,
     parse_relevance,
     parse_selfcheck,
+    parse_thinking,
     relevance_grade_prompt,
     scope_rewrite_prompt,
     self_check_prompt,
@@ -223,7 +224,7 @@ def _generate_batch_with_fallback(
             payloads = gen_fn(size, mix)
         else:
             payloads = _generate_batch(
-                client, scope, qtype, size, difficulty, focus, picked, seen, bloom_mix=mix,
+                client, scope, qtype, size, difficulty, focus, picked, seen, bloom_mix=mix, emit=emit,
             )
         ok_payloads: list[dict] = []
         for p in payloads or []:
@@ -266,7 +267,8 @@ def _generate_batch_with_fallback(
     return accepted[:count]
 
 
-def _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen, extra=None, bloom_mix=None):
+def _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen, extra=None, bloom_mix=None,
+                    emit=None):
     prompt = kb_question_prompt(
         picked, qtype, count, difficulty,
         ((focus or "") + ("；" + extra if extra else "")),
@@ -275,6 +277,10 @@ def _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen
     text = client.ask(prompt)
     if text is None:
         return []
+    # 先投递模型的思考过程（逐句），再返回题目：内容真实来自模型，前端逐句打字机展示（#26 增强）
+    if emit:
+        for s in parse_thinking(text):
+            emit("think", s)
     return parse_doc_questions(text)
 
 

@@ -19,6 +19,7 @@ from ..models import Module, Question, QuestionSource, QuestionType
 from .doc_parser import normalize_stem
 from .embedding import retrieve
 from .llm_client import GenerationRequest, get_llm_client
+from .prompts_kb import parse_thinking
 from ..utils import near_duplicate
 from .validation import validate_question_payload
 
@@ -279,6 +280,7 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
     seen: set[str] = set()
     created: list[Question] = []
     all_stems: list[str] = []  # 跨批次累积的已落库题干，供近似判重（#26 遗留 3）
+    _seen_think: set[str] = set()  # 已播报的思考内容：同章节重复生成时不重复播报
 
     def progress(done: int, total: int) -> None:
         if on_progress:
@@ -380,7 +382,7 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
                   limit: int | None = None, dup_threshold: float = ROUTE1_DUP_THRESHOLD) -> None:
         def gen_fn(size, mix):
             picked = _trim_to_budget(pool_chunks, settings.doc_max_input_chars)
-            return client.generate(
+            res = client.generate(
                 GenerationRequest(
                     kind="doc_question",
                     knowledge_point=(heading or doc.title)[:128],
@@ -393,7 +395,21 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
                         "existing_stems": sorted(seen),
                     },
                 )
-            ).payloads
+            )
+            # 思考过程（#26 增强）：优先用模型自己输出的 thinking（逐句投递）；
+            # 模型未输出该字段时，用**真实上下文**兜底（章节名 + 字数），避免时间线空洞。
+            thoughts = parse_thinking(res.text)
+            if thoughts:
+                for s in thoughts:
+                    emit("think", s)
+            else:
+                hp = (heading or doc.title or "整篇资料")[:40]
+                cc = sum(int(c.get("char_count") or 0) for c in pool_chunks)
+                msg = "先看「%s」这一段（约 %d 字），围绕其中的重点概念出题" % (hp, cc)
+                if msg not in _seen_think:
+                    _seen_think.add(msg)
+                    emit("think", msg)
+            return res.payloads
 
         payloads = fallback_generate(qtype, count, pool_chunks, gen_fn)
         base = len(created)

@@ -25,7 +25,7 @@
     <view class="card tl-card">
       <text class="tl-head">生成过程</text>
       <view
-        class="tl-item {{item.done ? '' : 'tl-typing'}}"
+        class="tl-item tl-{{item.type}} {{item.done ? '' : 'tl-typing'}}"
         wx:for="{{phases}}"
         wx:key="seq"
       >
@@ -35,6 +35,12 @@
         </view>
       </view>
       <view wx:if="{{phases.length === 0}}" class="t-dim">正在准备…</view>
+
+      <!-- 动态滚轮：明确的「AI 正在工作」信号（#26 增强） -->
+      <view wx:if="{{status === 'running'}}" class="ai-thinking">
+        <view class="ai-spin" />
+        <text class="ai-thinking-text">{{phases.length ? "分析中…" : "正在读取资料…"}}</text>
+      </view>
     </view>
   </block>
 

@@ -2,6 +2,37 @@
 .tl-card {
   margin-top: 20rpx;
 }
+
+/* 动态滚轮：明确的「AI 正在工作」信号（#26 增强） */
+.ai-thinking {
+  display: flex;
+  align-items: center;
+  margin-top: 16rpx;
+}
+.ai-spin {
+  width: 28rpx;
+  height: 28rpx;
+  margin-right: 12rpx;
+  border-radius: 50%;
+  border: 4rpx solid #e6ecfb;
+  border-top-color: #3b7cff;
+  animation: ai-spin 0.8s linear infinite;
+}
+.ai-thinking-text {
+  font-size: 24rpx;
+  color: #8a8f99;
+}
+@keyframes ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 思考句（模型的构思内容）：弱化 + 斜体，与「动作」区分（#26 增强） */
+.tl-think .tl-text {
+  color: #8a8f99;
+  font-style: italic;
+}
 .tl-head {
   font-size: 28rpx;
   font-weight: 600;

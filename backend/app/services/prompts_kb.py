@@ -90,6 +90,10 @@ def kb_question_prompt(
         f"2. 难度要求：{DIFF_DESC.get(difficulty, DIFF_DESC['medium'])}。",
         "3. 只输出 JSON，不要任何解释文字或代码块围栏。",
         "4. 每道题必须包含字段：module, knowledge_point, stem, explanation, type。",
+        # #26 增强：要求模型先输出「构思 / 分析」文本，前端把它逐句展示为思考过程，
+        # 让等待过程像大模型的思考界面（内容真实来自模型，不是固定文案）
+        "5. 另需输出顶层字段 thinking：先用 2 到 4 句中文说明你是怎么分析这份资料的、"
+        "打算围绕哪些点出题（自言自语式的构思，不要写客套话），再给出 questions。",
     ]
     if qtype in ("single", "multiple", "judge"):
         lines.append("5. 还需包含 options:[{key,text}] 与 answer:[正确选项键]。")
@@ -184,6 +188,22 @@ def parse_relevance(text: str) -> tuple[bool, float]:
     except Exception:
         score = 1.0 if relevant else 0.0
     return relevant, max(0.0, min(1.0, score))
+
+
+def parse_thinking(text: str) -> list[str]:
+    """提取模型的思考（thinking）文本并按句切分，供前端逐句流式展示（#26 增强）。
+
+    为什么要切分：小程序 iOS 端不支持分块传输（SSE），拿不到真正的 token 流；
+    但模型的思考文本是**真实内容**，按句投递后由前端打字机逐句渲染，
+    观感上与大模型的思考界面一致，且不依赖 SSE。
+    返回空列表表示模型未输出 thinking（如 fake 模式），调用方直接跳过。
+    """
+    d = _extract_json(text)
+    raw = str(d.get("thinking") or "").strip()
+    if not raw:
+        return []
+    parts = [s.strip() for s in re.split(r"[。！？；\n]+", raw) if s.strip()]
+    return parts[:6]  # 限句数，避免刷屏
 
 
 def parse_selfcheck(text: str) -> tuple[bool, float, list]:

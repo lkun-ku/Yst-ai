@@ -237,6 +237,12 @@
   color: #3b7cff;
 }
 
+/* 思考句（模型的构思内容）：弱化 + 斜体，与「动作」区分（#26 增强） */
+.tl-think .tl-text {
+  color: #8a8f99;
+  font-style: italic;
+}
+
 .tl-caret {
   font-size: 22rpx;
   color: #3b7cff;

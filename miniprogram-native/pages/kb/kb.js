@@ -26,6 +26,7 @@ const TYPE_ICON = {
   selfcheck: "🛡",
   question: "📝",
   stage: "⚙️",
+  think: "💭", // 模型的构思 / 思考过程（真实内容，逐句展示）
   done: "✅",
   failed: "❌",
   cancelled: "⏹",
