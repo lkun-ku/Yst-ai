@@ -25,6 +25,25 @@
     <view class="back-link" hover-class="press" hover-stay-time="80" bindtap="goQuest">返回选择模块</view>
   </view>
 
+  <!-- 答题卡（#26）：题号网格，点击直达任意题，解决「第3题跳到第27题要点几十次」 -->
+  <view class="card sheet-card">
+    <view class="row-between" hover-class="press" hover-stay-time="80" bindtap="onToggleSheet">
+      <text class="t-strong">答题卡</text>
+      <text class="t-dim">{{answeredCount}} / {{total}} · {{sheetOpen ? "收起" : "展开"}}</text>
+    </view>
+    <view wx:if="{{sheetOpen}}" class="sheet-grid">
+      <view
+        wx:for="{{sheet}}"
+        wx:key="i"
+        class="sheet-cell sheet-{{item.state}}"
+        data-i="{{item.i}}"
+        hover-class="press"
+        hover-stay-time="80"
+        bindtap="goTo"
+      >{{item.n}}</view>
+    </view>
+  </view>
+
   <!-- 题目卡片：一次只渲染当前题 -->
   <view wx:if="{{cur}}" class="card qcard">
     <view class="row qhead">
@@ -115,7 +134,13 @@
     <view wx:if="{{isMock || allAnswered}}" class="btn-primary" hover-class="btn-primary--press" hover-stay-time="80" bindtap="onSubmit">
       {{isMock ? "交卷" : "交卷并查看复盘"}}
     </view>
-    <text wx:else class="t-dim submit-tip">答完 {{total}} 题后可交卷</text>
+    <view
+      wx:else
+      class="btn-ghost partial-submit"
+      hover-class="btn-ghost--press"
+      hover-stay-time="80"
+      bindtap="onSubmitPartial"
+    >未答完也可交卷（还有 {{total - answeredCount}} 题未答）</view>
   </view>
 
   <!-- F-05：提交中全局遮罩，防重复提交（与 api 去重锁配合） -->

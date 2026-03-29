@@ -12,6 +12,10 @@ Page({
     allAnswered: false,
     hasPrev: false,
     hasNext: false,
+
+    // 答题卡（#26）：题号网格，支持从任意题直达
+    sheetOpen: false,
+    sheet: [],
     cur: null, // 当前题视图模型（含 stem/kp/explanation/aigc/isMultiple）
     curKind: "option", // option（单选/多选/判断） / blank（填空） / short（简答）
     curOptions: [], // 当前题选项视图模型（含预计算的四态 class 与对错标记）
@@ -148,6 +152,11 @@ Page({
     return true;
   },
   _stateText(q) {
+    const qtype = this._qtype(q);
+    // 填空/简答：可接受答案可能多个，乱写不应显「部分对」；以提交后后端 _judge 为准（#20）
+    if (qtype === "blank" || qtype === "short") {
+      return this._isCorrect(q) ? "全对" : "已作答（参考答案见解析）";
+    }
     if (this._isCorrect(q)) return "全对";
     const sel = new Set(this._answers[q.id] || []);
     const cor = this._correctSet(q);
@@ -207,6 +216,13 @@ Page({
 
     const answeredCount = qs.filter((x) => this._revealed[x.id]).length;
 
+    // 答题卡：cur=当前 / done=已作答 / todo=未作答
+    const sheet = qs.map((x, i) => ({
+      i,
+      n: i + 1,
+      state: i === this._curIdx ? "cur" : this._revealed[x.id] ? "done" : "todo",
+    }));
+
     const qtype = this._qtype(q);
 
     this.setData({
@@ -227,6 +243,7 @@ Page({
       curIdx: this._curIdx,
       total: n,
       answeredCount,
+      sheet,
       progressPct: Math.round((answeredCount / n) * 100),
       allAnswered: qs.every((x) => this._revealed[x.id]),
       hasPrev: this._curIdx > 0,
@@ -335,6 +352,34 @@ Page({
       this._curIdx = ni;
       this._render();
     }
+  },
+
+  /** 答题卡展开 / 收起（#26） */
+  onToggleSheet() {
+    this.setData({ sheetOpen: !this.data.sheetOpen });
+  },
+
+  /** 从答题卡直达任意题（#26）：解决「第 3 题切到第 27 题要点几十次下一题」 */
+  goTo(e) {
+    const i = Number(e.currentTarget.dataset.i);
+    if (Number.isNaN(i) || i < 0 || i >= this._questions.length) return;
+    this._curIdx = i;
+    this._render();
+  },
+
+  /** 允许部分提交（#26）：未答完时二次确认，未作答的不计入完成题数 */
+  onSubmitPartial() {
+    const unanswered = this._questions.filter((q) => !this._revealed[q.id]).length;
+    if (!unanswered) return this.onSubmit();
+    wx.showModal({
+      title: "未答完，确定交卷？",
+      content: `还有 ${unanswered} 题未作答；未作答的不计入完成题数，交卷后不可修改。`,
+      confirmText: "继续交卷",
+      cancelText: "继续答题",
+      success: (r) => {
+        if (r.confirm) this.onSubmit();
+      },
+    });
   },
 
   /** 交卷入口：模考允许随时交卷（二次确认），普通闯关需答完所有题 */

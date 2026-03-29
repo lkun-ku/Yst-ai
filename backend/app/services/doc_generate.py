@@ -396,12 +396,16 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
             ).payloads
 
         payloads = fallback_generate(qtype, count, pool_chunks, gen_fn)
-        created.extend(
-            _persist_questions(
-                db, doc.candidate_id, doc.id, payloads or [], seen,
-                stems=all_stems, dup_threshold=dup_threshold, limit=limit,
-            )
+        base = len(created)
+        new_qs = _persist_questions(
+            db, doc.candidate_id, doc.id, payloads or [], seen,
+            stems=all_stems, dup_threshold=dup_threshold, limit=limit,
         )
+        created.extend(new_qs)
+        # 逐题上报：这是用户可见的进度（"已出第 N 题"）。内部降粒度重试不上报，
+        # 否则会出现「要 30 题却在生成 1 道」的矛盾观感（#26）。
+        for i, q in enumerate(new_qs, 1):
+            emit("question", "已出第 %d 题" % (base + i), {"id": q.id, "stem": (q.stem or "")[:80]})
 
     done = 0
     for heading, qtype, count in batches:

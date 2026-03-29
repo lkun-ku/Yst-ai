@@ -215,9 +215,9 @@ def _generate_batch_with_fallback(
     for size in sizes:
         if len(accepted) >= count:
             break
-        if emit and not selfcheck:
-            # 路线① 的批次事件（路线②③ 在外层循环已发 batch，此处避免重复）
-            emit("batch", "生成 %d 道题 · %s" % (size, qtype))
+        # 不在此处上报 batch 事件：这里的 size 是**降粒度重试**的内部批次
+        # （如 3→2→1），暴露给用户会与进度数字互相矛盾（"要 30 题却在生成 1 道"）。
+        # 用户可见的进度由 question 事件（已出第 N 题）与 done/total 表达。
         mix = bloom_distribution(size, levels)
         if gen_fn is not None:
             payloads = gen_fn(size, mix)

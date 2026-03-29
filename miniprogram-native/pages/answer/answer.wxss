@@ -1,5 +1,42 @@
 /* 答题页样式（平移自 Taro 版 answer.vue） */
 
+/* 答题卡（#26） */
+.sheet-card {
+  padding: 24rpx;
+}
+.sheet-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 16rpx;
+}
+.sheet-cell {
+  width: 76rpx;
+  height: 76rpx;
+  line-height: 76rpx;
+  text-align: center;
+  border-radius: 14rpx;
+  font-size: 26rpx;
+  background: var(--bg, #f6f7fb);
+  color: var(--t-dim, #999);
+  border: 1rpx solid transparent;
+  transition: transform 0.12s ease, background 0.2s;
+}
+.sheet-cell:active {
+  transform: scale(0.92);
+}
+.sheet-done {
+  background: linear-gradient(135deg, var(--brand, #3b7cff) 0%, var(--brand-dark, #2a63d8) 100%);
+  color: #fff;
+  font-weight: 600;
+}
+.sheet-cur {
+  border-color: var(--brand, #3b7cff);
+  color: var(--brand, #3b7cff);
+  font-weight: 600;
+  box-shadow: 0 0 0 4rpx rgba(59, 124, 255, 0.12);
+}
+
 .progress-card {
   padding: 24rpx;
 }
