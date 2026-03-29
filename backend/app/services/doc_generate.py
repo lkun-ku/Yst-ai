@@ -418,10 +418,16 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
             stems=all_stems, dup_threshold=dup_threshold, limit=limit,
         )
         created.extend(new_qs)
-        # 逐题上报：这是用户可见的进度（"已出第 N 题"）。内部降粒度重试不上报，
-        # 否则会出现「要 30 题却在生成 1 道」的矛盾观感（#26）。
-        for i, q in enumerate(new_qs, 1):
-            emit("question", "已出第 %d 题" % (base + i), {"id": q.id, "stem": (q.stem or "")[:80]})
+        # 批次汇总（#26 增强）：不再逐题播报「已出第 N 题」（信息量为零且刷屏），
+        # 改为按章节汇总真实落库区间，叙述成「已将 XX 部分的内容出在第 N~M 题」。
+        # 章节名与题号均来自真实结果，不是模板文案。
+        if new_qs:
+            label = (heading or doc.title or "整篇资料")[:40]
+            emit(
+                "question",
+                "已将「%s」部分的内容出在第 %d~%d 题" % (label, base + 1, base + len(new_qs)),
+                {"ids": [q.id for q in new_qs], "from": base + 1, "to": base + len(new_qs)},
+            )
 
     done = 0
     for heading, qtype, count in batches:

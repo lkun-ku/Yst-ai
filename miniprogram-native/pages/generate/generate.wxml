@@ -103,7 +103,10 @@
         </view>
       </view>
       <view class="add-type" hover-class="press" hover-stay-time="80" bindtap="onAddType">＋ 添加题型</view>
-      <text class="t-dim">共 {{total}} 题（单次上限 30）</text>
+      <text class="t-dim">共 {{total}} 题（单次上限 {{suggestMax || 50}}）</text>
+      <text wx:if="{{suggestMax && total > suggestMax}}" class="t-dim capacity-tip">
+        该资料内容量约支持 {{suggestMax}} 题，超出部分可能与已有题目重复
+      </text>
     </view>
 
     <!-- 范围与难度 -->

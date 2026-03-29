@@ -21,7 +21,7 @@ const TYPE_OPTIONS = [
   { type: "short", name: "简答题" },
 ];
 const TYPE_NAME = TYPE_OPTIONS.reduce((m, t) => ((m[t.type] = t.name), m), {});
-const MAX_TOTAL = 30; // 成本硬约束：单次题量上限
+const MAX_TOTAL = 50; // 成本硬约束：单次题量上限（#26：由 30 放宽到 50）
 const POLL_MS = 1500;
 
 Page({
@@ -36,6 +36,7 @@ Page({
     remainTypes: [], // 还可添加的题型
     total: 10,
     canSubmit: true,
+    suggestMax: 0, // 内容容量估算的建议上限（#26：小文档出太多必然重复）
 
     // 任务态
     taskId: 0,
@@ -73,8 +74,20 @@ Page({
   async loadDoc(id) {
     try {
       const doc = await request(`/api/documents/${id}`);
-      this.setData({ doc, selected: doc.headings || [] });
+      // 内容容量估算（#26）：经验值——每 1000 字约能出 3 道互不相似的题。
+      // 小资料硬出 50 题必然是换皮重复，这里算出建议上限并提示，从源头避免质量崩塌。
+      const chars = Number(doc.char_count || 0);
+      const capacity = Math.max(5, Math.floor((chars / 1000) * 3));
+      const suggestMax = Math.min(MAX_TOTAL, capacity);
+      this.setData({ doc, selected: doc.headings || [], suggestMax });
       this._refresh();
+      if (suggestMax < MAX_TOTAL) {
+        wx.showToast({
+          title: `该资料约 ${chars} 字，建议最多出 ${suggestMax} 题`,
+          icon: "none",
+          duration: 2500,
+        });
+      }
     } catch (e) {
       toastApiError(e);
     }
