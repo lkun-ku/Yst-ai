@@ -1,3 +1,15 @@
+/* 「自建题库 · 组卷出题」是次要入口：资料卡片上的「出题」才是主路径，
+   此处显式弱化，避免与资料列表争夺注意力（#26 第三批） */
+.kb-entry {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: var(--t-dim, #8a8f99);
+  text-align: center;
+  padding: 16rpx 0;
+  background: transparent;
+  border: 1rpx dashed #d8dce3;
+}
+
 .progress-track {
   height: 12rpx;
   background: var(--bg);

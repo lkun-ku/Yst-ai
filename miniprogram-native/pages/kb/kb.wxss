@@ -33,6 +33,15 @@
   min-height: 120rpx;
 }
 
+/* input 必须显式给高度：小程序 input 默认高度偏小，配合 padding 后文字只露出下半截（#26 第三批）。
+   内容区高度 = 88 - 上下 padding 40 = 48rpx，与 line-height 对齐，保证单行文字完整居中显示。 */
+.input {
+  height: 88rpx;
+  line-height: 48rpx;
+  padding-top: 20rpx;
+  padding-bottom: 20rpx;
+}
+
 .hint {
   font-size: 24rpx;
   color: #999;

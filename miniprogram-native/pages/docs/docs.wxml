@@ -51,9 +51,11 @@
     </view>
   </block>
 
-  <view wx:if="{{docs.length > 0 && !uploading}}" class="btn-primary" hover-class="btn-primary--press" hover-stay-time="80" bindtap="onChoose">
+  <view wx:if="{{docs.length > 0 && !uploading}}" class="btn-ghost" hover-class="btn-ghost--press" hover-stay-time="80" bindtap="onChoose">
     上传资料
   </view>
+
+  <view class="btn-ghost kb-entry" hover-class="btn-ghost--press" hover-stay-time="80" bindtap="goKb">自建题库 · 组卷出题</view>
 
   <text class="t-dim build-tip">题目由 AI 生成，仅供参考</text>
 </view>
