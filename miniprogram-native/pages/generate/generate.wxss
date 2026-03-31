@@ -22,6 +22,17 @@
   font-size: 24rpx;
   color: #8a8f99;
 }
+
+/* 停止生成按钮（#26） */
+.stop-btn {
+  margin-left: auto;
+  padding: 8rpx 22rpx;
+  font-size: 24rpx;
+  color: #e0483c;
+  border: 1rpx solid #f3c9c4;
+  border-radius: var(--r-pill, 999rpx);
+  background: rgba(224, 72, 60, 0.06);
+}
 @keyframes ai-spin {
   to {
     transform: rotate(360deg);

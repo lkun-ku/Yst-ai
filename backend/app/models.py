@@ -284,6 +284,8 @@ class DocTask(Base):
     candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id"), index=True)
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), index=True)
     status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/running/done/failed
+    # #26：协作式取消——置 True 后任务线程在**批次边界**停止；已生成的题目保留为部分卷
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     # paper=整卷（章节配额分配，覆盖均匀） / spot=定点（Top-K 语义检索，精准命中）
     mode: Mapped[str] = mapped_column(String(16), default="paper")
     spec: Mapped[str] = mapped_column(Text, default="[]")  # JSON: [{"type","count"}]

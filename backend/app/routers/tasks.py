@@ -42,6 +42,27 @@ def get_task(
     )
 
 
+@router.post("/{task_id}/cancel")
+def cancel_task(
+    task_id: int,
+    c: Candidate = Depends(get_current_candidate),
+    db: Session = Depends(get_db),
+):
+    """请求取消文档出题（#26）。
+
+    协作式取消：下一个**批次边界**生效——LLM 单次调用无法中断，Python 也不能安全
+    强杀线程；强行中断会丢掉整批已生成的题目。已出的题**保留**为部分卷。
+    """
+    t = db.get(DocTask, task_id)
+    if t is None or t.candidate_id != c.id:
+        raise HTTPException(404, "任务不存在")
+    if t.status in ("done", "failed", "cancelled"):
+        return {"task_id": task_id, "status": t.status, "cancelled": False}
+    t.cancel_requested = True
+    db.commit()
+    return {"task_id": task_id, "status": t.status, "cancelled": True}
+
+
 @router.get("/{task_id}/events")
 def task_events(
     task_id: int,

@@ -266,7 +266,12 @@ def _persist_questions(
 
 
 def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: str, difficulty: str, focus, scope,
-                         on_progress=None, on_event=None) -> list[Question]:
+                         on_progress=None, on_event=None, should_stop=None) -> list[Question]:
+    """执行生成（调用方需提供**独立 DB Session**，见 A6）。
+
+    `should_stop()`：协作式取消回调（#26）。在**批次之间**调用，返回 True 时停止后续批次
+    并**返回已生成的题目**——这样取消后仍能得到部分卷，而不是丢弃全部结果。
+    """
     """执行生成（调用方需提供**独立 DB Session**，见 A6）。
 
     `on_event(type, text, detail)`：#26 首批新增，用于「按资料出题」页展示过程时间线。
@@ -431,6 +436,9 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
 
     done = 0
     for heading, qtype, count in batches:
+        # 协作式取消（#26）：在批次之间检查，已落库的题目随 created 返回，不会丢
+        if should_stop and should_stop():
+            break
         pool = seg_chunks.get(heading or "", [])
         if not pool:
             continue

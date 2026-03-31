@@ -205,6 +205,11 @@ export function requestDocEvents(taskId, since = 0) {
   return request(`/api/tasks/${taskId}/events?since=${since}`, { loading: false, lock: false });
 }
 
+/** 请求取消文档出题（协作式：下一批次边界生效，已出题目保留为部分卷）。 */
+export function cancelDocTask(taskId) {
+  return request(`/api/tasks/${taskId}/cancel`, { method: "POST", loading: false, lock: false });
+}
+
 /* ---------------- R4 / O-03：统一错误兜底 ---------------- */
 
 export function toastApiError(e) {

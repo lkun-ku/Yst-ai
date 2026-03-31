@@ -89,6 +89,22 @@ def _embed_document(doc_id: int) -> None:
         db.close()
 
 
+def _cancelled(db, task_id: int) -> bool:
+    """读取任务的取消标志（cancel 接口在另一个 Session 写入，需 refresh 才能看到）。
+
+    注意：这里**不能** rollback——生成过程中 _persist_questions 的 db.add 尚未提交，
+    rollback 会把已生成的题目一起丢弃。
+    """
+    try:
+        t = db.get(DocTask, task_id)
+        if t is None:
+            return False
+        db.refresh(t)
+        return bool(t.cancel_requested)
+    except Exception:
+        return False
+
+
 def _run_task(task_id: int) -> None:
     db = SessionLocal()  # A6：独立 DB Session
     try:
@@ -127,6 +143,8 @@ def _run_task(task_id: int) -> None:
             task.done = done
             task.total = total
             db.commit()
+            # 取消由 generate_for_document 的 should_stop 在**批次之间**处理（#26）：
+            # 优雅退出才能把已生成的题目随 created 返回；在此处抛异常会让它们丢失。
 
         def on_event(type_: str, text: str, detail=None) -> None:
             """#26 首批：过程事件落到 doc_task_events，供「按资料出题」页展示时间线。"""
@@ -136,12 +154,24 @@ def _run_task(task_id: int) -> None:
         created = generate_for_document(
             db, doc, chunks, spec, task.mode, task.difficulty, task.focus, scope,
             on_progress, on_event,
+            should_stop=lambda: _cancelled(db, task.id),
         )
         db.flush()  # 取得题目 id
         task.generated_question_ids = json.dumps([q.id for q in created])
         task.done = task.total
-        task.status = "done"
+        # 用户主动取消时同样记录已生成的题目（部分卷），只是状态标为 cancelled（#26）
+        task.status = "cancelled" if task.cancel_requested else "done"
         db.commit()
+    except _TaskCancelled:
+        # 用户主动停止：已生成题目保留为部分卷，不记为失败（#26）
+        try:
+            db.rollback()
+            t = db.get(DocTask, task_id)
+            if t is not None:
+                t.status = "cancelled"
+                db.commit()
+        except Exception:
+            pass
     except Exception as e:  # 单批失败不致命，整体失败才记 error
         try:
             db.rollback()

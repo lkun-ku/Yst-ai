@@ -1,4 +1,11 @@
-import { navTo, redirectNav, request, requestDocEvents, toastApiError } from "../../utils/api.js";
+import {
+  cancelDocTask,
+  navTo,
+  redirectNav,
+  request,
+  requestDocEvents,
+  toastApiError,
+} from "../../utils/api.js";
 
 /** 过程事件类型到图标的映射（#26 第二批，与 kb 页一致） */
 const EVENT_ICON = {
@@ -236,6 +243,27 @@ Page({
     );
     this.setData({ phases });
     this._queue = (this._queue || []).concat(events);
+  },
+
+  /** 停止生成（#26）：协作式取消，下一个批次边界生效，已出的题保留为部分卷 */
+  onStop() {
+    const tid = this.data.taskId;
+    if (!tid) return;
+    wx.showModal({
+      title: "停止生成？",
+      content: "已生成的题目会保留，未完成的批次将停止。",
+      confirmText: "停止",
+      cancelText: "继续生成",
+      success: async (r) => {
+        if (!r.confirm) return;
+        try {
+          await cancelDocTask(tid);
+          wx.showToast({ title: "已请求停止…", icon: "none", duration: 2000 });
+        } catch (e) {
+          toastApiError(e);
+        }
+      },
+    });
   },
 
   /** 打字机逐字渲染：流式感由前端补，与传输粒度解耦 */
