@@ -401,19 +401,11 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
                     },
                 )
             )
-            # 思考过程（#26 增强）：优先用模型自己输出的 thinking（逐句投递）；
-            # 模型未输出该字段时，用**真实上下文**兜底（章节名 + 字数），避免时间线空洞。
-            thoughts = parse_thinking(res.text)
-            if thoughts:
-                for s in thoughts:
-                    emit("think", s)
-            else:
-                hp = (heading or doc.title or "整篇资料")[:40]
-                cc = sum(int(c.get("char_count") or 0) for c in pool_chunks)
-                msg = "先看「%s」这一段（约 %d 字），围绕其中的重点概念出题" % (hp, cc)
-                if msg not in _seen_think:
-                    _seen_think.add(msg)
-                    emit("think", msg)
+            # 思考过程（#26 增强）：只展示**模型自己输出的** thinking（逐句投递）。
+            # 不再用「先看 XX 这一段」模板兜底——它与 question 事件的章节名重复刷屏，
+            # 且 question 文案已含章节名，时间线不会空洞（#26）。
+            for s in parse_thinking(res.text):
+                emit("think", s)
             return res.payloads
 
         payloads = fallback_generate(qtype, count, pool_chunks, gen_fn)
@@ -428,10 +420,15 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
         # 章节名与题号均来自真实结果，不是模板文案。
         if new_qs:
             label = (heading or doc.title or "整篇资料")[:40]
+            if len(new_qs) == 1:
+                text = "围绕「%s」出题，内容见第 %d 题" % (label, base + 1)
+            else:
+                text = "围绕「%s」出题，内容见第 %d~%d 题" % (label, base + 1, base + len(new_qs))
             emit(
                 "question",
-                "已将「%s」部分的内容出在第 %d~%d 题" % (label, base + 1, base + len(new_qs)),
-                {"ids": [q.id for q in new_qs], "from": base + 1, "to": base + len(new_qs)},
+                text,
+                {"ids": [q.id for q in new_qs], "label": label,
+                 "from": base + 1, "to": base + len(new_qs)},
             )
 
     done = 0
