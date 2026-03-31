@@ -64,6 +64,18 @@
 
   <!-- 配置态 -->
   <block wx:else>
+    <!-- 断点续做（#26）：上次停止的任务，只补剩余题量 -->
+    <view wx:if="{{resume}}" class="card resume-card">
+      <text class="t-strong">上次出题已停止</text>
+      <text class="t-dim">已出的题目已保留，还剩 {{resume.remaining}} 题未完成</text>
+      <view
+        class="btn-primary resume-btn"
+        hover-class="btn-primary--press"
+        hover-stay-time="80"
+        bindtap="onResume"
+      >继续补齐剩余 {{resume.remaining}} 题</view>
+    </view>
+
     <!-- 模式 -->
     <text class="section-title">出题方式</text>
     <view class="card">

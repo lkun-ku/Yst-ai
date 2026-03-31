@@ -4,19 +4,24 @@ import {
   redirectNav,
   request,
   requestDocEvents,
+  retryDocTask,
   toastApiError,
 } from "../../utils/api.js";
 
 /** 过程事件类型到图标的映射（#26 第二批，与 kb 页一致） */
+/** 事件类型到极简标记的映射（#26）：弃用 emoji，改用细线圆点——黑白灰为主、品牌色点缀 */
 const EVENT_ICON = {
-  retrieve: "🔍",
-  grade: "⚖️",
-  rewrite: "🔁",
-  batch: "✏️",
-  selfcheck: "🛡",
-  question: "📝",
-  stage: "⚙️",
-  think: "💭", // 模型的构思 / 思考过程（真实内容，逐句展示）
+  retrieve: "◦",
+  grade: "◦",
+  rewrite: "◦",
+  batch: "●",
+  selfcheck: "◦",
+  question: "●",
+  stage: "·",
+  think: "◦", // 思考：空心小圈（弱化）
+  done: "●",
+  failed: "×",
+  cancelled: "○",
 };
 const TYPE_MS = 26;
 
@@ -44,6 +49,7 @@ Page({
     total: 10,
     canSubmit: true,
     suggestMax: 0, // 内容容量估算的建议上限（#26：小文档出太多必然重复）
+    resume: null, // 上次停止的任务（#26 断点续做）
 
     // 任务态
     taskId: 0,
@@ -71,6 +77,11 @@ Page({
     this.setData({ docId: id });
     this._queue = []; // 待打字机渲染的事件队列（不进 data，避免 setData 开销）
     this._typing = false;
+    // 断点续做（#26）：上次停止的任务若有缺口，提示继续补齐
+    const stopped = wx.getStorageSync("stoppedGen_" + id);
+    if (stopped && stopped.remaining > 0) {
+      this.setData({ resume: stopped });
+    }
     this.loadDoc(id);
   },
 
@@ -258,12 +269,53 @@ Page({
         if (!r.confirm) return;
         try {
           await cancelDocTask(tid);
+          // 记录停止进度：重新进入本页时可续做（#26 断点续做）
+          const remaining = Math.max(0, (this.data.taskTotal || 0) - (this.data.done || 0));
+          try {
+            wx.setStorageSync("stoppedGen_" + this.data.docId, {
+              taskId: tid,
+              remaining,
+              savedAt: Date.now(),
+            });
+          } catch (err) { /* 存储失败不阻塞 */ }
           wx.showToast({ title: "已请求停止…", icon: "none", duration: 2000 });
         } catch (e) {
           toastApiError(e);
         }
       },
     });
+  },
+
+  /** 断点续做（#26）：只补上次未完成的题量，已出的题不重复 */
+  async onResume() {
+    const r = this.data.resume;
+    if (!r || !r.taskId) return;
+    try {
+      const res = await retryDocTask(r.taskId);
+      try { wx.removeStorageSync("stoppedGen_" + this.data.docId); } catch (err) { /* 忽略 */ }
+      this.setData({ resume: null });
+      this._startResume(res);
+    } catch (e) {
+      toastApiError(e);
+    }
+  },
+
+  /** 续做任务：只补缺口的题量，走同样的过程区 */
+  _startResume(res) {
+    this.setData({
+      taskId: res.task_id,
+      status: "running",
+      done: 0,
+      taskTotal: res.remaining || this.data.taskTotal,
+      stageText: "补齐剩余题目…",
+      phases: [],
+      since: 0,
+      eventsDowngraded: false,
+      error: "",
+    });
+    this._queue = [];
+    this._typing = false;
+    this._startPoll();
   },
 
   /** 打字机逐字渲染：流式感由前端补，与传输粒度解耦 */

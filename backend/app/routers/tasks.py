@@ -63,6 +63,60 @@ def cancel_task(
     return {"task_id": task_id, "status": t.status, "cancelled": True}
 
 
+@router.post("/{task_id}/retry")
+def retry_task(
+    task_id: int,
+    c: Candidate = Depends(get_current_candidate),
+    db: Session = Depends(get_db),
+):
+    """停止 / 失败后**继续出题**（#26）：按已出题数计算缺口，发起新任务只补剩余部分。
+
+    已出的题不会重复生成（新任务只包含缺口的题量），完成后两卷合起来即用户选择的完整题量。
+    """
+    t = db.get(DocTask, task_id)
+    if t is None or t.candidate_id != c.id:
+        raise HTTPException(404, "任务不存在")
+    if t.status not in ("failed", "cancelled"):
+        raise HTTPException(400, f"仅 failed / cancelled 任务可续做（当前 {t.status}）")
+
+    total = t.total or 0
+    made = min(t.done or 0, total)
+    remaining = total - made
+    if remaining <= 0:
+        raise HTTPException(400, "已无缺口，无需续做")
+
+    try:
+        spec = json.loads(t.spec or "[]")
+    except Exception:
+        spec = []
+    old_total = sum(i.get("count", 0) for i in spec) or 1
+    # 按原配比缩放剩余题数（取整偏差最多 1 题，由补偿轮兜住）
+    new_spec = [
+        {"type": i["type"], "count": max(1, round(i["count"] * remaining / old_total))}
+        for i in spec
+        if i.get("count", 0) > 0
+    ]
+
+    new_t = DocTask(
+        candidate_id=c.id,
+        document_id=t.document_id,
+        mode=t.mode,
+        spec=json.dumps(new_spec, ensure_ascii=False),
+        difficulty=t.difficulty,
+        focus=t.focus,
+        scope=t.scope,
+        status="pending",
+    )
+    db.add(new_t)
+    db.commit()
+    return {
+        "task_id": new_t.id,
+        "from_task_id": task_id,
+        "remaining": remaining,
+        "spec": new_spec,
+    }
+
+
 @router.get("/{task_id}/events")
 def task_events(
     task_id: int,

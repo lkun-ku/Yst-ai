@@ -200,6 +200,11 @@ export function requestChunk(chunkId) {
   return request(`/api/kb/chunk/${chunkId}`, { loading: false, lock: false });
 }
 
+/** 停止 / 失败后继续出题：按已出题数计算缺口，返回新任务（只补剩余部分）。 */
+export function retryDocTask(taskId) {
+  return request(`/api/tasks/${taskId}/retry`, { method: "POST", loading: false, lock: false });
+}
+
 /** 增量拉取文档出题（路线①）过程事件；since = 上次拿到的最大 seq。 */
 export function requestDocEvents(taskId, since = 0) {
   return request(`/api/tasks/${taskId}/events?since=${since}`, { loading: false, lock: false });
