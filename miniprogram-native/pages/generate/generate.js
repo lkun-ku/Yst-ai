@@ -9,19 +9,15 @@ import {
 } from "../../utils/api.js";
 
 /** 过程事件类型到图标的映射（#26 第二批，与 kb 页一致） */
-/** 事件类型到极简标记的映射（#26）：弃用 emoji，改用细线圆点——黑白灰为主、品牌色点缀 */
 const EVENT_ICON = {
-  retrieve: "◦",
-  grade: "◦",
-  rewrite: "◦",
-  batch: "●",
-  selfcheck: "◦",
-  question: "●",
-  stage: "·",
-  think: "◦", // 思考：空心小圈（弱化）
-  done: "●",
-  failed: "×",
-  cancelled: "○",
+  retrieve: "🔍",
+  grade: "⚖️",
+  rewrite: "🔁",
+  batch: "✏️",
+  selfcheck: "🛡",
+  question: "📝",
+  stage: "⚙️",
+  think: "💭", // 模型的构思 / 思考过程（真实内容，逐句展示）
 };
 const TYPE_MS = 26;
 
@@ -249,11 +245,57 @@ Page({
   },
 
   _enqueue(events) {
-    const phases = this.data.phases.concat(
-      events.map((e) => ({ seq: e.seq, icon: EVENT_ICON[e.type] || "•", text: "", done: false }))
-    );
+    let phases = this.data.phases.slice();
+    const queue = (this._queue || []).concat(events);
+
+    for (const ev of events) {
+      if (ev.type === "question") {
+        let d = null;
+        try {
+          d = ev.detail ? JSON.parse(ev.detail) : null;
+        } catch (err) {
+          d = null;
+        }
+        const label = (d && d.label) || "";
+        const to = (d && d.to) || 0;
+        const from = (d && d.from) || 0;
+
+        // 同一章节连续出题：**更新最后一条**而不是新增，避免同一部分反复刷屏（#26）
+        const last = phases[phases.length - 1];
+        if (last && last.type === "question" && last.label === label && last.done) {
+          last.text = `围绕「${label}」出题，内容见第 ${last.from}~${to} 题`;
+          continue;
+        }
+        phases = phases.concat([
+          {
+            seq: ev.seq,
+            icon: EVENT_ICON[ev.type] || "•",
+            type: ev.type,
+            text: "",
+            done: false,
+            label,
+            from,
+            to,
+          },
+        ]);
+      } else {
+        phases = phases.concat([
+          {
+            seq: ev.seq,
+            icon: EVENT_ICON[ev.type] || "•",
+            type: ev.type,
+            text: "",
+            done: false,
+            label: "",
+            from: 0,
+            to: 0,
+          },
+        ]);
+      }
+    }
+
     this.setData({ phases });
-    this._queue = (this._queue || []).concat(events);
+    this._queue = queue;
   },
 
   /** 停止生成（#26）：协作式取消，下一个批次边界生效，已出的题保留为部分卷 */
