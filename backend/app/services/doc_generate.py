@@ -78,31 +78,28 @@ def build_batches(spec: list[dict], batch_size: int | None = None) -> list[tuple
 
 
 def allocate_quota(segments: list[dict], total: int) -> list[int]:
-    """按段长比例分配题量（最大余数法），保证 `sum(结果) == total`。"""
+    """**按章节均匀分配**题量，保证 `sum(结果) == total`。
+
+    #26 修复：此前按**段长比例**分配，导致长章节吃掉几乎全部题量——实测 50 题卷里
+    25 + 25 集中在 2 个章节，其余 30 多个章节 0 题（用户反馈「一个部分出二十多道」）。
+
+    改为：先每段均分 base，余数按内容量降序补给最长的段——长章节略多，但不再垄断；
+    内容极少的章节至少分到 base 题（保证覆盖全面），题量不足章节数时按余数分配（有的段为 0）。
+
+    题量少于章节数时 base 为 0，按余数分配（长章节优先），保证 `sum == total` 且不超产。
+    """
     n = len(segments)
     if n == 0 or total <= 0:
         return [0] * n
 
-    weights = [max(0, int(s.get("char_count") or 0)) for s in segments]
-    wsum = sum(weights)
-
-    if wsum == 0:
-        base, rem = divmod(total, n)
-        out = [base] * n
+    base, rem = divmod(total, n)
+    out = [base] * n
+    if rem:
+        order = sorted(
+            range(n), key=lambda i: -max(0, int(segments[i].get("char_count") or 0))
+        )
         for i in range(rem):
-            out[i] += 1
-        return out
-
-    exact = [total * w / wsum for w in weights]
-    out = [int(x) for x in exact]
-    rem = total - sum(out)
-    # 按小数部分降序补余数；不足时至少保证前几段有题
-    order = sorted(range(n), key=lambda i: -(exact[i] - out[i]))
-    i = 0
-    while rem > 0:
-        out[order[i % n]] += 1
-        rem -= 1
-        i += 1
+            out[order[i % n]] += 1
     return out
 
 
