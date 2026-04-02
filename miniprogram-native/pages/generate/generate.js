@@ -73,10 +73,21 @@ Page({
     this.setData({ docId: id });
     this._queue = []; // 待打字机渲染的事件队列（不进 data，避免 setData 开销）
     this._typing = false;
-    // 断点续做（#26）：上次停止的任务若有缺口，提示继续补齐
+    // 断点续做（#26）：用后端真实状态校验，避免用本地缓存的过期数据误提示
     const stopped = wx.getStorageSync("stoppedGen_" + id);
-    if (stopped && stopped.remaining > 0) {
-      this.setData({ resume: stopped });
+    if (stopped && stopped.remaining > 0 && stopped.taskId) {
+      request(`/api/tasks/${stopped.taskId}`)
+        .then((st) => {
+          const remaining = Math.max(0, (st.total || 0) - (st.done || 0))
+          if (remaining <= 0) {
+            try { wx.removeStorageSync("stoppedGen_" + id) } catch (err) { /* 忽略 */ }
+            return
+          }
+          this.setData({ resume: { ...stopped, remaining } })
+        })
+        .catch(() => {
+          try { wx.removeStorageSync("stoppedGen_" + id) } catch (err) { /* 忽略 */ }
+        })
     }
     this.loadDoc(id);
   },
