@@ -165,11 +165,13 @@ def start_session(
         if not body.module and not body.knowledge_point:
             raise HTTPException(status_code=400, detail="module 或 knowledge_point 至少提供一个")
 
-        enforce_quota(db, c, body.question_count)
-
+        # #27：按考点/模块抽题不再限定官方题库——此前 source==POOL 把个人题全排除，
+        # 「资料#52」这类个人考点重练必然 409「仅 0」。个人题 module=PERSONAL，
+        # 与官方模块天然隔离不会串卷；「驳回即弃」过滤保留。
+        # 越权防护：个人题（owner_candidate_id 非空）仅限本人的，官方池（NULL）人人可用。
         q = db.query(Question).filter(
-            Question.source == QuestionSource.POOL,
             Question.proofread_status != ProofreadStatus.REJECTED,  # 驳回即弃（票 13）
+            (Question.owner_candidate_id.is_(None)) | (Question.owner_candidate_id == c.id),
         )
         if body.module is not None:
             q = q.filter(Question.module == body.module)
@@ -177,11 +179,12 @@ def start_session(
             q = q.filter(Question.knowledge_point == body.knowledge_point)
 
         pool = q.all()
-        if len(pool) < body.question_count:
-            raise HTTPException(
-                status_code=409,
-                detail=f"可选题目不足：需 {body.question_count}，仅 {len(pool)}",
-            )
+        if not pool:
+            raise HTTPException(status_code=409, detail="该范围暂无可练习的题目")
+
+        # #27：不足时按可用量降级开局（对齐个人局分支语义），不再 409 硬失败；
+        # 额度按实际开局题数校验（降级时不虚耗额度）。
+        enforce_quota(db, c, min(body.question_count, len(pool)))
 
         selected = _arrange(pool, body.question_count)
         module = body.module
@@ -380,6 +383,15 @@ def submit_session(
             else:
                 mb.wrong_count += 1
             db.add(mb)
+        else:
+            # #27：答对即移出（用户确认语义）——已掌握的题不再滞留错题本
+            mb = (
+                db.query(MistakeBook)
+                .filter(MistakeBook.candidate_id == c.id, MistakeBook.question_id == q.id)
+                .first()
+            )
+            if mb is not None:
+                db.delete(mb)
 
     # 记入今日任务进度：让"完成每日任务"必须真的做过题（失败不影响提交结果）
     try:
