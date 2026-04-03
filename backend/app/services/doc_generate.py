@@ -268,10 +268,8 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
 
     `should_stop()`：协作式取消回调（#26）。在**批次之间**调用，返回 True 时停止后续批次
     并**返回已生成的题目**——这样取消后仍能得到部分卷，而不是丢弃全部结果。
-    """
-    """执行生成（调用方需提供**独立 DB Session**，见 A6）。
 
-    `on_event(type, text, detail)`：#26 首批新增，用于「按资料出题」页展示过程时间线。
+    `on_event(type, text, detail)`：用于「按资料出题」页展示过程时间线。
     """
     client = get_llm_client()
 

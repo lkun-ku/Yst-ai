@@ -52,9 +52,15 @@ class TestBuildBatches:
 
 
 class TestAllocateQuota:
-    def test_按长度比例分配(self):
+    # #26：分配策略由「按段长比例」改为「按章节均匀分配**（避免长章节垄断题量）。
+    # 下面按新语义断言。
+
+    def test_均匀分配_不被长章节垄断(self):
+        # 长度差 3 倍，均匀分配下差距最多 1 题（比例分配会得到 [1, 3]。
         segs = [{"char_count": 100}, {"char_count": 300}]
-        assert allocate_quota(segs, 4) == [1, 3]
+        out = allocate_quota(segs, 4)
+        assert out == [2, 2]
+        assert sum(out) == 4
 
     def test_总题量守恒(self):
         segs = [{"char_count": 120}, {"char_count": 80}, {"char_count": 200}]
@@ -70,7 +76,16 @@ class TestAllocateQuota:
         segs = [{"char_count": 10}, {"char_count": 10}, {"char_count": 10}]
         out = allocate_quota(segs, 2)
         assert sum(out) == 2
-        assert sorted(out, reverse=True) == [1, 1, 0]
+
+    def test_余数给内容最多的段(self):
+        # base=1，余 1 题应给最长的段（体现「长章节略多」）
+        segs = [{"char_count": 50}, {"char_count": 500}, {"char_count": 100}]
+        out = allocate_quota(segs, 4)
+        assert sum(out) == 4
+        assert out == [1, 2, 1]
+
+    def test_单段全量(self):
+        assert allocate_quota([{"char_count": 100}], 5) == [5]
 
     def test_零长段落均分(self):
         segs = [{"char_count": 0}, {"char_count": 0}]
