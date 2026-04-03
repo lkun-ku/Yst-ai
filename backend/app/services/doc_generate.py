@@ -358,8 +358,23 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
     for seg, quota in zip(segments, quotas):
         if quota <= 0:
             continue
-        for item in spec:
-            n = round(quota * item["count"] / max(1, total_q))
+        # 段内按题型比例分配（最大余数法），保证 sum == quota。
+        # 修复（#26）：此前对每个题型**各自 round()**，多题型 + 均匀配额（每段仅 1 题）时
+        # round(1 × 10/50) = 0 → 所有段所有题型都是 0 → batches 为空 → 整卷 0 题。
+        weights = [max(0, int(item["count"])) for item in spec]
+        wsum = sum(weights) or 1
+        exact = [quota * w / wsum for w in weights]
+        ns = [int(x) for x in exact]
+        rem_q = quota - sum(ns)
+        order = sorted(range(len(spec)), key=lambda i: -(exact[i] - ns[i]))
+        k = 0
+        while rem_q > 0:
+            ns[order[k % len(ns)]] += 1
+            rem_q -= 1
+            k += 1
+        for item, n in zip(spec, ns):
+            if n <= 0:
+                continue
             remaining = int(n)
             while remaining > 0:
                 take = min(settings.doc_batch_size, remaining)
