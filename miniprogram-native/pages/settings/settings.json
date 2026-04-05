@@ -2,5 +2,8 @@
   "navigationBarTitleText": "设置",
   "usingComponents": {
     "x-modal": "/components/modal/modal"
-  }
+  },
+  "navigationBarBackgroundColor": "#F3EFE7",
+  "navigationBarTextStyle": "black",
+  "backgroundColor": "#F3EFE7"
 }

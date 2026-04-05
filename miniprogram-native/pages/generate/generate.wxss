@@ -1,3 +1,24 @@
+
+page {
+  background: var(--ink-50);
+  --brand: #2f5a8f;
+  --brand-dark: #2f5a8f;
+  --brand-light: #f3efe7;
+  --success: #2f5a8f;
+  --success-light: #f3efe7;
+  --danger: #c25450;
+  --danger-light: #f3efe7;
+  --warn: #c25450;
+  --warn-light: #f3efe7;
+  --text-1: #1c1c1a;
+  --text-2: #55524a;
+  --text-3: #8a8577;
+  --border: #e8e2d8;
+  --bg: #f3efe7;
+  --card: #faf7f2;
+  --shadow-card: none;
+}
+
 /* ---------- 生成过程时间线（#26 第二批） ---------- */
 .tl-card {
   margin-top: 20rpx;

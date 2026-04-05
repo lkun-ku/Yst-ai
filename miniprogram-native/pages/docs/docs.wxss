@@ -1,3 +1,24 @@
+
+page {
+  background: var(--ink-50);
+  --brand: #2f5a8f;
+  --brand-dark: #2f5a8f;
+  --brand-light: #f3efe7;
+  --success: #2f5a8f;
+  --success-light: #f3efe7;
+  --danger: #c25450;
+  --danger-light: #f3efe7;
+  --warn: #c25450;
+  --warn-light: #f3efe7;
+  --text-1: #1c1c1a;
+  --text-2: #55524a;
+  --text-3: #8a8577;
+  --border: #e8e2d8;
+  --bg: #f3efe7;
+  --card: #faf7f2;
+  --shadow-card: none;
+}
+
 /* 「自建题库 · 组卷出题」是次要入口：资料卡片上的「出题」才是主路径，
    此处显式弱化，避免与资料列表争夺注意力（#26 第三批） */
 .kb-entry {
@@ -7,7 +28,7 @@
   text-align: center;
   padding: 16rpx 0;
   background: transparent;
-  border: 1rpx dashed #d8dce3;
+  border: 1rpx dashed var(--ink-300);
 }
 
 .progress-track {
@@ -19,7 +40,7 @@
 }
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--brand) 0%, var(--brand-dark) 100%);
+  background: var(--primary);
   border-radius: var(--r-pill);
   transition: width 0.2s;
 }
@@ -72,10 +93,10 @@
   font-size: var(--fs-sm);
 }
 .btn-danger {
-  background: var(--danger-light);
-  color: var(--danger);
-  border: 2rpx solid var(--danger);
-  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--danger-ink);
+  border: 1rpx solid var(--danger-ink);
+  border-radius: var(--r-spec);
   text-align: center;
 }
 
