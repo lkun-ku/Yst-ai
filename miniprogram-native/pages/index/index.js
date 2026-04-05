@@ -1,16 +1,17 @@
 import { request, ensureIdentity, toastApiError, navTo } from "../../utils/api.js";
 import { shouldShowAigcNotice } from "../../utils/notice.js";
 import { remainingText } from "../../utils/time.js";
+import { ENTRY_ICONS } from "./icons.js";
 
 const DRAFT_KEY = "quest_draft";
 
-/** 功能入口。#27：每日任务页删除——考期/连胜上首页，今日任务并入错题本。 */
+/** 功能入口。#27：图标改用 Reicon（data-URI SVG），每日任务页删除——考期/连胜上首页。 */
 const ENTRIES = [
-  { icon: "闯", title: "进入闯关", desc: "按模块或考点发起", bg: "#e6f7f6", url: "/pages/quest/quest" },
-  { icon: "错", title: "错题本", desc: "今日任务与考点重练", bg: "#fff4e5", url: "/pages/mistakes/mistakes" },
-  { icon: "史", title: "历史闯关", desc: "回看往期复盘", bg: "#f3ecfd", url: "/pages/history/history" },
-  { icon: "料", title: "我的资料", desc: "上传资料出试题", bg: "#e8f8ee", url: "/pages/docs/docs" },
-  { icon: "我", title: "我的设置", desc: "管理学习数据", bg: "#eef1f4", url: "/pages/settings/settings" },
+  { icon: ENTRY_ICONS.flag, title: "进入闯关", desc: "按模块或考点发起", bg: "#e6f7f6", url: "/pages/quest/quest" },
+  { icon: ENTRY_ICONS.book, title: "错题本", desc: "今日任务与考点重练", bg: "#fff4e5", url: "/pages/mistakes/mistakes" },
+  { icon: ENTRY_ICONS.history, title: "历史闯关", desc: "回看往期复盘", bg: "#f3ecfd", url: "/pages/history/history" },
+  { icon: ENTRY_ICONS.file_text, title: "我的资料", desc: "上传资料出试题", bg: "#e8f8ee", url: "/pages/docs/docs" },
+  { icon: ENTRY_ICONS.gear, title: "我的设置", desc: "管理学习数据", bg: "#eef1f4", url: "/pages/settings/settings" },
 ];
 
 Page({

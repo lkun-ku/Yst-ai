@@ -1,343 +1,484 @@
-/* 答题页样式（平移自 Taro 版 answer.vue） */
+/* 答题页 ·「纸卷 v1」（docs/design-spec.md）
+   平铺分区 + 发丝线分层；零阴影、零渐变、唯一圆角 16rpx、8rpx 栅格。
+   动效仅 transform/opacity，曲线 var(--ease-spec)。 */
 
-/* #27 重练当前题考点 */
-.kp-repractice {
-  color: var(--brand, #3b7cff);
-  font-size: 24rpx;
-  padding: 4rpx 8rpx;
+page {
+  background: var(--paper);
+  color: var(--ink-900);
 }
 
-/* 答题卡（#26） */
-.sheet-card {
-  padding: 24rpx;
+.page-wrap.answer {
+  padding: 24rpx 32rpx 220rpx; /* 底部留出固定操作区 */
+  min-height: 100vh;
+  box-sizing: border-box;
 }
-.sheet-grid {
+
+/* ---------- 顶栏 + 进度 ---------- */
+.topbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 14rpx;
-  margin-top: 16rpx;
+  align-items: center;
+  justify-content: space-between;
 }
-.sheet-cell {
-  width: 76rpx;
-  height: 76rpx;
-  line-height: 76rpx;
-  text-align: center;
-  border-radius: 14rpx;
-  font-size: 26rpx;
-  background: var(--bg, #f6f7fb);
-  color: var(--t-dim, #999);
-  border: 1rpx solid transparent;
-  transition: transform 0.12s ease, background 0.2s;
-}
-.sheet-cell:active {
-  transform: scale(0.92);
-}
-.sheet-done {
-  background: linear-gradient(135deg, var(--brand, #3b7cff) 0%, var(--brand-dark, #2a63d8) 100%);
-  color: #fff;
+.topbar-title {
+  font-size: 34rpx;
   font-weight: 600;
+  color: var(--ink-900);
 }
-.sheet-cur {
-  border-color: var(--brand, #3b7cff);
-  color: var(--brand, #3b7cff);
-  font-weight: 600;
-  box-shadow: 0 0 0 4rpx rgba(59, 124, 255, 0.12);
+.topbar-right {
+  display: flex;
+  align-items: center;
 }
-
-.progress-card {
-  padding: 24rpx;
-}
-.progress-num {
-  font-size: var(--fs-sm);
-  color: var(--brand-dark);
-  font-weight: 600;
+.topbar-progress {
+  font-size: 22rpx;
+  color: var(--ink-500);
+  font-variant-numeric: tabular-nums;
+  margin-right: 16rpx;
 }
 .mock-timer {
-  font-size: var(--fs-lg);
+  font-size: 30rpx;
   font-weight: 700;
-  color: var(--brand-dark);
+  color: var(--primary);
   font-variant-numeric: tabular-nums;
+  margin-right: 16rpx;
 }
+.exit-btn {
+  font-size: 22rpx;
+  color: var(--ink-500);
+  padding: 8rpx 20rpx;
+  border: 1rpx solid var(--ink-200);
+  border-radius: var(--r-spec);
+}
+
 .progress-track {
-  height: 12rpx;
-  background: var(--bg);
-  border-radius: var(--r-pill);
+  height: 4rpx;
+  background: var(--ink-200);
+  border-radius: 2rpx;
   overflow: hidden;
-  margin-top: 16rpx;
+  margin-top: 20rpx;
 }
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--brand) 0%, var(--brand-dark) 100%);
-  border-radius: var(--r-pill);
-  transition: width 0.3s;
+  background: var(--primary);
+  border-radius: 2rpx;
+  transition: width 0.4s var(--ease-spec);
 }
 
-/* 题目卡 */
-.qhead {
-  margin-bottom: 12rpx;
+/* ---------- 题干区（内容主角，s6 呼吸留白） ---------- */
+.qzone {
+  margin-top: 72rpx;
 }
-.qtag {
-  margin-right: 8rpx;
+.qmeta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
 }
-.qindex {
-  font-size: var(--fs-xs);
-  color: var(--text-3);
-  flex: 1;
+.qmeta {
+  font-size: 22rpx;
+  color: var(--ink-500);
+}
+.kp-repractice {
+  font-size: 22rpx;
+  color: var(--primary);
+  padding: 4rpx 8rpx;
 }
 .stem {
   display: block;
-  font-size: 30rpx;
-  font-weight: 600;
-  color: var(--text-1);
-  line-height: 1.7;
+  font-size: 44rpx;
+  font-weight: 700;
+  color: var(--ink-900);
+  line-height: 1.4;
 }
-.kp {
+.aigc-note {
   display: block;
-  color: var(--text-3);
-  font-size: var(--fs-xs);
-  margin: 12rpx 0 20rpx;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: var(--ink-400);
 }
 
-/* 选项 */
-.option {
+/* ---------- 选项行（规范 8.2 五态，发丝线分隔，无框） ---------- */
+.options {
+  margin-top: 48rpx;
+}
+.option-row {
   display: flex;
   align-items: center;
-  padding: 20rpx;
-  border: 2rpx solid var(--border);
-  border-radius: var(--r-md);
-  margin-bottom: 16rpx;
+  padding: 32rpx 0;
+  border-bottom: 1rpx solid var(--ink-200);
+  transition: background 0.24s var(--ease-spec), transform 0.15s var(--ease-spec);
 }
 .opt-key {
-  width: 48rpx;
-  height: 48rpx;
-  line-height: 44rpx;
+  width: 52rpx;
+  height: 52rpx;
+  line-height: 48rpx;
   text-align: center;
-  border-radius: 50%;
-  border: 2rpx solid var(--border);
-  font-size: var(--fs-sm);
-  color: var(--text-2);
-  margin-right: 16rpx;
+  border: 1rpx solid var(--ink-300);
+  border-radius: var(--r-spec);
+  font-size: 26rpx;
+  color: var(--ink-700);
+  margin-right: 24rpx;
   flex-shrink: 0;
+  box-sizing: border-box;
+  transition: all 0.24s var(--ease-spec);
 }
 .opt-text {
   flex: 1;
-  font-size: var(--fs);
-  color: var(--text-1);
+  font-size: 30rpx;
+  color: var(--ink-700);
   min-width: 0;
+  transition: color 0.24s var(--ease-spec);
 }
-.opt-mark {
-  font-size: var(--fs);
-  color: var(--success);
-  margin-left: 12rpx;
+
+/* 选中（未揭示 / 模考已选） */
+.option-row.picked,
+.option-row.opt-picked {
+  background: var(--ink-50);
+}
+.opt-picked .opt-key,
+.picked .opt-key,
+.key-picked {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.opt-picked .opt-text,
+.picked .opt-text {
+  color: var(--ink-900);
+  font-weight: 600;
+}
+
+/* 正确 */
+.opt-correct .opt-key,
+.key-correct {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.opt-correct .opt-text {
+  color: var(--ink-900);
+  font-weight: 600;
+}
+
+/* 错误（用户选错的项） */
+.opt-wrong .opt-key,
+.key-wrong {
+  border-color: var(--danger-ink);
+  color: var(--danger-ink);
+  background: transparent;
+}
+.opt-wrong .opt-text {
+  color: var(--ink-900);
+}
+
+/* 漏选（正确但未选）：墨蓝虚线提示 */
+.opt-missed .opt-key,
+.key-missed {
+  border-style: dashed;
+  border-color: var(--primary);
+  color: var(--primary);
+  background: transparent;
+}
+.opt-missed .opt-text {
+  color: var(--ink-900);
+}
+
+/* 已答后的其余项：弱化 */
+.opt-dim,
+.key-dim {
+  opacity: 0.45;
+}
+
+/* 对错标记：CSS 绘制的线性对勾 / 叉（禁 emoji） */
+.mark-ok {
+  width: 20rpx;
+  height: 12rpx;
+  border-left: 4rpx solid var(--primary);
+  border-bottom: 4rpx solid var(--primary);
+  transform: rotate(-45deg);
+  margin-left: 16rpx;
   flex-shrink: 0;
 }
-.opt-mark.wrong {
-  color: var(--danger);
+.mark-wrong {
+  position: relative;
+  width: 24rpx;
+  height: 24rpx;
+  margin-left: 16rpx;
+  flex-shrink: 0;
+}
+.mark-wrong::before,
+.mark-wrong::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 26rpx;
+  height: 4rpx;
+  background: var(--danger-ink);
+  border-radius: 2rpx;
+}
+.mark-wrong::before {
+  transform: rotate(45deg);
+}
+.mark-wrong::after {
+  transform: rotate(-45deg);
 }
 
-/* 模考：已选但未揭示对错（不能复用四态，因为 revealed=false 时四态恒为 idle） */
-.opt-picked {
-  background: var(--brand-light);
-  border-color: var(--brand);
+/* ---------- 填空 / 简答 ---------- */
+.answer-input {
+  width: 100%;
+  height: 88rpx;
+  margin-top: 48rpx;
+  padding: 0 24rpx;
+  background: var(--ink-100);
+  border-radius: var(--r-spec);
+  font-size: 30rpx;
+  color: var(--ink-900);
+  box-sizing: border-box;
 }
-.key-picked {
-  background: var(--brand);
-  border-color: var(--brand);
-  color: #fff;
+.answer-area {
+  width: 100%;
+  min-height: 240rpx;
+  margin-top: 48rpx;
+  padding: 24rpx;
+  background: var(--ink-100);
+  border-radius: var(--r-spec);
+  font-size: 30rpx;
+  color: var(--ink-900);
+  box-sizing: border-box;
 }
-
-.opt-correct {
-  background: var(--success-light);
-  border-color: var(--success);
+.input-placeholder {
+  color: var(--ink-400);
 }
-.key-correct {
-  background: var(--success);
-  border-color: var(--success);
-  color: #fff;
+.answer-submit {
+  margin-top: 24rpx;
 }
-.opt-wrong {
-  background: var(--danger-light);
-  border-color: var(--danger);
-}
-.key-wrong {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #fff;
-}
-/* 漏选态（R3/E-02）：未选但正确——橙色虚线边框，与已选正确(绿)明确区分 */
-.opt-missed {
-  background: var(--warn-light);
-  border-color: var(--warn);
-  border-style: dashed;
-}
-.key-missed {
-  background: var(--warn);
-  border-color: var(--warn);
-  border-style: dashed;
-  color: #fff;
-}
-.opt-dim {
-  opacity: 0.5;
-}
-.key-dim {
-  opacity: 0.6;
+.answered-note {
+  display: block;
+  margin-top: 24rpx;
+  font-size: 26rpx;
+  color: var(--ink-500);
 }
 
-/* 解析区 */
+/* ---------- 解析（ink-50 底块，唯一允许的"卡"） ---------- */
 .explain {
-  margin-top: 20rpx;
-  padding: 20rpx;
-  background: var(--bg);
-  border-radius: var(--r-md);
+  margin-top: 48rpx;
+  padding: 24rpx;
+  background: var(--ink-50);
+  border-radius: var(--r-spec);
 }
 .explain-head {
   display: flex;
   align-items: center;
-  margin-bottom: 8rpx;
+  margin-bottom: 12rpx;
 }
 .explain-label {
-  font-size: var(--fs-sm);
+  font-size: 26rpx;
   font-weight: 600;
-  color: var(--brand-dark);
-  margin-right: 12rpx;
+  color: var(--ink-900);
+  margin-right: 16rpx;
 }
 .state {
-  font-size: var(--fs-xs);
-  padding: 2rpx 14rpx;
-  border-radius: var(--r-pill);
+  font-size: 22rpx;
+  padding: 4rpx 16rpx;
+  border-radius: var(--r-spec);
 }
 .state-ok {
-  background: var(--success-light);
-  color: var(--success);
+  color: var(--primary);
+  border: 1rpx solid var(--primary);
 }
 .state-bad {
-  background: var(--warn-light);
-  color: var(--warn);
+  color: var(--danger-ink);
+  border: 1rpx solid var(--danger-ink);
 }
 .explain-text {
   display: block;
-  font-size: var(--fs-sm);
-  color: var(--text-2);
+  font-size: 26rpx;
+  color: var(--ink-700);
   line-height: 1.7;
 }
 .report {
   display: inline-block;
-  margin-top: 14rpx;
-  color: var(--accent);
-  font-size: var(--fs-xs);
+  margin-top: 16rpx;
+  color: var(--ink-500);
+  font-size: 22rpx;
 }
 
-/* 填空 / 简答输入区 */
-.answer-input {
-  width: 100%;
-  margin: 8rpx 0 16rpx;
-}
-.answer-area {
-  width: 100%;
-  min-height: 200rpx;
-  margin: 8rpx 0 16rpx;
-}
-.answer-submit {
-  margin-bottom: 8rpx;
-}
-
-.nav-row {
-  display: flex;
-  gap: 24rpx;
-  margin-top: 8rpx;
-}
-.nav-btn {
-  flex: 1;
+/* ---------- 按钮体系（规范 8.1） ---------- */
+.btn-primary {
+  height: 88rpx;
+  line-height: 88rpx;
   text-align: center;
-  background: var(--card);
-  color: var(--brand-dark);
-  border: 2rpx solid var(--border);
-  border-radius: var(--r-pill);
-  height: 76rpx;
-  line-height: 72rpx;
-  font-size: var(--fs-sm);
+  background: var(--primary);
+  color: #ffffff;
+  border-radius: var(--r-spec);
+  font-size: 30rpx;
+  font-weight: 600;
+  transition: transform 0.15s var(--ease-spec);
 }
-.submit-wrap {
-  margin: 32rpx 0 8rpx;
+.btn-secondary {
+  height: 88rpx;
+  line-height: 84rpx;
+  text-align: center;
+  background: transparent;
+  color: var(--primary);
+  border: 1rpx solid var(--primary);
+  border-radius: var(--r-spec);
+  font-size: 30rpx;
+  box-sizing: border-box;
+  transition: transform 0.15s var(--ease-spec);
 }
-.submit-tip {
+
+/* ---------- 底部固定操作区 ---------- */
+.bottombar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 24rpx 32rpx calc(24rpx + env(safe-area-inset-bottom));
+  background: var(--paper);
+  border-top: 1rpx solid var(--ink-200);
+  z-index: 10;
+}
+.bb-row {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+}
+.bb-nav {
+  flex: 1;
+  height: 80rpx;
+  line-height: 76rpx;
+  font-size: 26rpx;
+}
+.partial-note {
   display: block;
   text-align: center;
-  padding: 24rpx 0;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: var(--ink-500);
 }
 
-/* 出题失败错误态 */
-.error-card {
+/* ---------- 答题卡弹层（ink-50 底、无阴影、格子三态） ---------- */
+.sheet-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(28, 28, 26, 0.4);
+  z-index: 20;
+}
+.sheet-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--ink-50);
+  border-radius: var(--r-spec) var(--r-spec) 0 0;
+  padding: 32rpx 32rpx calc(40rpx + env(safe-area-inset-bottom));
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24rpx;
+}
+.sheet-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+.sheet-count {
+  font-size: 22rpx;
+  color: var(--ink-500);
+  font-variant-numeric: tabular-nums;
+}
+.sheet-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+.sheet-cell {
+  width: 88rpx;
+  height: 88rpx;
+  line-height: 84rpx;
   text-align: center;
-  padding: 48rpx 32rpx;
+  border-radius: var(--r-spec);
+  font-size: 26rpx;
+  background: #fffcf8;
+  color: var(--ink-500);
+  border: 1rpx solid var(--ink-200);
+  box-sizing: border-box;
+  transition: transform 0.15s var(--ease-spec);
+}
+.sheet-done {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+.sheet-cur {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+  background: #fffcf8;
+}
+
+/* ---------- 出题失败态（平铺错误区） ---------- */
+.error-zone {
+  margin-top: 72rpx;
+  text-align: left;
+}
+.error-title {
+  display: block;
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--ink-900);
 }
 .error-msg {
   display: block;
   margin: 16rpx 0 32rpx;
-  font-size: var(--fs-sm);
-  color: var(--text-2);
+  font-size: 26rpx;
+  color: var(--ink-500);
   word-break: break-all;
 }
-.retry-btn {
+.error-zone .btn-secondary {
   display: inline-block;
-  background: var(--brand);
-  color: #fff;
-  border-radius: var(--r-pill);
-  padding: 16rpx 56rpx;
-  font-size: var(--fs);
+  padding: 0 48rpx;
   margin-bottom: 24rpx;
 }
 .back-link {
   display: inline-block;
-  color: var(--brand-dark);
-  font-size: var(--fs-sm);
-  padding: 12rpx 24rpx;
+  color: var(--ink-500);
+  font-size: 26rpx;
+  padding: 12rpx 0;
 }
 
-/* 顶部栏 + 退出（R8 / O-01） */
-.answer-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--sp);
-}
-.exit-btn {
-  font-size: var(--fs-xs);
-  color: var(--text-2);
-  padding: 8rpx 24rpx;
-  border: 2rpx solid var(--border);
-  border-radius: var(--r-pill);
-}
-.exit-btn--press {
-  background: var(--bg);
-  opacity: 0.85;
-}
-
-/* F-05 提交遮罩 */
+/* ---------- 提交遮罩 ---------- */
 .loading-mask {
   position: fixed;
   left: 0;
   right: 0;
   top: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(28, 28, 26, 0.45);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  z-index: 99;
+  z-index: 30;
 }
 .loading-spinner {
   width: 64rpx;
   height: 64rpx;
-  border: 6rpx solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  border: 6rpx solid var(--ink-200);
+  border-top-color: var(--ink-900);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 .loading-text {
-  color: #fff;
-  font-size: var(--fs-sm);
+  color: var(--ink-900);
+  font-size: 26rpx;
   margin-top: 20rpx;
 }
 @keyframes spin {

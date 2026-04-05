@@ -1,52 +1,74 @@
 <view class="page-wrap review">
-  <view wx:if="{{loading}}" class="card t-muted">正在生成复盘报告…</view>
+  <!-- 加载态：骨架屏（规范 8.5，形状匹配最终布局） -->
+  <block wx:if="{{loading}}">
+    <view class="sk sk-line" />
+    <view class="sk sk-block" />
+    <view class="sk sk-block" />
+    <view class="sk sk-line" />
+  </block>
 
   <block wx:elif="{{summary}}">
-    <view class="card hero">
-      <text class="hero-title">复盘报告</text>
-      <text wx:if="{{summary.aigc}}" class="tag tag-brand aigc">AI 生成内容，仅供参考</text>
-    </view>
-
-    <!-- 五维掌握度（G-02）：横向条形呈现 -->
-    <text class="section-title">五维掌握度</text>
-    <view class="card">
-      <view wx:for="{{summary.radar}}" wx:key="module" class="radar-row">
-        <text class="radar-name">{{item.module}}</text>
-        <view class="radar-track">
-          <view class="radar-fill {{item.percent < 60 ? 'low' : ''}}" style="width: {{item.percent}}%" />
+    <!-- 结果 hero：本局战绩大数字（无框居中，同首页考期区语言） -->
+    <view class="hero-zone">
+      <text class="hero-label">复盘报告</text>
+      <block wx:if="{{summary.questionCount}}">
+        <view class="hero-num-row">
+          <text class="hero-num">{{summary.correctCount}}</text>
+          <text class="hero-unit">/ {{summary.questionCount}} 题</text>
         </view>
-        <text class="radar-pct">{{item.percent}}%</text>
+        <text class="hero-sub">本局正确率 {{summary.rateText}}%</text>
+      </block>
+      <text wx:if="{{summary.aigc}}" class="hero-aigc">AI 生成内容，仅供参考</text>
+    </view>
+
+    <!-- 五维掌握度卡（最弱在前） -->
+    <view class="card-mod">
+      <text class="zone-label">五维掌握度</text>
+      <view class="radar-list">
+        <view wx:for="{{summary.radar}}" wx:key="module" class="radar-row">
+          <text class="radar-name">{{item.module}}</text>
+          <view class="radar-track">
+            <view class="radar-fill" style="width: {{item.percent}}%" />
+          </view>
+          <text class="radar-pct">{{item.percent}}%</text>
+        </view>
+        <text wx:if="{{!summary.radar.length}}" class="empty-note">暂无掌握度数据</text>
       </view>
     </view>
 
-    <!-- 薄弱考点（G-03）：每项可直接发起该考点重练（#27 方案 B，不打断答题） -->
-    <text class="section-title">建议优先巩固</text>
-    <view class="card">
-      <view wx:for="{{summary.weakTop3}}" wx:key="*this" class="weak-item">
-        <text class="weak-dot">·</text>
-        <text class="weak-name">{{item}}</text>
-        <view class="weak-retry" hover-class="press" hover-stay-time="80" data-kp="{{item}}" bindtap="onRepracticeWeak">重练</view>
+    <!-- 薄弱考点卡（重练直达） -->
+    <view class="card-mod">
+      <text class="zone-label">建议优先巩固</text>
+      <view class="weak-list">
+        <view wx:for="{{summary.weakTop3}}" wx:key="*this" class="weak-row">
+          <text class="weak-name">{{item}}</text>
+          <view class="weak-retry" hover-class="press" hover-stay-time="80" data-kp="{{item}}" catchtap="onRepracticeWeak">重练</view>
+        </view>
+        <text wx:if="{{!summary.weakTop3.length}}" class="empty-note">暂无薄弱考点，保持得不错</text>
       </view>
-      <text wx:if="{{!summary.weakTop3.length}}" class="t-muted">暂无薄弱考点，保持得不错</text>
     </view>
 
-    <!-- 下一步一件事（G-04） -->
-    <view class="card next">
-      <text class="next-label">下一步</text>
-      <text class="next-text">{{summary.nextStep || "继续下一局闯关"}}</text>
+    <!-- 下一步 -->
+    <view class="card-mod" wx:if="{{summary.nextStep}}">
+      <text class="zone-label">下一步</text>
+      <text class="next-text">{{summary.nextStep}}</text>
     </view>
 
-    <!-- 个性化段落（G-05~G-08） -->
-    <view class="card para">
+    <!-- 复盘段落 -->
+    <view class="card-mod" wx:if="{{summary.paragraph}}">
       <text class="para-text">{{summary.paragraph}}</text>
-      <text wx:if="{{summary.aigc}}" class="para-aigc">（AI 生成，仅供参考）</text>
+      <text wx:if="{{summary.aigc}}" class="para-aigc">AI 生成，仅供参考</text>
     </view>
 
+    <!-- 底部双按钮 -->
     <view class="btn-row">
-      <view class="btn-ghost" hover-class="btn-ghost--press" hover-stay-time="80" bindtap="goMistakes">去错题本</view>
-      <view class="btn-primary" hover-class="btn-primary--press" hover-stay-time="80" bindtap="goQuest">再来一局</view>
+      <view class="btn-sub btn-half" hover-class="press" hover-stay-time="80" bindtap="goMistakes">去错题本</view>
+      <view class="btn-main btn-half" hover-class="press" hover-stay-time="80" bindtap="goQuest">再来一局</view>
     </view>
   </block>
 
-  <view wx:else class="card t-muted">未找到该局复盘，请返回首页</view>
+  <view wx:else class="empty-zone">
+    <text class="empty-title">未找到该局复盘</text>
+    <text class="empty-sub">请返回首页重新进入</text>
+  </view>
 </view>

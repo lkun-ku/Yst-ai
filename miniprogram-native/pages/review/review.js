@@ -26,7 +26,20 @@ Page({
     try {
       await ensureIdentity();
       const data = await request(`/api/review/${sid}`);
-      this.setData({ summary: summarizeReview(data), loading: false });
+      const summary = summarizeReview(data);
+      // 补充本局战绩（hero 大数字）：从历史列表取该局正确数/总数；缺失不阻塞复盘展示
+      try {
+        const hist = (await request("/api/sessions/history")) || [];
+        const hit = hist.find((x) => x.session_id === sid);
+        if (hit && hit.question_count) {
+          summary.correctCount = hit.correct_count || 0;
+          summary.questionCount = hit.question_count;
+          summary.rateText = Math.round(((hit.correct_count || 0) / hit.question_count) * 100);
+        }
+      } catch (e) {
+        /* 战绩缺失时 hero 不显示数字，仅展示雷达与段落 */
+      }
+      this.setData({ summary, loading: false });
     } catch (e) {
       toastApiError(e);
       this.setData({ summary: null, loading: false });

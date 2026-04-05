@@ -1,4 +1,7 @@
 {
+  "usingComponents": {},
   "navigationBarTitleText": "复盘报告",
-  "usingComponents": {}
+  "navigationBarBackgroundColor": "#F3EFE7",
+  "navigationBarTextStyle": "black",
+  "backgroundColor": "#F3EFE7"
 }

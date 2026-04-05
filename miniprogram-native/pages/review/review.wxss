@@ -1,117 +1,184 @@
-/* #27 薄弱考点逐项重练 */
-.weak-item {
-  display: flex;
-  align-items: center;
-}
-.weak-name {
-  flex: 1;
-}
-.weak-retry {
-  flex-shrink: 0;
-  font-size: var(--fs-xs);
-  color: var(--brand);
-  padding: 6rpx 22rpx;
-  border: 1rpx solid var(--brand);
-  border-radius: 999rpx;
+/* 结果页 ·「纸卷 v1」（docs/design-spec.md）
+   hero 战绩大数字（无框居中）+ 模块卡分区；公共类 card-mod/btn-main/btn-sub 来自 app.wxss。 */
+
+page {
+  background: var(--ink-50);
+  color: var(--ink-900);
 }
 
-.hero {
+.page-wrap.review {
+  padding: 24rpx 32rpx 64rpx;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* ---------- 骨架屏 ---------- */
+.sk {
+  background: var(--ink-100);
+  border-radius: var(--r-spec);
+  animation: sk-pulse 1.4s var(--ease-spec) infinite;
+}
+.sk-line {
+  height: 40rpx;
+  margin-bottom: 24rpx;
+}
+.sk-block {
+  height: 180rpx;
+  margin-bottom: 24rpx;
+}
+@keyframes sk-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---------- 结果 hero（无框居中，同首页考期区） ---------- */
+.hero-zone {
+  padding: 24rpx 0 40rpx;
+  text-align: center;
+}
+.hero-label {
+  font-size: 40rpx;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+.hero-num-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: baseline;
+  justify-content: center;
+  margin-top: 8rpx;
 }
-.hero-title {
-  font-size: var(--fs-xl);
+.hero-num {
+  font-size: 140rpx;
   font-weight: 700;
-  color: var(--text-1);
+  color: var(--primary);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
-.aigc {
-  flex-shrink: 0;
+.hero-unit {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--ink-900);
+  margin-left: 12rpx;
 }
+.hero-sub {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: var(--ink-500);
+}
+.hero-aigc {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: var(--ink-400);
+}
+
+/* ---------- 五维掌握度 ---------- */
 .radar-row {
   display: flex;
   align-items: center;
-  margin-bottom: 18rpx;
+  padding: 14rpx 0;
 }
 .radar-name {
-  width: 180rpx;
-  font-size: var(--fs-xs);
-  color: var(--text-2);
+  width: 200rpx;
+  font-size: 26rpx;
+  color: var(--ink-700);
   flex-shrink: 0;
 }
 .radar-track {
   flex: 1;
-  height: 16rpx;
-  background: var(--bg);
-  border-radius: var(--r-pill);
+  height: 8rpx;
+  background: var(--ink-200);
+  border-radius: 4rpx;
   overflow: hidden;
 }
 .radar-fill {
   height: 100%;
-  background: var(--brand);
-  border-radius: var(--r-pill);
-}
-.radar-fill.low {
-  background: var(--warn);
+  background: var(--primary);
+  border-radius: 4rpx;
+  transition: width 0.4s var(--ease-spec);
 }
 .radar-pct {
-  width: 80rpx;
+  width: 88rpx;
   text-align: right;
-  font-size: var(--fs-xs);
-  color: var(--text-2);
+  font-size: 26rpx;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-.weak-item {
+
+/* ---------- 薄弱考点 ---------- */
+.weak-row {
   display: flex;
   align-items: center;
-  font-size: var(--fs-sm);
-  color: var(--text-1);
-  margin-bottom: 10rpx;
+  justify-content: space-between;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid var(--ink-200);
 }
-.weak-dot {
-  color: var(--warn);
-  margin-right: 10rpx;
-  font-weight: 700;
+.weak-row:last-of-type {
+  border-bottom: none;
 }
-.next-label {
-  font-size: var(--fs-xs);
-  color: var(--brand-dark);
-  font-weight: 600;
+.weak-name {
+  font-size: 30rpx;
+  color: var(--ink-900);
 }
+.weak-retry {
+  flex-shrink: 0;
+  font-size: 26rpx;
+  color: var(--primary);
+  padding: 8rpx 28rpx;
+  border: 1rpx solid var(--primary);
+  border-radius: var(--r-spec);
+}
+
+/* ---------- 下一步 / 段落 ---------- */
 .next-text {
-  display: block;
-  font-size: var(--fs);
-  color: var(--text-1);
-  margin-top: 6rpx;
+  font-size: 30rpx;
+  color: var(--ink-900);
+  line-height: 1.6;
 }
 .para-text {
   display: block;
-  font-size: var(--fs-sm);
-  color: var(--text-2);
-  line-height: 1.7;
+  font-size: 26rpx;
+  color: var(--ink-700);
+  line-height: 1.8;
 }
 .para-aigc {
   display: block;
-  font-size: var(--fs-xs);
-  color: var(--text-3);
-  margin-top: 8rpx;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: var(--ink-400);
 }
+
+/* ---------- 底部双按钮 ---------- */
 .btn-row {
   display: flex;
   gap: 24rpx;
-  margin-top: 32rpx;
+  margin-top: 40rpx;
 }
-.btn-ghost {
+.btn-half {
   flex: 1;
+}
+
+/* ---------- 空态 ---------- */
+.empty-zone {
+  padding: 120rpx 0;
   text-align: center;
-  padding: 0;
-  height: 88rpx;
-  line-height: 88rpx;
-  border-radius: var(--r-pill);
-  border: 2rpx solid var(--border);
-  color: var(--text-2);
-  font-size: var(--fs);
 }
-.btn-primary {
-  flex: 1;
+.empty-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+.empty-sub {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: var(--ink-500);
 }

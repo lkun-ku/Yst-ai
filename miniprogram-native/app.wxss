@@ -51,6 +51,21 @@ page {
   --fs-lg: 32rpx;
   --fs-xl: 40rpx;
 
+  /* 「纸卷 v1」设计规范令牌（docs/design-spec.md）——改版页面专用，渐进替换旧令牌 */
+  --paper: #faf7f2;        /* 页面底色（暖纸白） */
+  --ink-50: #f3efe7;       /* 区块底 / 选中行底 / 骨架屏 */
+  --ink-100: #ede8de;      /* 输入框底 */
+  --ink-200: #e8e2d8;      /* 发丝线 / 进度轨道 */
+  --ink-300: #d8d1c4;      /* 禁用边框 */
+  --ink-400: #b8b0a2;      /* 占位 / 禁用文字 */
+  --ink-500: #8a8577;      /* 次级文字 */
+  --ink-700: #55524a;      /* 正文次级 */
+  --ink-900: #1c1c1a;      /* 标题 / 题干 / 正文主色 */
+  --primary: #2f5a8f;      /* 墨蓝：行动 / 正确 / 进度 */
+  --danger-ink: #c25450;   /* 赤红：仅错误语义 */
+  --r-spec: 16rpx;         /* 唯一圆角 */
+  --ease-spec: cubic-bezier(0.32, 0.72, 0, 1);
+
   background: var(--bg);
   color: var(--text-1);
   font-size: var(--fs);
@@ -198,8 +213,74 @@ button {
 
 /* R11：通用按压反馈类，供全站可点击卡片/按钮复用（hover-class 可靠触发） */
 .press {
-  opacity: 0.85;
-  transform: scale(0.99);
+  opacity: 0.92;
+  transform: scale(0.98);
+}
+
+/* ============================================================
+   「纸卷 v1」公共组件（docs/design-spec.md）——改版页面共享
+   ============================================================ */
+
+/* 模块卡：paper 底 + 明显边框 + 极轻阴影（页面底色需为桌面色 --ink-50） */
+.card-mod {
+  background: var(--paper);
+  border: 1rpx solid var(--ink-300);
+  border-radius: var(--r-spec);
+  padding: 32rpx 40rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(28, 28, 26, 0.05);
+  box-sizing: border-box;
+}
+
+/* 分区小标 */
+.zone-label {
+  display: block;
+  font-size: 26rpx;
+  color: var(--ink-500);
+  margin-bottom: 20rpx;
+}
+
+/* 主按钮：墨蓝平色 */
+.btn-main {
+  height: 88rpx;
+  line-height: 88rpx;
+  text-align: center;
+  background: var(--primary);
+  color: #ffffff;
+  border-radius: var(--r-spec);
+  font-size: 30rpx;
+  font-weight: 600;
+  transition: transform 0.15s var(--ease-spec);
+}
+/* 次按钮：墨蓝描边 */
+.btn-sub {
+  height: 88rpx;
+  line-height: 84rpx;
+  text-align: center;
+  background: transparent;
+  color: var(--primary);
+  border: 1rpx solid var(--primary);
+  border-radius: var(--r-spec);
+  font-size: 30rpx;
+  box-sizing: border-box;
+  transition: transform 0.15s var(--ease-spec);
+}
+/* 幽灵行按钮：无框，文字 + 图标语义 */
+.btn-ghost-ink {
+  color: var(--primary);
+  font-size: 26rpx;
+  padding: 8rpx 12rpx;
+}
+
+/* 发丝线 */
+.hairline-v1 {
+  border-top: 1rpx solid var(--ink-300);
+}
+
+/* 空态说明 */
+.empty-note {
+  font-size: 26rpx;
+  color: var(--ink-500);
 }
 
 .btn-ghost--press {

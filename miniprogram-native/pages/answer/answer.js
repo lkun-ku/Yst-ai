@@ -359,13 +359,17 @@ Page({
     this.setData({ sheetOpen: !this.data.sheetOpen });
   },
 
-  /** 从答题卡直达任意题（#26）：解决「第 3 题切到第 27 题要点几十次下一题」 */
+  /** 从答题卡直达任意题（#26）：选完即收起弹层 */
   goTo(e) {
     const i = Number(e.currentTarget.dataset.i);
     if (Number.isNaN(i) || i < 0 || i >= this._questions.length) return;
     this._curIdx = i;
+    this.setData({ sheetOpen: false });
     this._render();
   },
+
+  /** 阻止弹层面板点击冒泡到遮罩 */
+  noop() {},
 
   /**
    * 重练当前题的考点（#27 方案 A）：弹窗警示后发起同考点新局。
