@@ -1,18 +1,18 @@
 <view class="page-wrap">
-  <view wx:if="{{!loading && groups.length === 0}}" class="empty-hint">
-    <text>暂无错题，继续保持 👏</text>
+  <view wx:if="{{!loading && groups.length === 0}}" class="empty-zone">
+    <text class="empty-title">暂无错题，继续保持</text>
   </view>
 
   <block wx:else>
-    <!-- 今日任务（#27：原 daily 页能力并入错题本——任务即重练错题） -->
-    <view wx:if="{{task}}" class="card task-card">
+    <!-- 今日任务卡（原 daily 页能力并入） -->
+    <view wx:if="{{task}}" class="card-mod">
       <view class="row-between">
         <text class="task-title">今日任务 · 错题重练</text>
-        <text wx:if="{{task.completed}}" class="tag tag-brand">已完成</text>
-        <text wx:else class="tag tag-warn">{{taskRemain}}</text>
+        <text wx:if="{{task.completed}}" class="task-tag tag-ok">已完成</text>
+        <text wx:else class="task-tag">{{taskRemain}}</text>
       </view>
       <view class="row-between task-action-row">
-        <text class="t-dim">{{task.completed ? "今日任务已完成，继续保持" : "练错题即计入任务进度"}}</text>
+        <text class="task-sub">{{task.completed ? "今日任务已完成，继续保持" : "练错题即计入任务进度"}}</text>
         <view
           wx:if="{{!task.completed && groups.length}}"
           class="retry-btn"
@@ -23,32 +23,35 @@
       </view>
     </view>
 
-    <text class="section-title">错题本 · 按考点聚合</text>
-    <view
-      wx:for="{{groups}}"
-      wx:key="knowledge_point"
-      class="card mistake-card"
-      hover-class="press"
-      hover-stay-time="80"
-      data-kp="{{item.knowledge_point}}"
-      data-count="{{item.question_count}}"
-      bindtap="onRepractice"
-    >
-      <view class="row-between">
-        <text class="kp-name">{{item.knowledge_point}}</text>
-        <view class="tag tag-danger">错 {{item.wrong_count}} 次</view>
+    <!-- 错题分组：一张卡内的行列表，行间发丝线 -->
+    <view class="card-mod">
+      <view
+        wx:for="{{groups}}"
+        wx:key="knowledge_point"
+        class="mist-row"
+        hover-class="press"
+        hover-stay-time="80"
+        data-kp="{{item.knowledge_point}}"
+        data-count="{{item.question_count}}"
+        bindtap="onRepractice"
+      >
+        <view class="row-between">
+          <text class="kp-name">{{item.knowledge_point}}</text>
+          <text class="mist-count">错 {{item.wrong_count}} 次</text>
+        </view>
+        <view class="row-between meta-row">
+          <text class="mist-meta">{{item.module}} · {{item.question_count}} 题</text>
+          <view
+            class="retry-btn"
+            hover-class="press"
+            hover-stay-time="80"
+            data-kp="{{item.knowledge_point}}"
+            data-count="{{item.question_count}}"
+            catchtap="onRepractice"
+          >重练</view>
+        </view>
+        <text class="mist-feedback">{{item.feedback}}</text>
       </view>
-      <view class="row-between meta-row">
-        <text class="t-dim">{{item.module}} · {{item.question_count}} 题</text>
-        <!-- catchtap 阻止冒泡，避免重复触发整卡点击 -->
-        <view
-          class="retry-btn"
-          data-kp="{{item.knowledge_point}}"
-          data-count="{{item.question_count}}"
-          catchtap="onRepractice"
-        >重练</view>
-      </view>
-      <text class="feedback">{{item.feedback}}</text>
     </view>
   </block>
 </view>

@@ -1,43 +1,37 @@
-<view class="page-wrap">
-  <text class="section-title">选择模块发起闯关</text>
-
-  <view class="mod-grid">
+<view class="page-wrap quest">
+  <!-- 模块选择：发丝线行列表（纸卷 v1） -->
+  <view class="card-mod">
+    <text class="zone-label">选择模块发起闯关</text>
     <view
       wx:for="{{modules}}"
       wx:key="name"
-      class="mod-card"
-      style="background: {{item.bg}}"
-      data-module="{{item.name}}"
+      class="mod-row"
       hover-class="press"
       hover-stay-time="80"
+      data-module="{{item.name}}"
       bindtap="onSelectModule"
     >
-      <view class="mod-icon">{{item.icon}}</view>
-      <text class="mod-name">{{item.name}}</text>
-      <text class="mod-desc">{{item.desc}}</text>
+      <view class="mod-badge">{{item.icon}}</view>
+      <view class="mod-body">
+        <text class="mod-name">{{item.name}}</text>
+        <text class="mod-desc">{{item.desc}}</text>
+      </view>
     </view>
   </view>
 
-  <view wx:if="{{sessionId}}" class="card session-tip">
-    <view class="row-between">
-      <view class="col">
-        <text class="t-strong">已创建闯关局 #{{sessionId}}</text>
-        <text class="t-muted">题目 {{questionCount}} 道</text>
-      </view>
-      <view class="go-btn" hover-class="press" hover-stay-time="80" bindtap="goAnswer">继续答题</view>
+  <!-- 已创建局提示 -->
+  <view wx:if="{{sessionId}}" class="card-mod inline-card" hover-class="press" hover-stay-time="80" bindtap="goAnswer">
+    <view class="col">
+      <text class="inline-main">已创建闯关局 #{{sessionId}}</text>
+      <text class="inline-sub">题目 {{questionCount}} 道，继续作答</text>
     </view>
+    <text class="inline-action">继续答题</text>
   </view>
 
   <!-- S3 模考入口 -->
-  <text class="section-title">仿真模考</text>
-  <view class="card mock-card">
-    <text class="t-strong">限时模考</text>
-    <text class="t-dim mock-desc">按官方权重（15/15/10/12/48）抽 30 题，限时 45 分钟，答题中不显示对错，交卷后统一查看</text>
-    <view
-      class="btn-primary mock-btn"
-      hover-class="btn-primary--press"
-      hover-stay-time="80"
-      bindtap="onStartMock"
-    >开始模考</view>
+  <view class="card-mod">
+    <text class="zone-label">仿真模考</text>
+    <text class="mock-desc">按官方权重（15/15/10/12/48）抽 30 题，限时 45 分钟；答题中不显示对错，交卷后统一查看。</text>
+    <view class="btn-main mock-btn" hover-class="press" hover-stay-time="80" bindtap="onStartMock">开始模考</view>
   </view>
 </view>

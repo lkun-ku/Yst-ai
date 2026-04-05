@@ -1,12 +1,12 @@
 import { request, ensureIdentity, toastApiError, navTo } from "../../utils/api.js";
 import { remainingText } from "../../utils/time.js";
 
-/** R9 / I-05：正向反馈语——把"错题"转化为"可攻克的进度"。 */
+/** R9 / I-05：正向反馈语——把"错题"转化为"可攻克的进度"（无 emoji，规范 3.D）。 */
 function feedbackText(g) {
   const n = g.wrong_count || 0;
-  if (n >= 3) return "高频易错点 · 攻下它，这类题就能稳稳拿分 👊";
+  if (n >= 3) return "高频易错点，攻下它，这类题就能稳稳拿分";
   if (n === 2) return "再练一遍，基本就能记牢啦";
-  return "小失误 · 顺手巩固一下就好";
+  return "小失误，顺手巩固一下就好";
 }
 
 Page({

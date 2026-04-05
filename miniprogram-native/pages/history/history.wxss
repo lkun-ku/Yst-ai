@@ -1,55 +1,108 @@
-.hist-title {
-  font-size: var(--fs);
+/* 历史页 ·「纸卷 v1」：单卡行列表 + 发丝线；公共类 card-mod 来自 app.wxss。 */
+
+page {
+  background: var(--ink-50);
+  color: var(--ink-900);
+}
+
+.page-wrap {
+  padding: 24rpx 32rpx 64rpx;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ---------- 空态 ---------- */
+.empty-zone {
+  padding: 120rpx 0;
+  text-align: center;
+}
+.empty-title {
+  display: block;
+  font-size: 30rpx;
   font-weight: 600;
-  color: var(--text-1);
+  color: var(--ink-900);
+}
+.empty-sub {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: var(--ink-500);
+}
+
+/* ---------- 历史行 ---------- */
+.hist-row {
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--ink-200);
+}
+.hist-row:first-of-type {
+  padding-top: 8rpx;
+}
+.hist-row:last-of-type {
+  border-bottom: none;
+  padding-bottom: 8rpx;
+}
+.hist-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--ink-900);
   flex: 1;
   min-width: 0;
 }
 
+/* 战绩：好=墨蓝 / 中=次级灰 / 差=赤红（仅两彩色纪律） */
 .hist-rate {
-  font-size: var(--fs-sm);
+  font-size: 26rpx;
   font-weight: 600;
   flex-shrink: 0;
-  padding: 4rpx 16rpx;
-  border-radius: var(--r-pill);
+  font-variant-numeric: tabular-nums;
 }
-
 .rate-good {
-  background: var(--success-light);
-  color: var(--success);
+  color: var(--primary);
 }
-
 .rate-mid {
-  background: var(--warn-light);
-  color: var(--warn);
+  color: var(--ink-700);
 }
-
 .rate-bad {
-  background: var(--danger-light);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 
 .hist-kp {
   display: block;
-  margin-top: 10rpx;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: var(--ink-500);
 }
-
 .hist-time {
   display: block;
-  margin-top: 6rpx;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: var(--ink-400);
 }
 
+/* ---------- 重练行 ---------- */
 .repractice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-top: 16rpx;
   padding-top: 16rpx;
-  border-top: 2rpx dashed var(--border);
+  border-top: 1rpx solid var(--ink-200);
 }
-
+.hist-hint {
+  font-size: 22rpx;
+  color: var(--ink-500);
+}
 .retry-btn {
   flex-shrink: 0;
-  background: var(--brand-light);
-  color: var(--brand-dark);
-  font-size: var(--fs-xs);
-  padding: 10rpx 24rpx;
-  border-radius: var(--r-pill);
+  color: var(--primary);
+  border: 1rpx solid var(--primary);
+  font-size: 26rpx;
+  padding: 8rpx 28rpx;
+  border-radius: var(--r-spec);
 }

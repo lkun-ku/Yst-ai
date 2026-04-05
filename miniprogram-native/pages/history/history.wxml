@@ -1,35 +1,39 @@
 <view class="page-wrap">
-  <view wx:if="{{!loading && items.length === 0}}" class="empty-hint">
-    <text>还没有完成的闯关局</text>
+  <view wx:if="{{!loading && items.length === 0}}" class="empty-zone">
+    <text class="empty-title">还没有完成的闯关局</text>
+    <text class="empty-sub">去首页发起第一局吧</text>
   </view>
 
   <block wx:else>
-    <text class="section-title">历史闯关局</text>
-    <view
-      wx:for="{{items}}"
-      wx:key="session_id"
-      class="card hist-card"
-      hover-class="press"
-      hover-stay-time="80"
-      data-sid="{{item.session_id}}"
-      bindtap="onOpen"
-    >
-      <view class="row-between">
-        <text class="hist-title">#{{item.session_id}} {{item.module || "综合"}}</text>
-        <text class="hist-rate {{item.rateClass}}">{{item.rateText}}</text>
-      </view>
-      <text wx:if="{{item.knowledge_point}}" class="t-muted hist-kp">考点《{{item.knowledge_point}}》</text>
-      <text class="t-dim hist-time">{{item.time}}</text>
-      <view wx:if="{{item.knowledge_point || item.module}}" class="row-between repractice-row">
-        <text class="t-dim">重练本局{{item.knowledge_point ? "考点" : "模块"}}</text>
-        <!-- catchtap 阻止冒泡，避免同时触发"回看复盘" -->
-        <view
-          class="retry-btn"
-          data-kp="{{item.knowledge_point || ''}}"
-          data-module="{{item.module || ''}}"
-          data-count="{{item.question_count}}"
-          catchtap="onRepractice"
-        >重练</view>
+    <!-- 历史局：一张卡内的行列表，行间发丝线（纸卷 v1） -->
+    <view class="card-mod">
+      <view
+        wx:for="{{items}}"
+        wx:key="session_id"
+        class="hist-row"
+        hover-class="press"
+        hover-stay-time="80"
+        data-sid="{{item.session_id}}"
+        bindtap="onOpen"
+      >
+        <view class="row-between">
+          <text class="hist-title">#{{item.session_id}} {{item.module || "综合"}}</text>
+          <text class="hist-rate rate-{{item.rateClass}}">{{item.rateText}}</text>
+        </view>
+        <text wx:if="{{item.knowledge_point}}" class="hist-kp">考点《{{item.knowledge_point}}》</text>
+        <text class="hist-time">{{item.time}}</text>
+        <view wx:if="{{item.knowledge_point || item.module}}" class="repractice-row">
+          <text class="hist-hint">重练本局{{item.knowledge_point ? "考点" : "模块"}}</text>
+          <view
+            class="retry-btn"
+            hover-class="press"
+            hover-stay-time="80"
+            data-kp="{{item.knowledge_point || ''}}"
+            data-module="{{item.module || ''}}"
+            data-count="{{item.question_count}}"
+            catchtap="onRepractice"
+          >重练</view>
+        </view>
       </view>
     </view>
   </block>

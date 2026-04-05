@@ -1,43 +1,102 @@
-/* #27 今日任务卡（原 daily 页能力并入错题本） */
-.task-card {
-  margin-bottom: var(--sp, 24rpx);
+/* 错题本 ·「纸卷 v1」：任务卡 + 分组行列表；公共类 card-mod 来自 app.wxss。 */
+
+page {
+  background: var(--ink-50);
+  color: var(--ink-900);
 }
+
+.page-wrap {
+  padding: 24rpx 32rpx 64rpx;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.empty-zone {
+  padding: 120rpx 0;
+  text-align: center;
+}
+.empty-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
 .task-title {
   font-size: 30rpx;
   font-weight: 600;
-  color: var(--text-1, #222);
-  margin-bottom: 12rpx;
-  display: block;
+  color: var(--ink-900);
+}
+.task-tag {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  color: var(--ink-500);
+  border: 1rpx solid var(--ink-200);
+  border-radius: var(--r-spec);
+  padding: 6rpx 16rpx;
+}
+.task-tag.tag-ok {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.task-sub {
+  font-size: 22rpx;
+  color: var(--ink-500);
 }
 .task-action-row {
-  margin-top: 8rpx;
+  margin-top: 16rpx;
 }
 
+.mist-row {
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--ink-200);
+}
+.mist-row:last-of-type {
+  border-bottom: none;
+  padding-bottom: 8rpx;
+}
 .kp-name {
-  font-size: var(--fs);
+  font-size: 30rpx;
   font-weight: 600;
-  color: var(--text-1);
+  color: var(--ink-900);
   flex: 1;
   min-width: 0;
 }
+.mist-count {
+  flex-shrink: 0;
+  font-size: 26rpx;
+  color: var(--danger-ink);
+  font-variant-numeric: tabular-nums;
+}
 .meta-row {
-  margin-top: 16rpx;
+  margin-top: 12rpx;
+}
+.mist-meta {
+  font-size: 22rpx;
+  color: var(--ink-500);
 }
 .retry-btn {
   flex-shrink: 0;
-  background: var(--warn-light);
-  color: var(--warn);
-  font-size: var(--fs-xs);
-  padding: 10rpx 24rpx;
-  border-radius: var(--r-pill);
+  color: var(--primary);
+  border: 1rpx solid var(--primary);
+  font-size: 26rpx;
+  padding: 8rpx 28rpx;
+  border-radius: var(--r-spec);
 }
-.feedback {
+.mist-feedback {
   display: block;
-  margin-top: 14rpx;
-  font-size: var(--fs-xs);
-  color: var(--brand-dark);
-  background: var(--brand-light);
-  padding: 12rpx 16rpx;
-  border-radius: var(--r-sm);
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: var(--ink-400);
   line-height: 1.6;
 }
