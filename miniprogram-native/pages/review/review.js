@@ -1,4 +1,4 @@
-import { request, ensureIdentity, toastApiError } from "../../utils/api.js";
+import { request, ensureIdentity, toastApiError, navTo } from "../../utils/api.js";
 import { summarizeReview } from "../../utils/reviewShape.js";
 
 Page({
@@ -35,6 +35,30 @@ Page({
 
   goMistakes() {
     wx.reLaunch({ url: "/pages/mistakes/mistakes" });
+  },
+
+  /** 重练薄弱考点（#27 方案 B）：复盘页直接发起该考点重练，不打断流程。 */
+  async onRepracticeWeak(e) {
+    const kp = e.currentTarget.dataset.kp;
+    if (!kp) return;
+    try {
+      const count = 3;
+      const data = await request("/api/sessions/start", {
+        method: "POST",
+        data: { knowledge_point: kp, question_count: count },
+      });
+      if ((data.questions || []).length < count) {
+        wx.showToast({
+          title: `可用题目不足，已按 ${data.question_count} 题开局`,
+          icon: "none",
+          duration: 2200,
+        });
+      }
+      getApp().setSession(data);
+      navTo("/pages/answer/answer");
+    } catch (err) {
+      toastApiError(err);
+    }
   },
 
   goQuest() {

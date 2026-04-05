@@ -1,5 +1,12 @@
 /* 答题页样式（平移自 Taro 版 answer.vue） */
 
+/* #27 重练当前题考点 */
+.kp-repractice {
+  color: var(--brand, #3b7cff);
+  font-size: 24rpx;
+  padding: 4rpx 8rpx;
+}
+
 /* 答题卡（#26） */
 .sheet-card {
   padding: 24rpx;

@@ -367,6 +367,46 @@ Page({
     this._render();
   },
 
+  /**
+   * 重练当前题的考点（#27 方案 A）：弹窗警示后发起同考点新局。
+   * 用 redirectTo 替换当前页——当前局作废（globalData.session 被新局覆盖），
+   * 返回键不会回到已失效的旧局。
+   */
+  onRepracticeCurrent() {
+    const q = this._questions && this._questions[this._curIdx];
+    if (!q || !q.kp) {
+      wx.showToast({ title: "该题暂无考点信息", icon: "none" });
+      return;
+    }
+    wx.showModal({
+      title: "重练此题考点？",
+      content: `将离开本次闯关去重练《${q.kp}》，当前答题进度不会保存。`,
+      confirmText: "去重练",
+      cancelText: "留下",
+      success: async (r) => {
+        if (!r.confirm) return;
+        try {
+          const count = 3;
+          const data = await request("/api/sessions/start", {
+            method: "POST",
+            data: { knowledge_point: q.kp, question_count: count },
+          });
+          if ((data.questions || []).length < count) {
+            wx.showToast({
+              title: `可用题目不足，已按 ${data.question_count} 题开局`,
+              icon: "none",
+              duration: 2200,
+            });
+          }
+          getApp().setSession(data);
+          redirectNav("/pages/answer/answer");
+        } catch (e) {
+          toastApiError(e);
+        }
+      },
+    });
+  },
+
   /** 允许部分提交（#26）：未答完时二次确认，未作答的不计入完成题数 */
   onSubmitPartial() {
     const unanswered = this._questions.filter((q) => !this._revealed[q.id]).length;

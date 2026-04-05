@@ -1,3 +1,20 @@
+/* #27 薄弱考点逐项重练 */
+.weak-item {
+  display: flex;
+  align-items: center;
+}
+.weak-name {
+  flex: 1;
+}
+.weak-retry {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--brand);
+  padding: 6rpx 22rpx;
+  border: 1rpx solid var(--brand);
+  border-radius: 999rpx;
+}
+
 .hero {
   display: flex;
   align-items: center;

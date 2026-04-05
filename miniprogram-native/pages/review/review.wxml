@@ -19,12 +19,13 @@
       </view>
     </view>
 
-    <!-- 薄弱考点（G-03） -->
+    <!-- 薄弱考点（G-03）：每项可直接发起该考点重练（#27 方案 B，不打断答题） -->
     <text class="section-title">建议优先巩固</text>
     <view class="card">
       <view wx:for="{{summary.weakTop3}}" wx:key="*this" class="weak-item">
         <text class="weak-dot">·</text>
-        <text>{{item}}</text>
+        <text class="weak-name">{{item}}</text>
+        <view class="weak-retry" hover-class="press" hover-stay-time="80" data-kp="{{item}}" bindtap="onRepracticeWeak">重练</view>
       </view>
       <text wx:if="{{!summary.weakTop3.length}}" class="t-muted">暂无薄弱考点，保持得不错</text>
     </view>

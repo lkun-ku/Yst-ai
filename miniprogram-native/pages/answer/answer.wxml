@@ -53,7 +53,10 @@
     </view>
 
     <text class="stem">{{cur.stem}}</text>
-    <text class="kp">考点：{{cur.kp}}</text>
+    <view class="row-between">
+      <text class="kp">考点：{{cur.kp}}</text>
+      <text class="kp-repractice" hover-class="press" hover-stay-time="80" bindtap="onRepracticeCurrent">重练此考点</text>
+    </view>
 
     <!-- 选项题（单选 / 多选 / 判断）：原生 bindtap 直接派发 -->
     <block wx:if="{{curKind === 'option'}}">

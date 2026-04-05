@@ -20,15 +20,16 @@
       </view>
       <text wx:if="{{item.knowledge_point}}" class="t-muted hist-kp">考点《{{item.knowledge_point}}》</text>
       <text class="t-dim hist-time">{{item.time}}</text>
-      <view wx:if="{{item.knowledge_point}}" class="row-between repractice-row">
-        <text class="t-dim">可重练本局考点</text>
+      <view wx:if="{{item.knowledge_point || item.module}}" class="row-between repractice-row">
+        <text class="t-dim">重练本局{{item.knowledge_point ? "考点" : "模块"}}</text>
         <!-- catchtap 阻止冒泡，避免同时触发"回看复盘" -->
         <view
           class="retry-btn"
-          data-kp="{{item.knowledge_point}}"
+          data-kp="{{item.knowledge_point || ''}}"
+          data-module="{{item.module || ''}}"
           data-count="{{item.question_count}}"
           catchtap="onRepractice"
-        >重练考点</view>
+        >重练</view>
       </view>
     </view>
   </block>
