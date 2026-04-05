@@ -1,3 +1,18 @@
+/* #27 今日任务卡（原 daily 页能力并入错题本） */
+.task-card {
+  margin-bottom: var(--sp, 24rpx);
+}
+.task-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--text-1, #222);
+  margin-bottom: 12rpx;
+  display: block;
+}
+.task-action-row {
+  margin-top: 8rpx;
+}
+
 .kp-name {
   font-size: var(--fs);
   font-weight: 600;

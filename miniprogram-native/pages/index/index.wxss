@@ -97,6 +97,21 @@
   margin-top: var(--sp);
   text-align: center;
 }
+/* #27 连胜徽章（原 daily 页能力上移） */
+.streak-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.streak-flame {
+  font-size: 26rpx;
+  color: #c2660a;
+  font-weight: 600;
+}
+.streak-makeup {
+  font-size: 24rpx;
+  color: var(--brand);
+}
 .exam-empty--press {
   opacity: 0.85;
 }

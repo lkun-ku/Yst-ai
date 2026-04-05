@@ -4,14 +4,12 @@ import { remainingText } from "../../utils/time.js";
 
 const DRAFT_KEY = "quest_draft";
 
-/** 功能入口。VIP/权益说明入口已下线（页面与接口保留休眠）。 */
+/** 功能入口。#27：每日任务页删除——考期/连胜上首页，今日任务并入错题本。 */
 const ENTRIES = [
   { icon: "闯", title: "进入闯关", desc: "按模块或考点发起", bg: "#e6f7f6", url: "/pages/quest/quest" },
-  { icon: "每", title: "每日任务", desc: "考期倒计时与新题", bg: "#eaf2fd", url: "/pages/daily/daily" },
-  { icon: "错", title: "错题本", desc: "按考点聚合重练", bg: "#fff4e5", url: "/pages/mistakes/mistakes" },
+  { icon: "错", title: "错题本", desc: "今日任务与考点重练", bg: "#fff4e5", url: "/pages/mistakes/mistakes" },
   { icon: "史", title: "历史闯关", desc: "回看往期复盘", bg: "#f3ecfd", url: "/pages/history/history" },
   { icon: "料", title: "我的资料", desc: "上传资料出试题", bg: "#e8f8ee", url: "/pages/docs/docs" },
-  { icon: "卷", title: "新建试卷", desc: "按范围跨资料出题", bg: "#fdeaf0", url: "/pages/kb/kb" },
   { icon: "我", title: "我的设置", desc: "管理学习数据", bg: "#eef1f4", url: "/pages/settings/settings" },
 ];
 
@@ -25,6 +23,7 @@ Page({
     countdown: null,
     dailyTask: null,
     taskRemain: "",
+    streak: null, // #27：连胜徽章（原 daily 页能力上移）
     resume: null,
     entries: ENTRIES,
   },
@@ -99,7 +98,54 @@ Page({
     } catch (e) {
       /* 非阻塞 */
     }
+    try {
+      const streak = await request("/api/streak");
+      this.setData({ streak });
+    } catch (e) {
+      /* 非阻塞 */
+    }
     this.loadResume();
+  },
+
+  /** #27：首页直接设置/修改考期（原需跳 daily 页），picker 选完即存 */
+  async onPickExamDate(e) {
+    const v = (e.detail && e.detail.value) || "";
+    if (!v) return;
+    try {
+      const r = await request("/api/daily/exam-date", { method: "POST", data: { exam_date: v } });
+      this.setData({ examDate: (r && r.exam_date) || v, countdown: r ? r.countdown_days : null });
+      wx.showToast({ title: `已保存，倒计时 ${r.countdown_days} 天`, icon: "success" });
+    } catch (err) {
+      toastApiError(err);
+    }
+  },
+
+  /** #27：补签（原 daily 页能力上移） */
+  onMakeup() {
+    const st = this.data.streak;
+    if (!st || !st.can_makeup || !st.makeup_date) return;
+    wx.showModal({
+      title: "补签",
+      content: `使用 1 张补签卡补上 ${st.makeup_date}（当前剩余 ${st.cards} 张）？`,
+      confirmText: "补签",
+      success: async (r) => {
+        if (!r.confirm) return;
+        try {
+          const res = await request("/api/streak/makeup", {
+            method: "POST",
+            data: { date: st.makeup_date },
+          });
+          wx.showToast({ title: `补签成功，连胜 ${res.current} 天`, icon: "success" });
+          this.setData({ streak: res });
+        } catch (err) {
+          toastApiError(err);
+        }
+      },
+    });
+  },
+
+  goMistakes() {
+    navTo("/pages/mistakes/mistakes");
   },
 
   goResume() {
@@ -117,9 +163,5 @@ Page({
   onEntryTap(e) {
     const url = e.currentTarget.dataset.url;
     if (url) navTo(url);
-  },
-
-  goDaily() {
-    navTo("/pages/daily/daily");
   },
 });

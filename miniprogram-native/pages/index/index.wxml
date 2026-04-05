@@ -27,18 +27,32 @@
     <text class="t-dim hero-reset">{{quota.reset_rule || "额度每日 0 点重置"}}</text>
   </view>
 
-  <!-- 考期倒计时（R5 / C-06） -->
-  <view wx:if="{{examDate}}" class="card exam-card">
-    <view class="row-between">
-      <view class="col">
-        <text class="hero-label">距考期</text>
-        <text class="exam-num">{{countdown}} 天</text>
+  <!-- 考期倒计时（R5 / C-06）#27：首页直接设置/修改考期（picker），不再跳 daily 页 -->
+  <picker mode="date" bindchange="onPickExamDate">
+    <view wx:if="{{examDate}}" class="card exam-card" hover-class="press" hover-stay-time="80">
+      <view class="row-between">
+        <view class="col">
+          <text class="hero-label">距考期</text>
+          <text class="exam-num">{{countdown}} 天</text>
+        </view>
+        <text class="t-dim">{{examDate}} · 点击修改</text>
       </view>
-      <text class="t-dim">{{examDate}}</text>
     </view>
-  </view>
-  <view wx:else class="card exam-card exam-empty" hover-class="exam-empty--press" hover-stay-time="80" bindtap="goDaily">
-    <text class="exam-empty-text">未设置考期 · 点此设置并开始每日任务</text>
+    <view wx:else class="card exam-card exam-empty" hover-class="exam-empty--press" hover-stay-time="80">
+      <text class="exam-empty-text">未设置考期 · 点击选择日期，开启倒计时</text>
+    </view>
+  </picker>
+
+  <!-- 连胜徽章（#27：原 daily 页能力上移） -->
+  <view wx:if="{{streak}}" class="card streak-card">
+    <text class="streak-flame">🔥 连续学习 {{streak.current}} 天</text>
+    <text
+      wx:if="{{streak.can_makeup}}"
+      class="streak-makeup"
+      hover-class="press"
+      hover-stay-time="80"
+      bindtap="onMakeup"
+    >补签 {{streak.makeup_date}}</text>
   </view>
 
   <!-- 继续上次进度（R5 / C-05） -->
@@ -52,14 +66,17 @@
     </view>
   </view>
 
-  <!-- 今日任务进度（R5 / C-04） -->
+  <!-- 今日任务进度（R5 / C-04）#27：可直达错题本做题 -->
   <view wx:if="{{dailyTask}}" class="card task-card">
     <view class="row-between">
-      <text class="task-title">今日任务</text>
+      <text class="task-title">今日任务 · 错题重练</text>
       <text wx:if="{{dailyTask.completed}}" class="tag tag-brand">已完成</text>
       <text wx:else class="tag tag-warn">{{taskRemain}}</text>
     </view>
-    <text class="t-dim">{{dailyTask.completed ? "保持节奏，明天再来" : "错题复习 + 新题，12 小时内有效"}}</text>
+    <view class="row-between">
+      <text class="t-dim">{{dailyTask.completed ? "保持节奏，明天再来" : "练错题即计入任务进度"}}</text>
+      <view wx:if="{{!dailyTask.completed}}" class="go-btn" hover-class="press" hover-stay-time="80" bindtap="goMistakes">去做题</view>
+    </view>
   </view>
 
   <!-- 功能入口：卡片栅格 -->

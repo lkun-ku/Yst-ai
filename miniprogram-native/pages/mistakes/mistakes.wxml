@@ -4,6 +4,25 @@
   </view>
 
   <block wx:else>
+    <!-- 今日任务（#27：原 daily 页能力并入错题本——任务即重练错题） -->
+    <view wx:if="{{task}}" class="card task-card">
+      <view class="row-between">
+        <text class="task-title">今日任务 · 错题重练</text>
+        <text wx:if="{{task.completed}}" class="tag tag-brand">已完成</text>
+        <text wx:else class="tag tag-warn">{{taskRemain}}</text>
+      </view>
+      <view class="row-between task-action-row">
+        <text class="t-dim">{{task.completed ? "今日任务已完成，继续保持" : "练错题即计入任务进度"}}</text>
+        <view
+          wx:if="{{!task.completed && groups.length}}"
+          class="retry-btn"
+          hover-class="press"
+          hover-stay-time="80"
+          bindtap="onStartTask"
+        >开始</view>
+      </view>
+    </view>
+
     <text class="section-title">错题本 · 按考点聚合</text>
     <view
       wx:for="{{groups}}"
@@ -27,7 +46,7 @@
           data-kp="{{item.knowledge_point}}"
           data-count="{{item.question_count}}"
           catchtap="onRepractice"
-        >重练此考点</view>
+        >重练</view>
       </view>
       <text class="feedback">{{item.feedback}}</text>
     </view>

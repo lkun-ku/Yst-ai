@@ -1,4 +1,5 @@
 import { request, ensureIdentity, toastApiError, navTo } from "../../utils/api.js";
+import { remainingText } from "../../utils/time.js";
 
 /** R9 / I-05：正向反馈语——把"错题"转化为"可攻克的进度"。 */
 function feedbackText(g) {
@@ -12,6 +13,8 @@ Page({
   data: {
     loading: true,
     groups: [],
+    task: null, // #27：今日任务（原 daily 页能力并入）
+    taskRemain: "",
   },
 
   onLoad() {
@@ -36,20 +39,51 @@ Page({
       toastApiError(e);
       this.setData({ loading: false });
     }
+    try {
+      const d = await request("/api/daily");
+      const task = (d && d.task) || null;
+      this.setData({
+        task,
+        taskRemain: task && task.deadline ? remainingText(task.deadline) : "",
+      });
+    } catch (e) {
+      /* 任务加载失败不阻塞错题列表 */
+    }
   },
 
   /** 一键发起该考点重练（复用按考点发起闯关入口）。 */
   async onRepractice(e) {
     const kp = e.currentTarget.dataset.kp;
     const count = Number(e.currentTarget.dataset.count || 2);
+    if (kp) await this._startRepractice(kp, count);
+  },
+
+  /** 今日任务「开始」：直接发起第一个考点组的重练，做题即计入任务进度（#27）。 */
+  async onStartTask() {
+    const first = (this.data.groups || [])[0];
+    if (!first) {
+      wx.showToast({ title: "暂无错题可练", icon: "none" });
+      return;
+    }
+    await this._startRepractice(first.knowledge_point, first.question_count);
+  },
+
+  async _startRepractice(kp, count) {
     if (!kp) return;
+    const want = Math.max(2, Number(count || 2));
     try {
       const data = await request("/api/sessions/start", {
         method: "POST",
-        data: { knowledge_point: kp, question_count: Math.max(2, count) },
+        data: { knowledge_point: kp, question_count: want },
       });
+      if ((data.questions || []).length < want) {
+        wx.showToast({
+          title: `可用题目不足，已按 ${data.question_count} 题开局`,
+          icon: "none",
+          duration: 2200,
+        });
+      }
       getApp().setSession(data);
-      wx.showToast({ title: `重练《${kp}》${(data.questions || []).length} 题`, icon: "success" });
       navTo("/pages/answer/answer");
     } catch (e) {
       toastApiError(e);
