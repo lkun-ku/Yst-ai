@@ -1,0 +1,47 @@
+.head-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.d-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #222;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.d-meta {
+  font-size: 24rpx;
+  color: #8a8f99;
+  margin-top: 10rpx;
+}
+
+.chunk {
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f2f2f2;
+}
+
+.chunk:last-of-type {
+  border-bottom: none;
+}
+
+.chunk-head {
+  display: flex;
+  align-items: flex-start;
+}
+
+.chunk-text {
+  flex: 1;
+  font-size: 25rpx;
+  color: #555;
+  line-height: 1.7;
+  word-break: break-all;
+}
+
+.chunk-caret {
+  flex-shrink: 0;
+  margin-left: 12rpx;
+  font-size: 20rpx;
+  color: #b0b6c0;
+}

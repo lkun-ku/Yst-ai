@@ -21,9 +21,11 @@ from ..deps import get_current_candidate
 from ..models import Candidate, Document, DocumentChunk, DocTask, DocTaskEvent, Question
 from ..utils import local_day
 from ..schemas import (
+    DocChunkPreview,
     DocTaskOut,
     DocumentDetailOut,
     DocumentOut,
+    DocumentRenameIn,
     GenerateIn,
     GenerateOut,
 )
@@ -290,7 +292,41 @@ def get_document(
         .all()
     )
     headings = [r[0] for r in rows if r[0]]
-    return DocumentDetailOut(**base.model_dump(), headings=headings)
+    chunk_rows = (
+        db.query(
+            DocumentChunk.id, DocumentChunk.seq, DocumentChunk.heading_path, DocumentChunk.content
+        )
+        .filter(DocumentChunk.document_id == doc.id)
+        .order_by(DocumentChunk.seq)
+        .all()
+    )
+    return DocumentDetailOut(
+        **base.model_dump(),
+        headings=headings,
+        chunks=[
+            DocChunkPreview(id=cid, seq=seq, heading_path=hp, preview=(ct or "")[:120])
+            for (cid, seq, hp, ct) in chunk_rows
+        ],
+    )
+
+
+@router.patch("/{doc_id}", response_model=DocumentOut)
+def rename_document(
+    doc_id: int,
+    body: DocumentRenameIn,
+    c: Candidate = Depends(get_current_candidate),
+    db: Session = Depends(get_db),
+) -> DocumentOut:
+    """#27 资料重命名：仅本人可改，空标题拒绝。"""
+    doc = db.get(Document, doc_id)
+    if doc is None or doc.candidate_id != c.id:
+        raise HTTPException(404, "资料不存在")
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(400, "标题不能为空")
+    doc.title = title[:255]
+    db.commit()
+    return _doc_out(db, doc)
 
 
 @router.delete("/{doc_id}")

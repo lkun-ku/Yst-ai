@@ -37,8 +37,23 @@
           hover-class="btn-ghost--press"
           hover-stay-time="80"
           data-id="{{item.id}}"
+          bindtap="onView"
+        >查看</view>
+        <view
+          class="btn-ghost act"
+          hover-class="btn-ghost--press"
+          hover-stay-time="80"
+          data-id="{{item.id}}"
           bindtap="onGenerate"
         >出题</view>
+        <view
+          class="btn-ghost act"
+          hover-class="btn-ghost--press"
+          hover-stay-time="80"
+          data-id="{{item.id}}"
+          data-name="{{item.title}}"
+          bindtap="onRename"
+        >重命名</view>
         <view
           class="btn-danger act"
           hover-class="press"

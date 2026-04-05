@@ -195,9 +195,26 @@ class DocumentOut(BaseModel):
     question_count: int = 0  # 该资料已生成的题目数
 
 
+class DocChunkPreview(BaseModel):
+    """资料切片预览（#27 资料查看页）：只带前 120 字，全文按需取 /api/kb/chunk/{id}。"""
+
+    id: int
+    seq: int
+    heading_path: Optional[str] = None
+    preview: str = ""
+
+
+class DocumentRenameIn(BaseModel):
+    """资料重命名（#27 资料管理）。"""
+
+    title: str
+
+
 class DocumentDetailOut(DocumentOut):
-    """含章节树，供出题页选择「知识点范围」。"""
+    """含章节树与切片预览，供出题页选择范围与「查看资料」页。"""
+
     headings: List[str] = []
+    chunks: List[DocChunkPreview] = []
 
 
 class QuestionSpec(BaseModel):

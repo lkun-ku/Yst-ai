@@ -55,12 +55,12 @@ Page({
 
   _chooseFile() {
     wx.chooseMessageFile({
-      count: 1,
+      count: 9,
       type: "file",
       extension: ALLOWED, // 仅 type==='file' 时有效
       success: (res) => {
-        const f = (res.tempFiles || [])[0];
-        if (f) this._upload(f);
+        const files = (res.tempFiles || []);
+        if (files.length) this._uploadFiles(files.slice());
       },
       fail: (e) => {
         // 用户主动取消不打扰
@@ -70,60 +70,113 @@ Page({
     });
   },
 
-  async _upload(f) {
-    if (f.size && f.size > MAX_MB * 1024 * 1024) {
-      wx.showToast({ title: `文件不能超过 ${MAX_MB}MB`, icon: "none" });
-      return;
+  /** 连续上传多份资料（#21）：逐份顺序上传，全部完成后统一刷新并提示可继续添加。 */
+  async _uploadFiles(queue) {
+    for (const f of queue) {
+      const ok = await this._upload(f);
+      if (!ok) break; // 失败已 toast/modal，停止本批剩余
     }
-    try {
-      await ensureIdentity();
-    } catch (e) {
-      /* 身份失败也继续，由后端 401 兜底 */
-    }
+    this.load();
+    wx.showToast({ title: "已上传，可继续添加", icon: "none" });
+  },
 
-    this.setData({ uploading: true, uploadName: f.name || "文件", uploadProgress: 0 });
-
-    const task = wx.uploadFile({
-      url: `${BASE}/api/documents`,
-      filePath: f.path,
-      name: "file",
-      header: { "X-Unionid": getUnionid() || "" },
-      formData: {},
-      timeout: 120000, // 20MB 弱网需要更长超时（C2）
-      success: (r) => {
-        if (r.statusCode >= 200 && r.statusCode < 300) {
-          wx.showToast({ title: "解析成功", icon: "success" });
-          this.load();
-        } else {
-          let detail = "";
-          try {
-            detail = (JSON.parse(r.data) && JSON.parse(r.data).detail) || "";
-          } catch (e) {
-            detail = "";
-          }
-          wx.showModal({ title: "上传失败", content: detail || `服务返回 ${r.statusCode}`, showCancel: false });
+  _upload(f) {
+    return new Promise((resolve) => {
+      if (f.size && f.size > MAX_MB * 1024 * 1024) {
+        wx.showToast({ title: `文件不能超过 ${MAX_MB}MB`, icon: "none" });
+        resolve(false);
+        return;
+      }
+      (async () => {
+        try {
+          await ensureIdentity();
+        } catch (e) {
+          /* 身份失败也继续，由后端 401 兜底 */
         }
-      },
-      fail: () => {
-        wx.showModal({
-          title: "上传失败",
-          content: "手机可能连不到 dev 机后端，请确认与电脑在同一 WiFi。",
-          showCancel: false,
+        this.setData({ uploading: true, uploadName: f.name || "文件", uploadProgress: 0 });
+        const task = wx.uploadFile({
+          url: `${BASE}/api/documents`,
+          filePath: f.path,
+          name: "file",
+          header: { "X-Unionid": getUnionid() || "" },
+          formData: {},
+          timeout: 120000, // 20MB 弱网需要更长超时（C2）
+          success: (r) => {
+            if (r.statusCode >= 200 && r.statusCode < 300) {
+              // 单份成功不弹 toast，批量结束后统一提示
+            } else {
+              let detail = "";
+              try {
+                detail = (JSON.parse(r.data) && JSON.parse(r.data).detail) || "";
+              } catch (e) {
+                detail = "";
+              }
+              wx.showModal({ title: "上传失败", content: detail || `服务返回 ${r.statusCode}`, showCancel: false });
+              resolve(false);
+              return;
+            }
+          },
+          fail: () => {
+            wx.showModal({
+              title: "上传失败",
+              content: "手机可能连不到 dev 机后端，请确认与电脑在同一 WiFi。",
+              showCancel: false,
+            });
+            resolve(false);
+            return;
+          },
+          complete: () => {
+            this.setData({ uploading: false, uploadProgress: 0 });
+            resolve(true);
+          },
         });
-      },
-      complete: () => {
-        this.setData({ uploading: false, uploadProgress: 0 });
-      },
-    });
-
-    task.onProgressUpdate((p) => {
-      this.setData({ uploadProgress: p.progress || 0 });
+        task.onProgressUpdate((p) => {
+          this.setData({ uploadProgress: p.progress || 0 });
+        });
+      })();
     });
   },
 
   onGenerate(e) {
     const id = e.currentTarget.dataset.id;
     if (id) navTo(`/pages/generate/generate?doc_id=${id}`);
+  },
+
+  /** #27 查看资料：进入详情页（章节与切片内容） */
+  onView(e) {
+    const id = e.currentTarget.dataset.id;
+    if (id) navTo(`/pages/doc-detail/doc-detail?doc_id=${id}`);
+  },
+
+  /** #27 资料重命名：showModal 原生输入框，PATCH 成功后本地更新（不重拉列表） */
+  onRename(e) {
+    const id = e.currentTarget.dataset.id;
+    if (!id) return;
+    wx.showModal({
+      title: "重命名资料",
+      editable: true,
+      placeholderText: "输入新名称",
+      success: async (r) => {
+        if (!r.confirm) return;
+        const title = (r.content || "").trim();
+        if (!title) {
+          wx.showToast({ title: "名称不能为空", icon: "none" });
+          return;
+        }
+        try {
+          await request(`/api/documents/${id}`, { method: "PATCH", data: { title } });
+          this.setData({ docs: this.data.docs.map((d) => (d.id === id ? { ...d, title } : d)) });
+          wx.showToast({ title: "已重命名", icon: "success" });
+        } catch (err) {
+          toastApiError(err);
+        }
+      },
+    });
+  },
+
+  /** #22：「自建题库」组卷入口（首页入口已移入本页） */
+  goKb() {
+    navTo("/pages/kb/kb");
   },
 
   /** A5：删除会级联移除该资料生成的个人题，需二次确认 */

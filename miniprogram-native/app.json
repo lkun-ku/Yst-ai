@@ -7,9 +7,9 @@
     "pages/mistakes/mistakes",
     "pages/daily/daily",
     "pages/history/history",
-    "pages/benefits/benefits",
     "pages/settings/settings",
     "pages/docs/docs",
+    "pages/doc-detail/doc-detail",
     "pages/generate/generate",
     "pages/kb/kb"
   ],
