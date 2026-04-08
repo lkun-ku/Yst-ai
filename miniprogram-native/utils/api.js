@@ -139,20 +139,34 @@ export function request(path, options = {}) {
     if (useLoading && _requesting === 0) wx.showNavigationBarLoading();
     _setRequesting(_requesting + 1);
     try {
-      const res = await new Promise((resolve, reject) => {
-        wx.request({
-          url: `${BASE}${path}`,
-          method: method,
-          data: options.data,
-          header: { "X-Unionid": unionid || "" },
-          success: resolve,
-          fail: (e) => {
-            const err = new Error((e && e.errMsg) || "网络异常");
-            err.statusCode = 0;
-            reject(err);
-          },
+      const attempt = () =>
+        new Promise((resolve, reject) => {
+          wx.request({
+            url: `${BASE}${path}`,
+            method: method,
+            data: options.data,
+            header: { "X-Unionid": unionid || "" },
+            success: resolve,
+            fail: (e) => {
+              const err = new Error((e && e.errMsg) || "网络异常");
+              err.statusCode = 0;
+              err.networkFail = true;
+              reject(err);
+            },
+          });
         });
-      });
+      let res;
+      try {
+        res = await attempt();
+      } catch (e) {
+        // 网络层偶发失败（如 keep-alive 连接被服务端关闭后复用触发 ERR_CONNECTION_RESET）：
+        // GET 幂等请求自动重试一次；非 GET 不自动重试（避免重复创建会话等副作用）。
+        if (e.networkFail && method === "GET") {
+          res = await attempt();
+        } else {
+          throw e;
+        }
+      }
       const status = res.statusCode || 0;
       if (status >= 200 && status < 300) return res.data;
       let detail = "";
