@@ -133,12 +133,14 @@ def _n_generate(s: KbState) -> dict:
 
     for bi, (qtype, count) in enumerate(batches, 1):
         _emit(s, "batch", f"生成第 {bi}/{len(batches)} 批 · {qtype} × {count}")
+        # 防批间同质化：层级轮转偏移 + 已覆盖考点（从已落库题收集）
+        covered = sorted({str(q.knowledge_point) for q in created if q.knowledge_point})
         # #26：与路线②共享同一实现（规则校验 + 自检 + 降粒度重试，失败保留规则通过项）
         payloads = _generate_batch_with_fallback(
             client, scope, qtype, count, difficulty, focus, picked, seen, s["chunks"],
             emit=lambda t, x, d=None: _emit(s, t, x, d),
             sample=settings.doc_selfcheck_sample,  # P1：抽检（规则校验已前置）
-            bloom=s.get("bloom"),
+            bloom=s.get("bloom"), bloom_offset=bi - 1, covered_kps=covered,
         )
         base = len(created)
         new_qs = _persist_questions(
@@ -171,7 +173,8 @@ def _n_generate(s: KbState) -> dict:
             payloads = _generate_batch_with_fallback(
                 client, scope, qtype, need, difficulty, focus, picked, seen, s["chunks"],
                 emit=lambda t, x, d=None: _emit(s, t, x, d),
-                sample=settings.doc_selfcheck_sample, bloom=s.get("bloom"),
+                sample=settings.doc_selfcheck_sample, bloom=s.get("bloom"), bloom_offset=attempts - 1,
+                covered_kps=sorted({str(q.knowledge_point) for q in created if q.knowledge_point}),
             )
             created += _persist_questions(
                 db, s["candidate_id"], None, payloads or [], seen,

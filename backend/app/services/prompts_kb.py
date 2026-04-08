@@ -81,6 +81,7 @@ def kb_question_prompt(
     existing_stems: list[str] | None = None,
     scope: str | None = None,
     bloom_mix: dict[str, int] | None = None,
+    covered_kps: list[str] | None = None,
 ) -> str:
     lines = [
         f"你是个人知识库出题助手。请依据下方资料切片，生成 {count} 道{TYPE_DESC.get(qtype, TYPE_DESC['single'])}。",
@@ -122,6 +123,12 @@ def kb_question_prompt(
         lines.append(f"{idx}. 认知层级分布（布鲁姆）——严格按此比例出题，不要全部出成记忆复述题：")
         for lv, n in bloom_mix.items():
             lines.append(f"   - {n} 道：{BLOOM_DESC.get(lv, lv)}")
+        idx += 1
+    if covered_kps:
+        # 防批间同质化：已有题目覆盖的考点提示模型换角度/换考点（#26 尾巴）
+        lines.append(f"{idx}. 以下考点已有题目覆盖，新题优先考察其他考点；若资料仅涉及这些考点，则从不同角度或更细的层次出题：")
+        for s in list(covered_kps)[:30]:
+            lines.append(f"   - {s}")
         idx += 1
     if existing_stems:
         lines.append(f"{idx}. 禁止与以下已有题干重复或高度相似：")

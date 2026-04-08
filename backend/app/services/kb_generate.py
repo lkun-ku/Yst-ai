@@ -184,6 +184,8 @@ def _generate_batch_with_fallback(
     bloom: list[str] | None = None,
     gen_fn=None,
     selfcheck: bool = True,
+    covered_kps: list[str] | None = None,
+    bloom_offset: int = 0,
 ) -> list[dict]:
     """生成一批题：规则校验 → 自检 → 不通过则降粒度重试（如 3→2→1），#26。
 
@@ -199,6 +201,10 @@ def _generate_batch_with_fallback(
     """
     # 认知层级（#26 A）：未显式指定时用配置默认池（刻意不含 remember，避免整卷记忆题）
     levels = bloom or parse_bloom_levels(settings.doc_bloom_levels)
+    # 防批间同质化：跨批层级轮转——第 bi 批从层级池第 bi 位起循环，连续批次的认知重心不同
+    if levels:
+        off = bloom_offset % len(levels)
+        levels = levels[off:] + levels[:off]
 
     sizes: list[int] = []
     # 单次生成不超过 doc_batch_size：大批次结构化输出失败率显著上升（#26）
@@ -225,6 +231,7 @@ def _generate_batch_with_fallback(
         else:
             payloads = _generate_batch(
                 client, scope, qtype, size, difficulty, focus, picked, seen, bloom_mix=mix, emit=emit,
+                covered_kps=covered_kps,
             )
         ok_payloads: list[dict] = []
         for p in payloads or []:
@@ -268,11 +275,11 @@ def _generate_batch_with_fallback(
 
 
 def _generate_batch(client, scope, qtype, count, difficulty, focus, picked, seen, extra=None, bloom_mix=None,
-                    emit=None):
+                    emit=None, covered_kps=None):
     prompt = kb_question_prompt(
         picked, qtype, count, difficulty,
         ((focus or "") + ("；" + extra if extra else "")),
-        sorted(seen), scope, bloom_mix=bloom_mix,
+        sorted(seen), scope, bloom_mix=bloom_mix, covered_kps=covered_kps,
     )
     text = client.ask(prompt)
     if text is None:
@@ -358,17 +365,19 @@ def generate_by_scope(
     levels = bloom or parse_bloom_levels(settings.doc_bloom_levels)
     for bi, (qtype, count) in enumerate(batches, 1):
         emit("batch", f"生成第 {bi}/{len(batches)} 批 · {qtype} × {count}")
+        # 防批间同质化：层级轮转偏移 + 已覆盖考点（从已落库题收集）
+        covered = sorted({str(q.knowledge_point) for q in created if q.knowledge_point})
         if enable_loop:
             # #26：一次生成 + 规则校验 + 自检 + 降粒度重试，失败也保留规则通过项
             payloads = _generate_batch_with_fallback(
                 client, scope, qtype, count, difficulty, focus, picked, seen, chunks, emit=emit,
                 sample=settings.doc_selfcheck_sample,  # P1：抽检（规则校验已前置为第一道闸）
-                bloom=bloom,
+                bloom=bloom, bloom_offset=bi - 1, covered_kps=covered,
             )
         else:
             payloads = _generate_batch(
                 client, scope, qtype, count, difficulty, focus, picked, seen,
-                bloom_mix=bloom_distribution(count, levels),
+                bloom_mix=bloom_distribution(count, levels), covered_kps=covered,
             )
         base = len(created)
         new_qs = _persist_questions(
@@ -400,13 +409,15 @@ def generate_by_scope(
                 # 补偿同样走降粒度重试：大批量一次生成失败率高（#26）
                 payloads = _generate_batch_with_fallback(
                     client, scope, qtype, need, difficulty, focus, picked, seen, chunks, emit=emit,
-                    sample=settings.doc_selfcheck_sample, bloom=bloom,
+                    sample=settings.doc_selfcheck_sample, bloom=bloom, bloom_offset=attempts - 1,
+                    covered_kps=sorted({str(q.knowledge_point) for q in created if q.knowledge_point}),
                 )
             else:
                 payloads = _generate_batch(
                     client, scope, qtype, compensation_count(need),
                     difficulty, focus, picked, seen,
                     bloom_mix=bloom_distribution(compensation_count(need), levels),
+                    covered_kps=sorted({str(q.knowledge_point) for q in created if q.knowledge_point}),
                 )
             created += _persist_questions(
                 db, candidate_id, None, payloads or [], seen,
