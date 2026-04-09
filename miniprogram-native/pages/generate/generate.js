@@ -7,18 +7,10 @@ import {
   retryDocTask,
   toastApiError,
 } from "../../utils/api.js";
+import { TIMELINE_ICONS } from "../../utils/timeline_icons.js";
 
 /** 过程事件类型到图标的映射（#26 第二批，与 kb 页一致） */
-const EVENT_ICON = {
-  retrieve: "🔍",
-  grade: "⚖️",
-  rewrite: "🔁",
-  batch: "✏️",
-  selfcheck: "🛡",
-  question: "📝",
-  stage: "⚙️",
-  think: "💭", // 模型的构思 / 思考过程（真实内容，逐句展示）
-};
+const EVENT_ICON = TIMELINE_ICONS; // 纸卷 v1：Reicon 线性 data-URI，替代 emoji（规范 3.D/7 节）
 const TYPE_MS = 26;
 
 const TYPE_OPTIONS = [

@@ -84,7 +84,7 @@
     <scroll-view class="timeline" scroll-y scroll-into-view="tl-last" enhanced show-scrollbar="{{false}}">
       <view wx:for="{{phases}}" wx:key="seq" id="{{index === phases.length - 1 ? 'tl-last' : ''}}"
         class="tl-item {{item.done ? '' : 'tl-typing'}}">
-        <text class="tl-icon">{{item.icon}}</text>
+        <image class="tl-icon" src="{{item.icon}}" mode="aspectFit" />
         <view class="tl-body" bindtap="onTogglePhase" data-idx="{{index}}">
           <text class="tl-text">{{item.text}}<text wx:if="{{!item.done}}" class="tl-cursor">▌</text></text>
           <text wx:if="{{item.detail}}" class="tl-caret">{{item.expanded ? '收起' : '展开'}}</text>

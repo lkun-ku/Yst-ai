@@ -1,4 +1,5 @@
 import { cancelTask, request, requestChunk, requestEvents, retryTask } from "../../utils/api.js";
+import { TIMELINE_ICONS } from "../../utils/timeline_icons.js";
 
 /** 题型定义：用户自主决定各题型数量（为 0 的题型不出）。 */
 const SPEC_DEF = [
@@ -17,19 +18,10 @@ const STATUS_TEXT = {
   cancelled: "已停止",
 };
 
-/** #25：事件类型 → 时间线图标（参照 WorkBuddy 的「动作卡片」） */
+/** #25：事件类型 → 时间线图标（纸卷 v1：Reicon 线性 data-URI，替代 emoji） */
 const TYPE_ICON = {
-  retrieve: "🔍",
-  grade: "⚖️",
-  rewrite: "🔁",
-  batch: "✏️",
-  selfcheck: "🛡",
-  question: "📝",
-  stage: "⚙️",
-  think: "💭", // 模型的构思 / 思考过程（真实内容，逐句展示）
-  done: "✅",
-  failed: "❌",
-  cancelled: "⏹",
+  ...TIMELINE_ICONS,
+  cancelled: TIMELINE_ICONS.failed,
 };
 
 const MAX_PER_TYPE = 100; // 与后端 doc_max_q_per_task 对齐上限（#23）

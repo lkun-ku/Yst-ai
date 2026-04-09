@@ -29,7 +29,7 @@
         wx:for="{{phases}}"
         wx:key="seq"
       >
-        <text class="tl-icon">{{item.icon}}</text>
+        <image class="tl-icon" src="{{item.icon}}" mode="aspectFit" />
         <view class="tl-body">
           <text class="tl-text">{{item.text}}<text wx:if="{{!item.done}}" class="tl-cursor">▌</text></text>
         </view>

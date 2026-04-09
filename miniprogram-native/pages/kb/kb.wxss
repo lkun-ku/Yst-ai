@@ -239,9 +239,10 @@ page {
 }
 
 .tl-icon {
-  font-size: 28rpx;
-  width: 44rpx;
+  width: 36rpx;
+  height: 36rpx;
   flex-shrink: 0;
+  margin-right: 8rpx;
 }
 
 .tl-body {
