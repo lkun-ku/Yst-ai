@@ -4,13 +4,13 @@
   <block wx:if="{{stage === 'form'}}">
 
     <!-- 试卷名称 -->
-    <view class="card">
+    <view class="card-mod">
       <view class="card-title">试卷名称</view>
       <input class="input" placeholder="如：光合作用专项卷" value="{{title}}" bindinput="onTitle" />
     </view>
 
     <!-- 出题范围 -->
-    <view class="card">
+    <view class="card-mod">
       <view class="card-title">出题范围</view>
       <textarea class="textarea" placeholder="描述要考的范围，如：光合作用" value="{{scope}}"
         bindinput="onScope" maxlength="50" auto-height />
@@ -19,7 +19,7 @@
     </view>
 
     <!-- 题型与数量 -->
-    <view class="card">
+    <view class="card-mod">
       <view class="card-title">题型与数量</view>
       <view class="spec-row" wx:for="{{spec}}" wx:key="type">
         <text class="spec-name">{{item.label}}</text>
@@ -33,7 +33,7 @@
     </view>
 
     <!-- 难度 -->
-    <view class="card">
+    <view class="card-mod">
       <view class="card-title">难度</view>
       <view class="seg">
         <view wx:for="{{difficulties}}" wx:key="key" class="seg-item {{difficulty === item.key ? 'on' : ''}}"
@@ -42,7 +42,7 @@
     </view>
 
     <!-- 侧重 -->
-    <view class="card">
+    <view class="card-mod">
       <view class="card-title">侧重要求（选填）</view>
       <textarea class="textarea" placeholder="如：重点考察光反应与暗反应的区别" value="{{focus}}"
         bindinput="onFocus" maxlength="200" auto-height />
@@ -53,7 +53,7 @@
     </button>
 
     <!-- 停止 / 失败后：部分卷 + 重试（配置已回填，可改完直接重出） -->
-    <view wx:if="{{questions.length}}" class="card">
+    <view wx:if="{{questions.length}}" class="card-mod">
       <view class="card-title">
         {{stopped ? '已停止 · 保留 ' : ''}}{{title || '未命名'}}（{{questions.length}} 题）
       </view>
@@ -105,7 +105,7 @@
     </scroll-view>
 
     <!-- 已出题目渐现 -->
-    <view wx:if="{{questions.length}}" class="card">
+    <view wx:if="{{questions.length}}" class="card-mod">
       <view class="card-title">已出 {{questions.length}} 题</view>
       <view class="q q-fade" wx:for="{{questions}}" wx:key="id">
         <view class="q-stem">{{index + 1}}. {{item.stem}}</view>

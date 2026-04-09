@@ -36,7 +36,7 @@ page {
   margin-right: 12rpx;
   border-radius: 50%;
   border: 4rpx solid #e6ecfb;
-  border-top-color: #3b7cff;
+  border-top-color: var(--primary);
   animation: ai-spin 0.8s linear infinite;
 }
 .ai-thinking-text {
@@ -68,7 +68,7 @@ page {
 .tl-head {
   font-size: 28rpx;
   font-weight: 600;
-  color: #222;
+  color: var(--ink-900);
   display: block;
   margin-bottom: 12rpx;
 }
@@ -95,11 +95,11 @@ page {
 }
 .tl-text {
   font-size: 25rpx;
-  color: #666;
+  color: var(--ink-700);
   line-height: 1.6;
 }
 .tl-cursor {
-  color: #3b7cff;
+  color: var(--primary);
 }
 @keyframes breathe {
   0%,
