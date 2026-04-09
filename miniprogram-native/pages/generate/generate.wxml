@@ -47,7 +47,7 @@
 
   <block wx:elif="{{status === 'done'}}">
     <view class="card done-card">
-      <text class="done-title">生成完成 🎉</text>
+      <text class="done-title">生成完成</text>
       <text class="t-muted">共 {{questionCount}} 题，已存入你的个人题库</text>
     </view>
     <view class="btn-primary" hover-class="btn-primary--press" hover-stay-time="80" bindtap="onStartQuest">开始闯关</view>
