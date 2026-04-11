@@ -160,7 +160,8 @@ def _run_task(task_id: int) -> None:
         )
         db.flush()  # 取得题目 id
         task.generated_question_ids = json.dumps([q.id for q in created])
-        task.done = task.total
+        # 部分卷（取消）时 done 应为实际生成数，而非 total——否则前端显示「30/30」误导
+        task.done = len(created)
         # 用户主动取消时同样记录已生成的题目（部分卷），只是状态标为 cancelled（#26）
         task.status = "cancelled" if task.cancel_requested else "done"
         db.commit()
@@ -327,6 +328,32 @@ def rename_document(
     doc.title = title[:255]
     db.commit()
     return _doc_out(db, doc)
+
+
+@router.get("/{doc_id}/chunks/{chunk_id}")
+def get_document_chunk(
+    doc_id: int,
+    chunk_id: int,
+    c: Candidate = Depends(get_current_candidate),
+    db: Session = Depends(get_db),
+):
+    """按需取切片全文（#25 D1：资料详情页时间线/章节点开时用）。
+
+    原 /api/kb/chunk/{id} 随 kb 出题功能下线迁移至此（#27）：仅本人资料可见。
+    """
+    doc = db.get(Document, doc_id)
+    if doc is None or doc.candidate_id != c.id:
+        raise HTTPException(404, "资料不存在")
+    ch = db.get(DocumentChunk, chunk_id)
+    if ch is None or ch.document_id != doc_id:
+        raise HTTPException(404, "切片不存在")
+    return {
+        "id": ch.id,
+        "document_id": ch.document_id,
+        "seq": ch.seq,
+        "heading_path": ch.heading_path,
+        "content": ch.content,
+    }
 
 
 @router.delete("/{doc_id}")

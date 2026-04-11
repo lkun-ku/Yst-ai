@@ -456,10 +456,15 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
     # 补偿：因重复/校验被丢弃导致不足时，按 spec 顺序补足（最多 6 轮）。
     # 每轮**多生成候选**（need*2）：补偿阶段的题干与已落库题目重复率高，只生成 need 道大概率
     # 仍被判重丢弃；多生成后用 limit=need 截断落库——既不会超产，又显著提高命中率。
+    # 协作式取消（#26）：补偿轮与主循环同等检查，否则点停止后补偿还会烧最多 6 轮 LLM 调用。
     attempts = 0
     while len(created) < grand_total and attempts < 6:
+        if should_stop and should_stop():
+            break
         attempts += 1
         for item in spec:
+            if should_stop and should_stop():
+                break
             if len(created) >= grand_total:
                 break
             need = grand_total - len(created)
@@ -470,7 +475,7 @@ def generate_for_document(db, doc, chunks: list[dict], spec: list[dict], mode: s
     # 兜底：补偿后仍不足，说明资料内容已接近穷尽（小文档出大量题本就受限）。
     # 此时放宽判重到 0.95（只拦几乎完全相同的题干）再补一轮——
     # 宁可少数题干略有相近，也不让用户拿不到自己选择的题量。
-    if len(created) < grand_total:
+    if len(created) < grand_total and not (should_stop and should_stop()):
         need = grand_total - len(created)
         gen_batch(None, spec[0]["type"], max(need * 2, 4), chunks, limit=need, dup_threshold=0.95)
 

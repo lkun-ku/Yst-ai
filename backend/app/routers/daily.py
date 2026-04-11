@@ -55,9 +55,12 @@ def set_exam_date(
 ) -> ExamDateOut:
     """输入考期（以考期为时间基准），接入内容安全输入检测调用点（验收 1/5）。"""
     try:
-        date.fromisoformat(body.exam_date)
+        exam_day = date.fromisoformat(body.exam_date)
     except ValueError:
         raise HTTPException(status_code=400, detail="考期格式应为 YYYY-MM-DD")
+
+    if exam_day < date.today():
+        raise HTTPException(status_code=400, detail="考期不能早于今天")
 
     if not get_content_safety().check_input(body.exam_date):
         raise HTTPException(status_code=400, detail="输入内容未通过安全检测")
