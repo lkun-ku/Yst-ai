@@ -174,11 +174,6 @@ Page({
     });
   },
 
-  /** #22：「自建题库」组卷入口（首页入口已移入本页） */
-  goKb() {
-    navTo("/pages/kb/kb");
-  },
-
   /** A5：删除会级联移除该资料生成的个人题，需二次确认 */
   onDelete(e) {
     const id = e.currentTarget.dataset.id;

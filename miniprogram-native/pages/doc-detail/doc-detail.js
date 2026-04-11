@@ -2,7 +2,7 @@ import { request, ensureIdentity, toastApiError, requestChunk } from "../../util
 
 /**
  * 资料详情页（#27 资料管理）：文档信息 + 按章节分组的切片列表。
- * 切片默认只展示 120 字预览（后端 DetailOut 只给预览），点开按需拉全文（/api/kb/chunk/{id}），
+ * 切片默认只展示 120 字预览（后端 DetailOut 只给预览），点开按需拉全文（/api/documents/{id}/chunks/{cid}），
  * 与时间线的两级分离（D1）同一哲学：流量按需，信任不打折。
  */
 Page({
@@ -50,7 +50,7 @@ Page({
       return;
     }
     try {
-      const full = await requestChunk(cid);
+      const full = await requestChunk(this._id, cid);
       this.setData({
         [`groups[${gi}].items[${ci}].content`]: full.content || "（无内容）",
         [`groups[${gi}].items[${ci}].isOpen`]: true,

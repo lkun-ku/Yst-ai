@@ -70,7 +70,7 @@
     上传资料
   </view>
 
-  <view class="btn-ghost kb-entry" hover-class="btn-ghost--press" hover-stay-time="80" bindtap="goKb">自建题库 · 组卷出题</view>
+  <text class="kb-entry">按资料的「出题」已覆盖全部场景；跨资料组卷功能已下线</text>
 
   <text class="t-dim build-tip">题目由 AI 生成，仅供参考</text>
 </view>
