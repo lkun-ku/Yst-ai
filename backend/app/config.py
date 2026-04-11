@@ -1,4 +1,19 @@
 import os
+
+# 「纸卷 v1」：backend/.env 本地配置加载（setdefault：显式环境变量优先；key 不入 git）
+_paper_env_loaded = False
+try:
+    _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
+    with open(_env_path, encoding='utf-8') as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith('#') and '=' in _line:
+                _k, _, _v = _line.partition('=')
+                os.environ.setdefault(_k.strip(), _v.strip())
+    _paper_env_loaded = True
+except OSError:
+    pass
+
 from dataclasses import dataclass
 
 
