@@ -9,10 +9,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -354,6 +356,34 @@ def get_document_chunk(
         "heading_path": ch.heading_path,
         "content": ch.content,
     }
+
+
+@router.get("/{doc_id}/file")
+def download_document_file(
+    doc_id: int,
+    c: Candidate = Depends(get_current_candidate),
+    db: Session = Depends(get_db),
+):
+    """下载上传时的原始文件（#27 需求 2a：资料详情页 wx.openDocument 预览原文）。仅本人可见。"""
+    doc = db.get(Document, doc_id)
+    if doc is None or doc.candidate_id != c.id:
+        raise HTTPException(404, "资料不存在")
+    if not doc.storage_path or not os.path.exists(doc.storage_path):
+        raise HTTPException(404, "原始文件已不存在")
+    ext = os.path.splitext(doc.storage_path)[1].lstrip(".").lower() or "bin"
+    media = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "doc": "application/msword",
+        "txt": "text/plain",
+        "md": "text/plain",
+    }.get(ext, "application/octet-stream")
+    safe_name = re.sub(r'[\\/:*?"<>|]', "_", doc.title or f"document.{ext}")
+    return FileResponse(
+        doc.storage_path,
+        media_type=media,
+        filename=f"{safe_name}.{ext}",
+    )
 
 
 @router.delete("/{doc_id}")

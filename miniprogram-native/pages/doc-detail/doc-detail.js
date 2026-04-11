@@ -1,4 +1,7 @@
-import { request, ensureIdentity, toastApiError, requestChunk } from "../../utils/api.js";
+import { request, ensureIdentity, toastApiError, requestChunk, getUnionid, BASE } from "../../utils/api.js";
+
+/** 可用微信原生预览的文件类型；txt/md 无排版，直接看切片全文（按 seq 拼接即原文顺序） */
+const PREVIEWABLE = new Set(["pdf", "docx", "doc"]);
 
 /**
  * 资料详情页（#27 资料管理）：文档信息 + 按章节分组的切片列表。
@@ -10,6 +13,7 @@ Page({
     loading: true,
     doc: null,
     groups: [],
+    canPreview: false,
   },
 
   onLoad(options) {
@@ -33,7 +37,12 @@ Page({
         byHead.get(h).push({ ...c, isOpen: false, content: "" });
       }
       const groups = [...byHead.entries()].map(([heading, items]) => ({ heading, items }));
-      this.setData({ doc: d, groups, loading: false });
+      this.setData({
+        doc: d,
+        groups,
+        loading: false,
+        canPreview: PREVIEWABLE.has((d.file_type || "").toLowerCase()),
+      });
     } catch (e) {
       toastApiError(e);
       this.setData({ loading: false });
@@ -58,5 +67,30 @@ Page({
     } catch (err) {
       toastApiError(err);
     }
+  },
+
+  /** 查看原文件（#27 需求 2a）：下载上传时的原始文件后交给微信原生预览 */
+  onOpenOriginal() {
+    wx.showLoading({ title: "下载中" });
+    wx.downloadFile({
+      url: `${BASE}/api/documents/${this._id}/file`,
+      header: { "X-Unionid": getUnionid() || "" },
+      success: (res) => {
+        wx.hideLoading();
+        if (res.statusCode !== 200 || !res.tempFilePath) {
+          toastApiError({ message: `下载失败(${res.statusCode})` });
+          return;
+        }
+        wx.openDocument({
+          filePath: res.tempFilePath,
+          showMenu: true,
+          fail: (err) => toastApiError({ message: (err && err.errMsg) || "该文件类型不支持预览" }),
+        });
+      },
+      fail: (e) => {
+        wx.hideLoading();
+        toastApiError({ message: (e && e.errMsg) || "下载失败" });
+      },
+    });
   },
 });

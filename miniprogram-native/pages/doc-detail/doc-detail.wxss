@@ -38,6 +38,14 @@ page {
   margin-top: 10rpx;
 }
 
+.origin-btn {
+  margin-top: 20rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  text-align: center;
+  font-size: 28rpx;
+}
+
 .chunk {
   padding: 16rpx 0;
   border-bottom: 1rpx solid #f2f2f2;

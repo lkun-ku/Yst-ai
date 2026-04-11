@@ -6,6 +6,14 @@
       <text class="d-title">{{doc.title}}</text>
       <text class="d-meta">{{doc.char_count}} 字 · {{doc.chunk_count}} 段 · {{doc.file_type}}</text>
       <text wx:if="{{doc.question_count > 0}}" class="d-meta">已生成 {{doc.question_count}} 题</text>
+      <view
+        wx:if="{{canPreview}}"
+        class="btn-main origin-btn"
+        hover-class="press"
+        hover-stay-time="80"
+        bindtap="onOpenOriginal"
+      >查看原文件</view>
+      <text wx:else class="d-meta">纯文本文档，下方为全文内容</text>
     </view>
 
     <block wx:for="{{groups}}" wx:for-item="g" wx:for-index="gi" wx:key="heading">
