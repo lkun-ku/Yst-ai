@@ -10,7 +10,6 @@ from .routers import (
     documents,
     health,
     identity,
-    kb,
     mistakes,
     quota,
     reports,
@@ -51,4 +50,3 @@ app.include_router(admin.router, tags=["admin"])
 app.include_router(documents.router, tags=["documents"])
 app.include_router(tasks.router, tags=["tasks"])
 app.include_router(streak.router, tags=["streak"])
-app.include_router(kb.router, tags=["kb"])

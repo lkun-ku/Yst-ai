@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import json, os, re, sys, time, urllib.request
+import json, os, re, sys, time, urllib.error, urllib.request
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.config import settings
 from app.seed.questions_data import KNOWLEDGE_POINTS
@@ -18,11 +18,27 @@ GEN_PROMPT = ("你是教师资格证《综合素质》的命题专家。针对�
 JUDGE_PROMPT = ("你是教资考试的审题专家。下面每道题已带 idx 编号，请逐题审查：答案不正确/干扰项明显荒谬/题干歧义/考点归属错误/事实错误 -> REJECT；答案唯一正确且表述清晰 -> PASS。\n"
  "硬性要求：results 数组必须包含**每一个** idx 的判定（与输入题数相同，一个不能少），reason 不超过 15 字。\n"
  "只输出 JSON：{\"results\": [{\"idx\": 0, \"verdict\": \"PASS\", \"reason\": \"答案正确\"}, {\"idx\": 1, \"verdict\": \"REJECT\", \"reason\": \"答案有歧义\"}]}\n\n待审题目：\n{items}")
+class NetworkError(RuntimeError):
+    """网络/响应异常重试耗尽。挂机任务对瞬时故障应有免疫力：chat 内重试，耗尽后由
+    考点级兜底接住（跳过该考点记 0 题继续），绝不让整条管线崩死。"""
+
+
 def chat(prompt):
     body = {"model": MODEL, "messages": [{"role": "user", "content": prompt}], "response_format": {"type": "json_object"}}
     req = urllib.request.Request(BASE + "/chat/completions", data=json.dumps(body).encode(), headers={"Authorization": "Bearer " + KEY, "Content-Type": "application/json"})
-    d = json.loads(urllib.request.urlopen(req, timeout=120).read().decode())
-    return d["choices"][0]["message"]["content"]
+    last = None
+    for attempt in range(4):
+        try:
+            d = json.loads(urllib.request.urlopen(req, timeout=120).read().decode())
+            return d["choices"][0]["message"]["content"]
+        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError, KeyError, IndexError) as e:
+            # 覆盖：连接超时/瞬断(OSError 含 socket.timeout)、HTTP 429/5xx(HTTPError 是 URLError 子类)、响应 JSON 损坏
+            last = e
+            if attempt < 3:
+                backoff = 2 ** (attempt + 1)  # 2/4/8s 指数退避
+                print("  net-fail(%s), retry in %ds" % (type(e).__name__, backoff))
+                time.sleep(backoff)
+    raise NetworkError("%s: %s" % (type(last).__name__, last))
 def parse_json(text):
     m = re.search(r"\[|\{", text)
     if not m:
@@ -52,31 +68,38 @@ def main():
     stats = {"gen": 0, "judge": 0, "accepted": 0, "rejected": 0, "regen": 0}
     for i, (module, kp) in enumerate(todo, 1):
         qs = []
-        gen_p = GEN_PROMPT.replace("{kp}", kp).replace("{module}", module).replace("{n}", "3")
-        for rnd in range(MAX_ROUNDS):
-            items = parse_json(chat(gen_p))
-            stats["gen"] += 1
-            if not isinstance(items, list) or not items:
-                print("  parse-fail, retry"); time.sleep(2); continue
-            items_idxd = [{**it, "idx": idx} for idx, it in enumerate(items)]
-            jr = parse_json(chat(JUDGE_PROMPT.replace("{items}", json.dumps(items_idxd, ensure_ascii=False))))
-            stats["judge"] += 1
-            verdicts = {r.get("idx"): r.get("verdict", "PASS") for r in (jr.get("results") or [])} if isinstance(jr, dict) else {}
-            # 覆盖度校验：judge 必须覆盖全部 idx，缺漏视为审校失败（重试一次，再失败则 fail-open 放行并计数）
-            if len([v for v in verdicts if v in range(len(items))]) < len(items):
-                print("  judge 覆盖不全（%d/%d），重试一次" % (len(verdicts), len(items)))
-                jr2 = parse_json(chat(JUDGE_PROMPT.replace("{items}", json.dumps(items_idxd, ensure_ascii=False))))
+        try:
+            gen_p = GEN_PROMPT.replace("{kp}", kp).replace("{module}", module).replace("{n}", "3")
+            for rnd in range(MAX_ROUNDS):
+                items = parse_json(chat(gen_p))
+                stats["gen"] += 1
+                if not isinstance(items, list) or not items:
+                    print("  parse-fail, retry"); time.sleep(2); continue
+                items_idxd = [{**it, "idx": idx} for idx, it in enumerate(items)]
+                jr = parse_json(chat(JUDGE_PROMPT.replace("{items}", json.dumps(items_idxd, ensure_ascii=False))))
                 stats["judge"] += 1
-                v2 = {r.get("idx"): r.get("verdict", "PASS") for r in (jr2.get("results") or [])} if isinstance(jr2, dict) else {}
-                if len([v for v in v2 if v in range(len(items))]) >= len(items):
-                    verdicts = v2
-            qs = [it for idx, it in enumerate(items) if verdicts.get(idx, "PASS") == "PASS"]
-            stats["rejected"] += len(items) - len(qs)
-            if qs:
-                break
-            if rnd == 0:
-                stats["regen"] += 1
-                print("  all-REJECT, regen")
+                verdicts = {r.get("idx"): r.get("verdict", "PASS") for r in (jr.get("results") or [])} if isinstance(jr, dict) else {}
+                # 覆盖度校验：judge 必须覆盖全部 idx，缺漏视为审校失败（重试一次，再失败则 fail-open 放行并计数）
+                if len([v for v in verdicts if v in range(len(items))]) < len(items):
+                    print("  judge 覆盖不全（%d/%d），重试一次" % (len(verdicts), len(items)))
+                    jr2 = parse_json(chat(JUDGE_PROMPT.replace("{items}", json.dumps(items_idxd, ensure_ascii=False))))
+                    stats["judge"] += 1
+                    v2 = {r.get("idx"): r.get("verdict", "PASS") for r in (jr2.get("results") or [])} if isinstance(jr2, dict) else {}
+                    if len([v for v in v2 if v in range(len(items))]) >= len(items):
+                        verdicts = v2
+                qs = [it for idx, it in enumerate(items) if verdicts.get(idx, "PASS") == "PASS"]
+                stats["rejected"] += len(items) - len(qs)
+                if qs:
+                    break
+                if rnd == 0:
+                    stats["regen"] += 1
+                    print("  all-REJECT, regen")
+        except NetworkError as e:
+            # #28 考点级兜底：网络重试耗尽只跳过本考点（记 0 题，续跑可补），管线继续
+            print("  network-fail, skip: %s" % e)
+            print("[%d/%d] %s -> 0 passed (cum %d)" % (i, len(todo), kp, len(state["questions"])))
+            save_state(state)
+            continue
         for it in qs:
             state["questions"].append({
                 "module": module, "knowledge_point": kp, "type": "single",
