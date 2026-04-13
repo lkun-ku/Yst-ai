@@ -9,6 +9,15 @@ import sys
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+import pytest
+
+from app.config import settings
+
+
+@pytest.mark.skipif(
+    settings.llm_mode == "real",
+    reason="run_eval 的 fake 产出断言依赖 fake LLM 模式（用户决策 2026-05-29 切 real），跳过",
+)
 def test_run_eval_fake_produces_report():
     r = subprocess.run(
         [sys.executable, "backend/eval/run_eval.py"],

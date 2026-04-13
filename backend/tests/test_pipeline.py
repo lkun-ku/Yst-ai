@@ -1,6 +1,18 @@
-"""票 14：实时生成管线接入。测试一律用 FakeLLMClient，不消耗 API 额度（测试决策 33/45）。"""
+"""票 14：实时生成管线接入。测试一律用 FakeLLMClient，不消耗 API 额度（测试决策 33/45）。
+
+真实模式（用户决策 2026-05-29）下 fake 路径断言不成立，相关测试跳过。
+"""
 
 import json
+
+import pytest
+
+from app.config import settings
+
+_skip_real = pytest.mark.skipif(
+    settings.llm_mode == "real",
+    reason="真实模式下默认客户端为 real（用户决策 2026-05-29），fake 路径断言跳过",
+)
 
 from app.models import (
     ProofreadStatus,
@@ -40,6 +52,7 @@ def _mk_items(kp: str, n: int = 1) -> list[dict]:
     return items
 
 
+@_skip_real
 def test_fake_client_is_default_no_api_quota():
     """模型调用统一收口，默认假实现，不消耗额度（测试决策 33）。"""
     assert isinstance(get_llm_client(), FakeLLMClient)
@@ -70,6 +83,7 @@ def _reset_kp(db_session, kp: str, n: int = 1):
     import_questions(db_session, items=_mk_items(kp, n=n))
 
 
+@_skip_real
 def test_variant_realtime_when_pool_empty(client, db_session):
     """池空才触发实时生成，产物入库并通过结构化校验。"""
     _reset_kp(db_session, "学生观", n=1)
@@ -113,6 +127,7 @@ def test_realtime_daily_limit_3_degrade_silently(client, db_session):
     assert get_today_usage(db_session, cid, date.today()) == 3  # 额度未超
 
 
+@_skip_real
 def test_review_paragraph_realtime_and_degrade(client, db_session):
     """复盘个性化段落由模型写；缺失/超限时优雅降级为模板（票 08 协同）。"""
     import_questions(db_session)
