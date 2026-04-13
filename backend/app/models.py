@@ -392,3 +392,57 @@ class StreakMakeup(Base):
     used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (UniqueConstraint("candidate_id", "missed_date", name="uq_streak_makeup"),)
+
+
+# ---------- AI 模拟答（聊天式问答训练，#31；与选择题闯关 Session 完全独立） ----------
+class ChatPack(Base):
+    """真题包装缓存（#31）：官方题 → 面试官口吻开放问题 + 核心要点。
+
+    每道题只包装一次（question_id 唯一索引幂等），训练时零生成额度；
+    要点预置使评分踩点可控（评分口径=要点覆盖式）。
+    """
+
+    __tablename__ = "chat_packs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"), unique=True, index=True)
+    open_question: Mapped[str] = mapped_column(Text)
+    key_points: Mapped[str] = mapped_column(Text)  # JSON: ["要点1", ...]（3-4 个）
+    difficulty: Mapped[str] = mapped_column(String(16), default="medium")  # medium | hard
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class ChatSession(Base):
+    """AI 模拟答训练场（#31）。一场多题多轮追问；不与连胜/今日任务联动（用户决策）。"""
+
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id"), index=True)
+    module: Mapped[Module] = mapped_column(SAEnum(Module))
+    difficulty: Mapped[str] = mapped_column(String(16), default="medium")  # medium | hard
+    persona: Mapped[str] = mapped_column(String(16), default="coach")  # coach | examiner
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active | finished
+    question_count: Mapped[int] = mapped_column(Integer, default=0)  # 已作答题数
+    score_avg: Mapped[float] = mapped_column(Float, default=0.0)  # 终评均分
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class ChatTurn(Base):
+    """对话回合（#31）：ask=AI提问 probe=追问 feedback=终评 user=用户回答。"""
+
+    __tablename__ = "chat_turns"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.id"), index=True)
+    seq: Mapped[int] = mapped_column(Integer)  # 会话内自增序号
+    role: Mapped[str] = mapped_column(String(8))  # ai | user
+    turn_type: Mapped[str] = mapped_column(String(16))  # opening | ask | probe | feedback | user
+    content: Mapped[str] = mapped_column(Text)
+    question_id: Mapped[int | None] = mapped_column(ForeignKey("questions.id"), nullable=True)
+    score: Mapped[int | None] = mapped_column(Integer, nullable=True)  # feedback 轮 0-100
+    points_hit: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON 数组
+    points_missed: Mapped[str | None] = mapped_column(Text, nullable=True)
+    points_wrong: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suggestion: Mapped[str | None] = mapped_column(Text, nullable=True)  # 改进建议
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

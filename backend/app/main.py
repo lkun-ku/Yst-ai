@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .db import settings
 from .routers import (
     admin,
+    chat,
     daily,
     documents,
     health,
@@ -50,3 +51,4 @@ app.include_router(admin.router, tags=["admin"])
 app.include_router(documents.router, tags=["documents"])
 app.include_router(tasks.router, tags=["tasks"])
 app.include_router(streak.router, tags=["streak"])
+app.include_router(chat.router, tags=["chat"])

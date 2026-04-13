@@ -74,6 +74,55 @@ class FakeLLMClient(LLMClient):
                 text=payloads[0].get("stem", "") if payloads else "",
                 payloads=payloads,
             )
+        if req.kind == "chat_pack":
+            # #31 fake 包装：确定性产物（题目→开放问题+要点），保证测试零额度且可断言
+            ctx = req.context or {}
+            kp = req.knowledge_point
+            return GenerationResult(
+                text=f"[fake-pack] 请谈谈你对《{kp}》的理解。",
+                payload={
+                    "open_question": f"（模拟面试）请谈谈你对「{kp}」的理解，可以结合实际教学情境说一说。",
+                    "key_points": [
+                        f"准确说出「{kp}」的核心定义",
+                        "能结合一个教学情境举例说明",
+                        "能指出常见的理解误区",
+                    ],
+                    "difficulty": ctx.get("difficulty", "medium"),
+                },
+            )
+        if req.kind == "chat_grade":
+            # #31 fake 评分：第一轮回 need_probe（驱动追问链路），之后终评；
+            # 用户答案带「[offtopic]」前缀时返回 off_topic（覆盖离题分支测试）。
+            ctx = req.context or {}
+            content = str(ctx.get("content", ""))
+            kps = ctx.get("key_points") or []
+            if content.startswith("[offtopic]"):
+                return GenerationResult(
+                    text="[fake-grade] off_topic",
+                    payload={"verdict": "off_topic", "hint": "请围绕刚才的问题作答哦"},
+                )
+            probes = int(ctx.get("probes_used", 0) or 0)
+            if probes < 1:
+                return GenerationResult(
+                    text="[fake-grade] need_probe",
+                    payload={
+                        "verdict": "need_probe",
+                        "probe_question": "能再展开说说你的依据吗？比如结合一个具体情境。",
+                    },
+                )
+            half = max(1, len(kps) // 2)
+            return GenerationResult(
+                text="[fake-grade] final",
+                payload={
+                    "verdict": "final",
+                    "hit": kps[:half],
+                    "missed": kps[half:],
+                    "wrong": [],
+                    "score": 60 if half * 2 < len(kps) else 75,
+                    "feedback": "答出了部分核心要点" if kps[half:] else "核心要点覆盖完整",
+                    "suggestion": "建议补充遗漏要点，并结合情境展开" if kps[half:] else "表述可以更凝练",
+                },
+            )
         return GenerationResult(
             text=f"[fake-paragraph] 关于《{req.knowledge_point}》的个性化复盘段落。（AI 生成，仅供参考）"
         )
@@ -102,34 +151,6 @@ class RealLLMClient(LLMClient):
 
     def __init__(self, api_key: str | None = None) -> None:
         self.api_key = api_key or settings.llm_api_key
-
-    def _chat(self, prompt: str) -> str | None:
-        if not self.api_key:
-            return None
-        body = json.dumps(
-            {
-                "model": settings.llm_model,
-                "messages": [
-                    {"role": "system", "content": "你是教资《综合素质》出题与复盘助手，只输出 JSON 或纯文本。"},
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.7,
-            }
-        ).encode("utf-8")
-        try:
-            req = urllib.request.Request(
-                settings.llm_api_base.rstrip("/") + "/chat/completions",
-                data=body,
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {self.api_key}",
-                },
-            )
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            return data["choices"][0]["message"]["content"]
-        except Exception:
-            return None
 
     def generate(self, req: GenerationRequest) -> GenerationResult:
         if req.kind == "variant":
@@ -171,11 +192,112 @@ class RealLLMClient(LLMClient):
                 payloads=payloads,
             )
 
+        if req.kind == "chat_pack":
+            # #31 真题包装：选择题题干 → 面试官口吻开放问题 + 3-4 个核心要点
+            ctx = req.context or {}
+            difficulty = ctx.get("difficulty", "medium")
+            style = (
+                "提问要结合真实教学情境设定场景后再设问"
+                if difficulty == "hard"
+                else "提问直指核心概念，简洁直接"
+            )
+            prompt = (
+                f'你是模拟面试官。把下面这道教资《综合素质》{ctx.get("module", "")}模块的选择题，'
+                f'改写成一道面试官口吻的开放式问答题（{style}），并提炼出 3-4 个核心回答要点'
+                f'（要点应能从题目解析与正确选项中找到依据）。\n'
+                f'题目：{ctx.get("stem", "")}\n正确答案：{ctx.get("answer_text", "")}\n'
+                f'解析：{ctx.get("explanation", "")}\n'
+                '只输出 JSON：{"open_question": "...", "key_points": ["...", "...", "..."]}'
+            )
+            obj = self._chat_json(prompt, timeout=60)
+            if obj is None or not obj.get("open_question") or not obj.get("key_points"):
+                return GenerationResult(text="", payload=None)
+            return GenerationResult(
+                text=str(obj["open_question"]),
+                payload={
+                    "open_question": str(obj["open_question"]),
+                    "key_points": [str(k) for k in obj["key_points"]][:4],
+                    "difficulty": difficulty,
+                },
+            )
+
+        if req.kind == "chat_grade":
+            # #31 评分链：要点覆盖判定 + 追问/终评一次调用返回（verdict 三态）
+            ctx = req.context or {}
+            persona = ctx.get("persona", "coach")
+            persona_style = (
+                "你是温和的面试教练：先肯定答对的部分，再指出缺口，语气鼓励但不回避问题"
+                if persona == "coach"
+                else "你是严格的面试考官：不寒暄、直接指出不足、按标准评判"
+            )
+            history = json.dumps(ctx.get("history", []), ensure_ascii=False)
+            prompt = (
+                f'{persona_style}。\n'
+                f'面试问题：{ctx.get("open_question", "")}\n'
+                f'核心要点（评分踩点依据）：{json.dumps(ctx.get("key_points", []), ensure_ascii=False)}\n'
+                f'本轮之前用户已回答但未获终评的内容（含追问轮次）：{history}\n'
+                f'用户本轮回答：{ctx.get("content", "")}\n'
+                f'已追问次数：{ctx.get("probes_used", 0)}（上限 2）\n'
+                '评判规则：\n'
+                '1. 若回答与问题完全无关，verdict="off_topic"，给一句提示 hint；\n'
+                '2. 若回答信息量明显不足且已追问次数<2，verdict="need_probe"，'
+                '给一个追问问题 probe_question（针对最关键的缺口）；\n'
+                '3. 否则 verdict="final"：score=要点覆盖率百分制整数，'
+                'hit=已覆盖要点、missed=遗漏要点、wrong=事实性错误表述（可空数组），'
+                'feedback=30字内总评，suggestion=改进建议。\n'
+                '只输出 JSON。'
+            )
+            obj = self._chat_json(prompt, timeout=60)
+            if obj is None or obj.get("verdict") not in ("off_topic", "need_probe", "final"):
+                return GenerationResult(text="", payload=None)
+            return GenerationResult(text="[chat_grade]", payload=obj)
+
         content = self._chat(
             f"请为考点《{req.knowledge_point}》写一段 60 字内的个性化复盘鼓励段落，"
             f"结尾必须带「（AI 生成，仅供参考）」。背景数据：{json.dumps(req.context or {}, ensure_ascii=False)}"
         )
         return GenerationResult(text=content or "")
+
+    def _chat_json(self, prompt: str, timeout: int = 60) -> dict | None:
+        """#31 聊天链路专用：失败返回 None（路由层显式 503，绝不静默给分）。"""
+        content = self._chat(prompt, timeout=timeout)
+        if not content:
+            return None
+        try:
+            s = content.index("{")
+            e = content.rindex("}") + 1
+            obj = json.loads(content[s:e])
+            return obj if isinstance(obj, dict) else None
+        except Exception:
+            return None
+
+    def _chat(self, prompt: str, timeout: int = 30) -> str | None:
+        if not self.api_key:
+            return None
+        body = json.dumps(
+            {
+                "model": settings.llm_model,
+                "messages": [
+                    {"role": "system", "content": "你是教资《综合素质》出题与复盘助手，只输出 JSON 或纯文本。"},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.7,
+            }
+        ).encode("utf-8")
+        try:
+            req = urllib.request.Request(
+                settings.llm_api_base.rstrip("/") + "/chat/completions",
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.api_key}",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            return data["choices"][0]["message"]["content"]
+        except Exception:
+            return None
 
     def ask(self, prompt: str, timeout: int = 30) -> str | None:
         return self._chat(prompt)
