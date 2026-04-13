@@ -95,15 +95,29 @@ Page({
   async onSend() {
     const content = (this.data.input || "").trim();
     if (!content || this.data.thinking || this.data.finished) return;
-    if (this.data.msgs.some((m) => m.turnType === "user" && !m._done)) return; // 防连点
-    this.setData({ msgs: [...this.data.msgs, this._toMsg({ role: "user", turn_type: "user", content }, true)], input: "" });
-    await this._reply({ content });
+    // 同步互斥锁（#32）：setData 异步，data 检查挡不住连点；实例标志同 Breakeven 置位
+    if (this._sending) return;
+    this._sending = true;
+    try {
+      this.setData({
+        msgs: [...this.data.msgs, this._toMsg({ role: "user", turn_type: "user", content }, true)],
+        input: "",
+      });
+      await this._reply({ content });
+    } finally {
+      this._sending = false;
+    }
   },
 
   /** 跳过追问，直接看评分 */
   async onForceFinal() {
-    if (this.data.thinking || this.data.finished) return;
-    await this._reply({ content: "（我想直接看评分）", forceFinal: true, local: false });
+    if (this.data.thinking || this.data.finished || this._sending) return;
+    this._sending = true;
+    try {
+      await this._reply({ content: "（我想直接看评分）", forceFinal: true, local: false });
+    } finally {
+      this._sending = false;
+    }
   },
 
   async _reply({ content, forceFinal = false, local = true }) {
@@ -202,8 +216,9 @@ Page({
   },
 
   _scrollBottom() {
-    // 锚点法滚底：更新一个临时 id
-    this.setData({ scrollInto: "chat-anchor-" + Date.now() });
+    // #32 修复：锚点 id 固定为 chat-anchor-a/b，值交替触发重滚（同值 scroll-into-view 不生效）
+    this._anchorFlip = !this._anchorFlip;
+    this.setData({ scrollInto: this._anchorFlip ? "chat-anchor-a" : "chat-anchor-b" });
   },
 
   _stopTyping() {

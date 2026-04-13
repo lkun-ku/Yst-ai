@@ -111,7 +111,9 @@
         </view>
       </view>
 
-      <view id="chat-anchor-{{scrollInto}}"></view>
+      <!-- 双锚点交替触发 scroll-into-view（同值不重滚），修复无法滚到底（#32） -->
+      <view id="chat-anchor-a"></view>
+      <view id="chat-anchor-b"></view>
       <view class="scroll-pad"></view>
     </scroll-view>
 

@@ -328,7 +328,7 @@
   background: #fff;
 }
 
-/* 输入栏 */
+/* 输入栏（#32 修复：固定高度防 placeholder 裁半；min-width 防 input 挤压相邻按钮） */
 .input-bar {
   position: fixed;
   left: 0;
@@ -340,30 +340,43 @@
   padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
   background: #fff;
   border-top: 1rpx solid #e8eaee;
+  box-sizing: border-box;
 }
 .force-final {
   flex-shrink: 0;
+  height: 64rpx;
+  line-height: 62rpx;
   font-size: 22rpx;
   color: #6b7280;
   border: 1rpx solid #d9dde3;
   border-radius: 999rpx;
-  padding: 10rpx 20rpx;
+  padding: 0 20rpx;
+  box-sizing: border-box;
+  white-space: nowrap;
 }
 .chat-input {
   flex: 1;
+  min-width: 0;
+  height: 72rpx;
+  line-height: 72rpx;
   background: #f1f3f5;
   border-radius: 999rpx;
-  padding: 16rpx 28rpx;
+  padding: 0 28rpx;
   font-size: 28rpx;
+  box-sizing: border-box;
 }
 .send-btn {
   flex-shrink: 0;
+  height: 72rpx;
+  line-height: 72rpx;
   background: #3b7cff;
   color: #fff;
   font-size: 26rpx;
   font-weight: 600;
   border-radius: 999rpx;
-  padding: 14rpx 30rpx;
+  padding: 0 30rpx;
+  box-sizing: border-box;
+  white-space: nowrap;
 }
 .send-dim { opacity: 0.5; }
 
