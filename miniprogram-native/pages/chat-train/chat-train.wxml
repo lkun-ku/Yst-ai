@@ -1,0 +1,141 @@
+<!-- #31 AI 模拟答：配置态 / 聊天态 -->
+<view class="page">
+
+  <!-- ===== 配置态 ===== -->
+  <block wx:if="{{mode === 'config'}}">
+    <view class="config-hero">
+      <text class="config-title">AI 模拟答</text>
+      <text class="config-sub">和 AI 面试官聊着练：它问、你用大白话答，说得含糊它会追问，最后按要点踩分</text>
+    </view>
+
+    <text class="sec-label">训练模块</text>
+    <view class="chip-row">
+      <view
+        wx:for="{{modules}}"
+        wx:key="*this"
+        class="chip {{module === item ? 'chip-on' : ''}}"
+        hover-class="press"
+        hover-stay-time="80"
+        data-m="{{item}}"
+        bindtap="onPickModule"
+      >{{item}}</view>
+    </view>
+
+    <text class="sec-label">难度</text>
+    <view class="seg-row">
+      <view class="seg {{difficulty === 'medium' ? 'seg-on' : ''}}" data-d="medium" bindtap="onPickDifficulty" hover-class="press">基础 · 直问概念</view>
+      <view class="seg {{difficulty === 'hard' ? 'seg-on' : ''}}" data-d="hard" bindtap="onPickDifficulty" hover-class="press">进阶 · 情境设问</view>
+    </view>
+
+    <text class="sec-label">AI 人设</text>
+    <view class="seg-row">
+      <view class="seg {{persona === 'coach' ? 'seg-on' : ''}}" data-p="coach" bindtap="onPickPersona" hover-class="press">温和教练</view>
+      <view class="seg {{persona === 'examiner' ? 'seg-on' : ''}}" data-p="examiner" bindtap="onPickPersona" hover-class="press">严格考官</view>
+    </view>
+
+    <view class="start-btn" hover-class="press" hover-stay-time="80" bindtap="onStart">开始训练 · 共 5 题</view>
+  </block>
+
+  <!-- ===== 聊天态 ===== -->
+  <block wx:else>
+    <!-- 顶部进度 -->
+    <view class="chat-top">
+      <view class="bar"><view class="bar-in" style="width: {{progress.cur / progress.total * 100}}%"></view></view>
+      <text class="top-label">第 {{progress.cur}} / {{progress.total}} 题 · {{persona === 'coach' ? '教练模式' : '考官模式'}}</text>
+    </view>
+
+    <scroll-view class="chat-scroll" scroll-y scroll-into-view="{{scrollInto}}" scroll-with-animation>
+      <view wx:for="{{msgs}}" wx:key="index" wx:for-item="msg" id="msg-{{index}}">
+
+        <!-- AI 气泡（含开场/提问/追问/提示/错误） -->
+        <view wx:if="{{msg.role === 'ai' && msg.turnType !== 'feedback'}}" class="row-ai">
+          <view class="avatar">AI</view>
+          <view class="bubble-ai">
+            <view wx:if="{{msg.turnType === 'probe'}}" class="chip-tag">追问</view>
+            <view wx:elif="{{msg.turnType === 'hint'}}" class="chip-tag tag-warn">提示</view>
+            <text class="ai-text">{{msg.shown}}</text>
+            <text wx:if="{{msg.typing}}" class="caret">▍</text>
+          </view>
+        </view>
+
+        <!-- 终评卡 -->
+        <view wx:elif="{{msg.turnType === 'feedback'}}" class="row-ai">
+          <view class="avatar">AI</view>
+          <view class="feedback-card">
+            <view class="fb-head">
+              <text class="fb-label">本题得分</text>
+              <text class="fb-score">{{msg.score}}</text>
+            </view>
+            <view class="fb-bar"><view class="fb-bar-in" style="width: {{msg.score}}%"></view></view>
+            <view wx:if="{{msg.hit.length}}" class="pt-row">
+              <text class="pt-dot pt-ok">✓</text>
+              <view class="pt-list"><text wx:for="{{msg.hit}}" wx:key="*this" class="pt-item pt-ok-t">命中：{{item}}</text></view>
+            </view>
+            <view wx:if="{{msg.missed.length}}" class="pt-row">
+              <text class="pt-dot pt-miss">✗</text>
+              <view class="pt-list"><text wx:for="{{msg.missed}}" wx:key="*this" class="pt-item pt-miss-t">遗漏：{{item}}</text></view>
+            </view>
+            <view wx:if="{{msg.wrong.length}}" class="pt-row">
+              <text class="pt-dot pt-wrong">!</text>
+              <view class="pt-list"><text wx:for="{{msg.wrong}}" wx:key="*this" class="pt-item pt-wrong-t">有误：{{item}}</text></view>
+            </view>
+            <text class="fb-text">{{msg.content}}</text>
+            <text wx:if="{{msg.suggestion}}" class="fb-sug">建议：{{msg.suggestion}}</text>
+          </view>
+        </view>
+
+        <!-- 用户气泡 -->
+        <view wx:else class="row-user">
+          <view class="bubble-user"><text class="user-text">{{msg.content}}</text></view>
+        </view>
+      </view>
+
+      <!-- 思考中 -->
+      <view wx:if="{{thinking}}" class="row-ai">
+        <view class="avatar">AI</view>
+        <view class="bubble-ai thinking">
+          <view class="dot d1"></view><view class="dot d2"></view><view class="dot d3"></view>
+        </view>
+      </view>
+
+      <!-- 本局汇总 -->
+      <view wx:if="{{finished && summary}}" class="summary-card">
+        <text class="sum-title">本局训练完成</text>
+        <view class="sum-row">
+          <view class="sum-cell"><text class="sum-num">{{summary.score_avg}}</text><text class="sum-cap">平均分</text></view>
+          <view class="sum-cell"><text class="sum-num">{{summary.question_count}}</text><text class="sum-cap">题数</text></view>
+          <view class="sum-cell"><text class="sum-num">{{summary.scores[0]}}</text><text class="sum-cap">首题</text></view>
+        </view>
+        <view class="sum-btns">
+          <view class="sum-btn ghost" hover-class="press" bindtap="onRestart">再来一场</view>
+        </view>
+      </view>
+
+      <view id="chat-anchor-{{scrollInto}}"></view>
+      <view class="scroll-pad"></view>
+    </scroll-view>
+
+    <!-- 输入栏 -->
+    <view class="input-bar">
+      <view
+        wx:if="{{!finished && !thinking}}"
+        class="force-final"
+        hover-class="press"
+        hover-stay-time="80"
+        bindtap="onForceFinal"
+      >直接看评分</view>
+      <input
+        class="chat-input"
+        value="{{input}}"
+        placeholder="{{finished ? '本局已结束，可「再来一场」' : '用你自己的话回答…'}}"
+        disabled="{{finished || thinking}}"
+        confirm-type="send"
+        adjust-position
+        cursor-spacing="16"
+        bindinput="onInput"
+        bindconfirm="onSend"
+      />
+      <view class="send-btn {{input || !finished ? '' : 'send-dim'}}" hover-class="press" bindtap="onSend">发送</view>
+    </view>
+  </block>
+</view>

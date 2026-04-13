@@ -1,0 +1,370 @@
+/* #31 AI 模拟答：低饱和、对话优先、单一品牌蓝、统一 16rpx 圆角、无渐变 */
+.page {
+  min-height: 100vh;
+  background: #fafaf9;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- 配置态 ---- */
+.config-hero {
+  padding: 56rpx 40rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+}
+.config-title {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #1c1c1a;
+}
+.config-sub {
+  margin-top: 14rpx;
+  font-size: 26rpx;
+  color: #6b7280;
+  line-height: 1.6;
+}
+.sec-label {
+  display: block;
+  margin: 36rpx 40rpx 16rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #1c1c1a;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  padding: 0 40rpx;
+}
+.chip {
+  padding: 14rpx 28rpx;
+  border: 1rpx solid #d9dde3;
+  border-radius: 16rpx;
+  font-size: 26rpx;
+  color: #374151;
+  background: #fff;
+}
+.chip-on {
+  background: #3b7cff;
+  border-color: #3b7cff;
+  color: #fff;
+  font-weight: 600;
+}
+.seg-row {
+  display: flex;
+  gap: 16rpx;
+  padding: 0 40rpx;
+}
+.seg {
+  flex: 1;
+  text-align: center;
+  padding: 18rpx 0;
+  border: 1rpx solid #d9dde3;
+  border-radius: 16rpx;
+  font-size: 26rpx;
+  color: #374151;
+  background: #fff;
+}
+.seg-on {
+  background: #eef3ff;
+  border-color: #3b7cff;
+  color: #3b7cff;
+  font-weight: 600;
+}
+.start-btn {
+  margin: 56rpx 40rpx;
+  padding: 26rpx 0;
+  text-align: center;
+  background: #3b7cff;
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 600;
+  border-radius: 16rpx;
+}
+
+/* ---- 聊天态 ---- */
+.chat-top {
+  padding: 20rpx 40rpx 16rpx;
+  background: #fafaf9;
+}
+.bar {
+  height: 6rpx;
+  background: #e8eaee;
+  border-radius: 3rpx;
+  overflow: hidden;
+}
+.bar-in {
+  height: 100%;
+  background: #3b7cff;
+  border-radius: 3rpx;
+  transition: width 0.3s ease;
+}
+.top-label {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #6b7280;
+}
+.chat-scroll {
+  flex: 1;
+  height: calc(100vh - 220rpx);
+  padding: 0 32rpx;
+  box-sizing: border-box;
+}
+.scroll-pad {
+  height: 40rpx;
+}
+
+.row-ai {
+  display: flex;
+  align-items: flex-start;
+  margin: 24rpx 0;
+}
+.avatar {
+  flex-shrink: 0;
+  width: 60rpx;
+  height: 60rpx;
+  line-height: 60rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: #1c1c1a;
+  color: #fff;
+  font-size: 22rpx;
+  font-weight: 600;
+  margin-right: 16rpx;
+}
+.bubble-ai {
+  max-width: 78%;
+  background: #f1f3f5;
+  border-radius: 16rpx;
+  border-top-left-radius: 4rpx;
+  padding: 20rpx 24rpx;
+}
+.ai-text {
+  font-size: 28rpx;
+  color: #1c1c1a;
+  line-height: 1.65;
+}
+.caret {
+  color: #3b7cff;
+  font-size: 26rpx;
+}
+.chip-tag {
+  display: inline-block;
+  font-size: 20rpx;
+  color: #3b7cff;
+  border: 1rpx solid #3b7cff;
+  border-radius: 999rpx;
+  padding: 2rpx 14rpx;
+  margin-bottom: 10rpx;
+}
+.tag-warn {
+  color: #c2660a;
+  border-color: #c2660a;
+}
+
+.row-user {
+  display: flex;
+  justify-content: flex-end;
+  margin: 24rpx 0;
+}
+.bubble-user {
+  max-width: 78%;
+  background: #3b7cff;
+  border-radius: 16rpx;
+  border-top-right-radius: 4rpx;
+  padding: 20rpx 24rpx;
+}
+.user-text {
+  font-size: 28rpx;
+  color: #fff;
+  line-height: 1.65;
+}
+
+/* 思考中三点呼吸 */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 26rpx 28rpx;
+}
+.dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: #9aa4b2;
+  animation: breath 1.2s ease-in-out infinite;
+}
+.d2 { animation-delay: 0.2s; }
+.d3 { animation-delay: 0.4s; }
+@keyframes breath {
+  0%, 100% { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-6rpx); }
+}
+
+/* 终评卡 */
+.feedback-card {
+  max-width: 82%;
+  background: #fff;
+  border: 1rpx solid #e4e7ec;
+  border-radius: 16rpx;
+  border-top-left-radius: 4rpx;
+  padding: 24rpx;
+}
+.fb-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+}
+.fb-label {
+  font-size: 24rpx;
+  color: #6b7280;
+}
+.fb-score {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #1c1c1a;
+}
+.fb-bar {
+  margin: 14rpx 0 18rpx;
+  height: 8rpx;
+  background: #e8eaee;
+  border-radius: 4rpx;
+  overflow: hidden;
+}
+.fb-bar-in {
+  height: 100%;
+  background: #3b7cff;
+  border-radius: 4rpx;
+}
+.pt-row {
+  display: flex;
+  align-items: flex-start;
+  margin: 8rpx 0;
+}
+.pt-dot {
+  flex-shrink: 0;
+  width: 34rpx;
+  height: 34rpx;
+  line-height: 34rpx;
+  text-align: center;
+  border-radius: 50%;
+  font-size: 20rpx;
+  color: #fff;
+  margin-right: 12rpx;
+}
+.pt-ok { background: #2e9e5b; }
+.pt-miss { background: #c25450; }
+.pt-wrong { background: #c2660a; }
+.pt-list { flex: 1; }
+.pt-item {
+  display: block;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #374151;
+}
+.pt-miss-t { color: #6b7280; }
+.pt-wrong-t { color: #c2660a; }
+.fb-text {
+  display: block;
+  margin-top: 14rpx;
+  font-size: 26rpx;
+  color: #1c1c1a;
+  line-height: 1.6;
+}
+.fb-sug {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #3b7cff;
+  line-height: 1.6;
+}
+
+/* 汇总卡 */
+.summary-card {
+  margin: 32rpx 8rpx;
+  background: #fff;
+  border: 1rpx solid #e4e7ec;
+  border-radius: 16rpx;
+  padding: 32rpx;
+}
+.sum-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #1c1c1a;
+  margin-bottom: 24rpx;
+}
+.sum-row {
+  display: flex;
+  text-align: center;
+}
+.sum-cell { flex: 1; }
+.sum-num {
+  display: block;
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #3b7cff;
+}
+.sum-cap {
+  font-size: 22rpx;
+  color: #6b7280;
+}
+.sum-btns {
+  margin-top: 28rpx;
+  display: flex;
+}
+.sum-btn {
+  flex: 1;
+  text-align: center;
+  padding: 20rpx 0;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+.sum-btn.ghost {
+  border: 1rpx solid #3b7cff;
+  color: #3b7cff;
+  background: #fff;
+}
+
+/* 输入栏 */
+.input-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
+  background: #fff;
+  border-top: 1rpx solid #e8eaee;
+}
+.force-final {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  color: #6b7280;
+  border: 1rpx solid #d9dde3;
+  border-radius: 999rpx;
+  padding: 10rpx 20rpx;
+}
+.chat-input {
+  flex: 1;
+  background: #f1f3f5;
+  border-radius: 999rpx;
+  padding: 16rpx 28rpx;
+  font-size: 28rpx;
+}
+.send-btn {
+  flex-shrink: 0;
+  background: #3b7cff;
+  color: #fff;
+  font-size: 26rpx;
+  font-weight: 600;
+  border-radius: 999rpx;
+  padding: 14rpx 30rpx;
+}
+.send-dim { opacity: 0.5; }
+
+.press { opacity: 0.85; transform: scale(0.98); }

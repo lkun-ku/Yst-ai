@@ -9,7 +9,8 @@
     "pages/settings/settings",
     "pages/docs/docs",
     "pages/doc-detail/doc-detail",
-    "pages/generate/generate"
+    "pages/generate/generate",
+    "pages/chat-train/chat-train"
   ],
   "window": {
     "backgroundTextStyle": "light",

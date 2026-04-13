@@ -63,6 +63,7 @@ class ChatStartIn(BaseModel):
 class ChatReplyIn(BaseModel):
     session_id: int
     content: str
+    force_final: bool = False  # 「直接看评分」：跳过剩余追问，强制终评
 
 
 class ChatFinishIn(BaseModel):
@@ -254,6 +255,8 @@ def chat_reply(
     if s.status != "active":
         raise HTTPException(409, "本场训练已结束")
     ask, pack, probes = _current_question(db, s)
+    if body.force_final:
+        probes = MAX_PROBES  # 用户跳过追问：评分链按已到上限处理，直接终评
     key_points = json.loads(pack.key_points)
 
     # 本题的对话历史（开场白除外，供评分链参考上下文）
