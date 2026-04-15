@@ -132,6 +132,30 @@ Page({
     this.loadHistory();
   },
 
+  /** #35 删除一场对话（二次确认；删掉当前场时清本地缓存） */
+  async onDeleteChat(e) {
+    const sid = Number(e.currentTarget.dataset.sid);
+    if (!sid) return;
+    const isActive = e.currentTarget.dataset.status === "active";
+    wx.showModal({
+      title: "删除这场对话？",
+      content: isActive ? "这场还没结束，删除后无法继续。" : "删除后历史记录与本局数据都会移除。",
+      confirmText: "删除",
+      confirmColor: "#C25450",
+      success: async (r) => {
+        if (!r.confirm) return;
+        try {
+          await request(`/api/chat/session/${sid}`, { method: "DELETE" });
+          if (Number(wx.getStorageSync(ACTIVE_KEY)) === sid) wx.removeStorageSync(ACTIVE_KEY);
+          wx.showToast({ title: "已删除", icon: "success" });
+          this.loadHistory();
+        } catch (err) {
+          toastApiError(err);
+        }
+      },
+    });
+  },
+
   /** #33 主动结束本场：显示本局汇总（持续问答模式下的收官入口） */
   async onFinishChat() {
     const sid = wx.getStorageSync(ACTIVE_KEY);

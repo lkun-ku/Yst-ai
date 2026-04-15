@@ -118,10 +118,20 @@
   font-size: 22rpx;
   color: #6b7280;
 }
+.hist-del {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  color: #9aa4b2;
+  padding: 6rpx 16rpx;
+  border: 1rpx solid #e4e7ec;
+  border-radius: 999rpx;
+  margin-left: 16rpx;
+}
 .hist-arrow {
   flex-shrink: 0;
   font-size: 24rpx;
   color: #3b7cff;
+  margin-left: 16rpx;
 }
 
 /* ---- 聊天态 ---- */

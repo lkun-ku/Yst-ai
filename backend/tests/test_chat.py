@@ -287,6 +287,40 @@ def test_chat_legacy_session_409(chat_client, seeded):
     assert "重新开始" in r.text
 
 
+def test_chat_delete_session(chat_client, seeded):
+    """#35 删除：仅本人、级联删除回合；他人场返回 404。"""
+    body = _start(chat_client)
+    sid = body["session_id"]
+    chat_client.post("/api/chat/reply", json={"session_id": sid, "content": "答一条"})
+
+    r = chat_client.delete(f"/api/chat/session/{sid}")
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+
+    # 场与其回合都应消失
+    assert chat_client.get(f"/api/chat/session/{sid}").status_code == 404
+    assert all(s["session_id"] != sid for s in chat_client.get("/api/chat/history").json())
+
+    from app.db import SessionLocal
+    from app.models import ChatTurn
+
+    db = SessionLocal()
+    try:
+        assert db.query(ChatTurn).filter(ChatTurn.session_id == sid).count() == 0, "回合应级联删除"
+    finally:
+        db.close()
+
+    # 他人场不可删（404 = 不可越权也不可见）
+    other = _start(chat_client)
+    from app.main import app as _app
+
+    _app.dependency_overrides[get_current_candidate] = lambda: Candidate(id=CAND + 999)
+    try:
+        assert chat_client.delete(f"/api/chat/session/{other['session_id']}").status_code == 404
+    finally:
+        _app.dependency_overrides[get_current_candidate] = lambda: Candidate(id=CAND)
+
+
 def test_chat_start_rejects_invalid(chat_client, seeded):
     assert (
         chat_client.post(

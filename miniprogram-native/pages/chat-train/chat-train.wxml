@@ -25,6 +25,16 @@
             <text class="hist-title">{{item.module}} · {{item.persona === 'coach' ? '教练' : '考官'}}</text>
             <text class="hist-cap">{{item.title}}{{item.time ? ' · ' + item.time : ''}}</text>
           </view>
+          <!-- #35 删除：catchtap 阻止冒泡，避免触发整行的「继续」 -->
+          <text
+            class="hist-del"
+            hover-class="press"
+            hover-stay-time="80"
+            data-sid="{{item.session_id}}"
+            data-status="{{item.status}}"
+            data-title="{{item.title}}"
+            catchtap="onDeleteChat"
+          >删除</text>
           <text class="hist-arrow">继续 ›</text>
         </view>
       </view>

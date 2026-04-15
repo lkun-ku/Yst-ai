@@ -403,6 +403,20 @@ def chat_history(
     ]
 
 
+@router.delete("/session/{session_id}")
+def chat_delete(
+    session_id: int,
+    c: Candidate = Depends(get_current_candidate),
+    db: ORMSession = Depends(get_db),
+):
+    """#35 删除一场对话（仅本人）：级联删除其全部回合，避免孤儿数据。"""
+    s = _own_session(db, c, session_id)
+    db.query(ChatTurn).filter(ChatTurn.session_id == s.id).delete(synchronize_session=False)
+    db.delete(s)
+    db.commit()
+    return {"ok": True, "session_id": session_id}
+
+
 @router.get("/stats")
 def chat_stats(
     c: Candidate = Depends(get_current_candidate),
