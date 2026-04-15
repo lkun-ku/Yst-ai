@@ -99,9 +99,10 @@
           </view>
         </view>
 
-        <!-- 用户气泡 -->
+        <!-- 用户气泡（#34：与 AI 对称，右侧加用户头像） -->
         <view wx:else class="row-user">
           <view class="bubble-user"><text class="user-text">{{msg.content}}</text></view>
+          <view class="avatar avatar-user">我</view>
         </view>
       </view>
 

@@ -229,9 +229,17 @@
   border-color: #c2660a;
 }
 
+/* #34 用户头像：品牌蓝底，与用户气泡同色系；AI 头像是深色底，左右两侧各有标识 */
+.avatar-user {
+  background: #3b7cff;
+  color: #fff;
+  margin-right: 0;
+  margin-left: 16rpx;
+}
 .row-user {
   display: flex;
   justify-content: flex-end;
+  align-items: flex-start;
   margin: 24rpx 0;
 }
 .bubble-user {
