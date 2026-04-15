@@ -155,7 +155,8 @@ def _current_question(db: ORMSession, s: ChatSession) -> tuple[ChatTurn, list, i
     # #32：要点复用 ask turn 的 points_hit 列存储（纯 LLM 生成路线不走 ChatPack 缓存，零迁移）
     key_points = json.loads(last_ask.points_hit) if last_ask.points_hit else []
     if not key_points:
-        raise HTTPException(500, "题目要点缺失")
+        # 纯生成改造前的旧会话无要点：明确 409 让前端清掉本场重开，不要 500
+        raise HTTPException(409, "本场为旧版对话，请重新开始训练")
     return last_ask, key_points, probes
 
 
@@ -172,12 +173,8 @@ def chat_start(
         raise HTTPException(400, "无效难度")
     if body.persona not in PERSONAS:
         raise HTTPException(400, "无效人设")
-    # 收尾该用户残留的 active 场（同一时间只允许一场对话）
-    for stale in db.query(ChatSession).filter(
-        ChatSession.candidate_id == c.id, ChatSession.status == "active"
-    ):
-        stale.status = "finished"
-    db.commit()
+    # #32 多会话：不再自动收尾历史 active 场——允许多场并存，随时回历史继续
+    # （stats 只统计 finished 场，不受影响）
 
     # #32 纯 LLM 生成：现场出第一题（不再抽官方题库包装）
     payload = _gen_question(llm, body.difficulty, body.persona, avoid=[])
@@ -390,9 +387,10 @@ def chat_history(
     c: Candidate = Depends(get_current_candidate),
     db: ORMSession = Depends(get_db),
 ):
+    """#32 多会话：返回全部对话（含未完成的 active 场，供继续作答）。"""
     rows = (
         db.query(ChatSession)
-        .filter(ChatSession.candidate_id == c.id, ChatSession.status == "finished")
+        .filter(ChatSession.candidate_id == c.id)
         .order_by(ChatSession.id.desc())
         .limit(20)
         .all()
@@ -404,6 +402,7 @@ def chat_history(
             "persona": s.persona,
             "question_count": s.question_count,
             "score_avg": s.score_avg,
+            "status": s.status,
             "started_at": s.started_at.isoformat() if s.started_at else None,
         }
         for s in rows

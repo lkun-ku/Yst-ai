@@ -8,6 +8,28 @@
       <text class="config-sub">和 AI 面试官聊着练：它问、你用大白话答，说得含糊它会追问，最后按要点踩分</text>
     </view>
 
+    <!-- #32 多会话：历史对话（含未完成的，可继续） -->
+    <block wx:if="{{history.length}}">
+      <text class="sec-label">我的对话</text>
+      <view class="hist-list">
+        <view
+          wx:for="{{history}}"
+          wx:key="session_id"
+          class="hist-row"
+          hover-class="press"
+          hover-stay-time="80"
+          data-sid="{{item.session_id}}"
+          bindtap="onContinue"
+        >
+          <view class="hist-main">
+            <text class="hist-title">{{item.module}} · {{item.persona === 'coach' ? '教练' : '考官'}}</text>
+            <text class="hist-cap">{{item.title}}{{item.time ? ' · ' + item.time : ''}}</text>
+          </view>
+          <text class="hist-arrow">继续 ›</text>
+        </view>
+      </view>
+    </block>
+
     <text class="sec-label">难度</text>
     <view class="seg-row">
       <view class="seg {{difficulty === 'medium' ? 'seg-on' : ''}}" data-d="medium" bindtap="onPickDifficulty" hover-class="press">基础 · 直问概念</view>
@@ -25,8 +47,12 @@
 
   <!-- ===== 聊天态 ===== -->
   <block wx:else>
-    <!-- 顶部进度 -->
+    <!-- 顶部进度（#32 多会话：可返回列表继续其它场 / 新开） -->
     <view class="chat-top">
+      <view class="top-nav">
+        <text class="nav-btn" hover-class="press" hover-stay-time="80" bindtap="onBackToList">‹ 对话列表</text>
+        <text wx:if="{{!finished}}" class="nav-btn" hover-class="press" hover-stay-time="80" bindtap="onNewChat">新开对话</text>
+      </view>
       <view class="bar"><view class="bar-in" style="width: {{progress.cur / progress.total * 100}}%"></view></view>
       <text class="top-label">第 {{progress.cur}} / {{progress.total}} 题 · {{persona === 'coach' ? '教练模式' : '考官模式'}}</text>
     </view>

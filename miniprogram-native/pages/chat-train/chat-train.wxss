@@ -1,9 +1,12 @@
 /* #31 AI 模拟答：低饱和、对话优先、单一品牌蓝、统一 16rpx 圆角、无渐变 */
 .page {
-  min-height: 100vh;
+  /* #32 修复无法触底：父级必须用确定高度（min-height 会让 flex:1 子项按内容撑开，
+     scroll-view 不产生内部滚动，底部内容被 fixed 输入栏遮住） */
+  height: 100vh;
   background: #fafaf9;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* ---- 配置态 ---- */
@@ -82,10 +85,58 @@
   border-radius: 16rpx;
 }
 
+/* #32 多会话：历史对话列表 */
+.hist-list {
+  margin: 0 40rpx;
+  border: 1rpx solid #e4e7ec;
+  border-radius: 16rpx;
+  background: #fff;
+  overflow: hidden;
+}
+.hist-row {
+  display: flex;
+  align-items: center;
+  padding: 22rpx 24rpx;
+  border-bottom: 1rpx solid #f0f2f5;
+}
+.hist-row:last-child {
+  border-bottom: none;
+}
+.hist-main {
+  flex: 1;
+  min-width: 0;
+}
+.hist-title {
+  display: block;
+  font-size: 28rpx;
+  color: #1c1c1a;
+  font-weight: 500;
+}
+.hist-cap {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #6b7280;
+}
+.hist-arrow {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  color: #3b7cff;
+}
+
 /* ---- 聊天态 ---- */
 .chat-top {
-  padding: 20rpx 40rpx 16rpx;
+  padding: 16rpx 40rpx 12rpx;
   background: #fafaf9;
+}
+.top-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14rpx;
+}
+.nav-btn {
+  font-size: 24rpx;
+  color: #6b7280;
 }
 .bar {
   height: 6rpx;
@@ -107,8 +158,8 @@
 }
 .chat-scroll {
   flex: 1;
-  height: calc(100vh - 220rpx);
-  padding: 0 32rpx;
+  min-height: 0; /* 关键：允许 flex 子项收缩，否则不产生内部滚动 */
+  padding: 0 32rpx calc(180rpx + env(safe-area-inset-bottom)); /* 底部留白避开 fixed 输入栏 */
   box-sizing: border-box;
 }
 .scroll-pad {

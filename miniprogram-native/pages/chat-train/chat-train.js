@@ -2,7 +2,8 @@ import { request, toastApiError } from "../../utils/api.js";
 
 /** #31 AI 模拟答：配置 → 聊天对话（追问式评分）→ 汇总/趋势。#32 纯 LLM 生成：无模块选择。 */
 const MAX_Q = 5;
-const ACTIVE_KEY = "chat_active_session";
+// #32 v2：旧 key 的会话（纯生成改造前）没有评分要点，会被后端拒；升版本自动废弃
+const ACTIVE_KEY = "chat_active_session_v2";
 
 Page({
   data: {
@@ -16,12 +17,50 @@ Page({
     summary: null,
     progress: { cur: 1, total: MAX_Q },
     scrollInto: "",
+    history: [], // #32 多会话：全部对话（含未完成）
   },
 
-  onLoad() {
+  async onLoad() {
     // 会话恢复：切后台被回收后回前台，重放未结束的对话
     const sid = wx.getStorageSync(ACTIVE_KEY);
-    if (sid) this.resume(sid);
+    if (sid) {
+      await this.resume(sid);
+    }
+    this.loadHistory();
+  },
+
+  async onShow() {
+    // 从对话返回配置态时刷新列表
+    if (this.data.mode === "config") this.loadHistory();
+  },
+
+  /** #32 多会话：加载全部对话（含 unfinished） */
+  async loadHistory() {
+    try {
+      const rows = await request("/api/chat/history");
+      const history = (rows || []).map((r) => ({
+        ...r,
+        title: r.status === "active" ? `进行中 · 第 ${r.question_count + 1} 题` : `已完成 · 均分 ${r.score_avg}`,
+        time: (r.started_at || "").slice(5, 16).replace("T", " ") || "",
+      }));
+      this.setData({ history });
+    } catch (e) {
+      /* 非阻塞 */
+    }
+  },
+
+  /** #32 继续某场对话 */
+  async onContinue(e) {
+    const sid = Number(e.currentTarget.dataset.sid);
+    if (!sid) return;
+    await this.resume(sid, true);
+  },
+
+  /** #32 新开对话（当前场保留在历史中，可随时回去继续） */
+  onNewChat() {
+    this.setData({ msgs: [], finished: false, summary: null, input: "" });
+    wx.removeStorageSync(ACTIVE_KEY);
+    this.onStart();
   },
 
   onUnload() {
@@ -66,7 +105,7 @@ Page({
   },
 
   /** ---- 会话恢复：重放历史消息（无打字机，直接渲染） ---- */
-  async resume(sid) {
+  async resume(sid, silent) {
     try {
       const body = await request(`/api/chat/session/${sid}`);
       if (body.status !== "active") {
@@ -74,11 +113,19 @@ Page({
         return;
       }
       const msgs = body.messages.map((m) => this._toMsg(m, true));
+      wx.setStorageSync(ACTIVE_KEY, sid);
       this.setData({ mode: "chat", msgs, progress: body.progress, finished: false });
       this._scrollBottom();
     } catch (e) {
       wx.removeStorageSync(ACTIVE_KEY);
+      if (!silent) toastApiError(e);
     }
+  },
+
+  /** #32 从对话返回配置态（当前场保留在历史列表，可继续） */
+  onBackToList() {
+    this.setData({ mode: "config" });
+    this.loadHistory();
   },
 
   /** ---- 对话 ---- */
@@ -93,11 +140,9 @@ Page({
     if (this._sending) return;
     this._sending = true;
     try {
-      this.setData({
-        msgs: [...this.data.msgs, this._toMsg({ role: "user", turn_type: "user", content }, true)],
-        input: "",
-      });
-      await this._reply({ content });
+      // #32 修复双气泡：用户气泡统一由 _reply 内部 push（此处不可再 push 一次）
+      this.setData({ input: "" });
+      await this._reply({ content, local: true });
     } finally {
       this._sending = false;
     }
@@ -141,11 +186,11 @@ Page({
         await this._pushSummary(body.session_summary);
       }
     } catch (e) {
-      // 评分失败：给出可重试的提示气泡（不落库，与后端 503 语义一致）
+      // 评分失败：只提示不落库（与后端 503 语义一致）；无重试按钮，不再给出误导指引
       this.setData({
         msgs: [
           ...this.data.msgs,
-          this._toMsg({ role: "ai", turn_type: "error", content: "网络开小差了，评分没能完成——请点输入框右侧「重试」或重新发送你的回答。" }, true),
+          this._toMsg({ role: "ai", turn_type: "error", content: "网络开小差了，评分没能完成。" }, true),
         ],
       });
       this._scrollBottom();
@@ -220,8 +265,8 @@ Page({
     // 恢复时走 resume() 全量重放，无状态损坏。
   },
 
-  /** 结束态操作 */
+  /** 结束态操作：再来一场（直接新开，旧场保留在历史列表） */
   onRestart() {
-    this.setData({ mode: "config", msgs: [], finished: false, summary: null, input: "" });
+    this.onNewChat();
   },
 });

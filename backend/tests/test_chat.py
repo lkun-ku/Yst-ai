@@ -238,6 +238,49 @@ def test_chat_cross_session_new_questions(chat_client, seeded):
     assert q2 != q1, "第二场第一题不应与第一场重复"
 
 
+def test_chat_multi_session_history(chat_client, seeded):
+    """#32 多会话：未完成的场也进历史且保持 active；新开一场不会收尾旧场。"""
+    body = _start(chat_client)
+    sid = body["session_id"]
+    chat_client.post("/api/chat/reply", json={"session_id": sid, "content": "初答一条"})
+
+    h = chat_client.get("/api/chat/history").json()
+    assert any(r["session_id"] == sid and r["status"] == "active" for r in h), "未完成场应在历史中"
+
+    body2 = _start(chat_client)
+    assert body2["session_id"] != sid
+    h2 = chat_client.get("/api/chat/history").json()
+    assert any(r["session_id"] == sid and r["status"] == "active" for r in h2), "旧场不应被自动收尾"
+
+    rp = chat_client.get(f"/api/chat/session/{sid}").json()
+    assert rp["status"] == "active"
+    assert len(rp["messages"]) >= 3  # opening + ask + user
+
+
+def test_chat_legacy_session_409(chat_client, seeded):
+    """#32 旧版会话（无要点）应 409 提示重开，而不是 500。"""
+    body = _start(chat_client)
+    sid = body["session_id"]
+    # 手工抹掉要点，模拟纯生成改造前的旧会话
+    from app.db import SessionLocal
+    from app.models import ChatTurn
+
+    db = SessionLocal()
+    try:
+        t = (
+            db.query(ChatTurn)
+            .filter(ChatTurn.session_id == sid, ChatTurn.turn_type == "ask")
+            .one()
+        )
+        t.points_hit = None
+        db.commit()
+    finally:
+        db.close()
+    r = chat_client.post("/api/chat/reply", json={"session_id": sid, "content": "任意回答"})
+    assert r.status_code == 409
+    assert "重新开始" in r.text
+
+
 def test_chat_start_rejects_invalid(chat_client, seeded):
     assert (
         chat_client.post(
