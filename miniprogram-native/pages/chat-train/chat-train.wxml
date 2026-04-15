@@ -5,7 +5,7 @@
   <block wx:if="{{mode === 'config'}}">
     <view class="config-hero">
       <text class="config-title">AI 模拟答</text>
-      <text class="config-sub">和 AI 面试官聊着练：它问、你用大白话答，说得含糊它会追问，最后按要点踩分</text>
+      <text class="config-sub">和 AI 面试官聊着练：它问、你用大白话答，说得含糊它会追问，按要点踩分。不限题数，想聊多久聊多久</text>
     </view>
 
     <!-- #32 多会话：历史对话（含未完成的，可继续） -->
@@ -42,19 +42,21 @@
       <view class="seg {{persona === 'examiner' ? 'seg-on' : ''}}" data-p="examiner" bindtap="onPickPersona" hover-class="press">严格考官</view>
     </view>
 
-    <view class="start-btn" hover-class="press" hover-stay-time="80" bindtap="onStart">开始训练 · 共 5 题</view>
+    <view class="start-btn" hover-class="press" hover-stay-time="80" bindtap="onStart">开始新对话</view>
   </block>
 
   <!-- ===== 聊天态 ===== -->
   <block wx:else>
-    <!-- 顶部进度（#32 多会话：可返回列表继续其它场 / 新开） -->
+    <!-- 顶部（#33：不再设题数上限，持续问答；显示已答题数 + 结束本场） -->
     <view class="chat-top">
       <view class="top-nav">
         <text class="nav-btn" hover-class="press" hover-stay-time="80" bindtap="onBackToList">‹ 对话列表</text>
-        <text wx:if="{{!finished}}" class="nav-btn" hover-class="press" hover-stay-time="80" bindtap="onNewChat">新开对话</text>
+        <view wx:if="{{!finished}}" class="nav-right">
+          <text class="nav-btn" hover-class="press" hover-stay-time="80" bindtap="onNewChat">新开对话</text>
+          <text class="nav-btn nav-btn-main" hover-class="press" hover-stay-time="80" bindtap="onFinishChat">结束本场</text>
+        </view>
       </view>
-      <view class="bar"><view class="bar-in" style="width: {{progress.cur / progress.total * 100}}%"></view></view>
-      <text class="top-label">第 {{progress.cur}} / {{progress.total}} 题 · {{persona === 'coach' ? '教练模式' : '考官模式'}}</text>
+      <text class="top-label">已答 {{progress.cur}} 题 · {{persona === 'coach' ? '教练模式' : '考官模式'}}</text>
     </view>
 
     <scroll-view class="chat-scroll" scroll-y scroll-into-view="{{scrollInto}}" scroll-with-animation>
@@ -117,10 +119,11 @@
         <view class="sum-row">
           <view class="sum-cell"><text class="sum-num">{{summary.score_avg}}</text><text class="sum-cap">平均分</text></view>
           <view class="sum-cell"><text class="sum-num">{{summary.question_count}}</text><text class="sum-cap">题数</text></view>
-          <view class="sum-cell"><text class="sum-num">{{summary.scores[0]}}</text><text class="sum-cap">首题</text></view>
+          <view class="sum-cell"><text class="sum-num">{{summary.bestScore}}</text><text class="sum-cap">最高分</text></view>
         </view>
         <view class="sum-btns">
           <view class="sum-btn ghost" hover-class="press" bindtap="onRestart">再来一场</view>
+          <view class="sum-btn ghost" hover-class="press" bindtap="onBackToList">对话列表</view>
         </view>
       </view>
 

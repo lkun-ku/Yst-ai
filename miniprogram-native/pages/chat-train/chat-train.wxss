@@ -131,12 +131,27 @@
 }
 .top-nav {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 14rpx;
+  margin-bottom: 8rpx;
+}
+.nav-right {
+  display: flex;
+  gap: 24rpx;
 }
 .nav-btn {
   font-size: 24rpx;
   color: #6b7280;
+}
+.nav-btn-main {
+  color: #3b7cff;
+  font-weight: 600;
+}
+.top-label {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #9aa4b2;
 }
 .bar {
   height: 6rpx;

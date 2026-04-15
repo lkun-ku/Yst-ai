@@ -136,13 +136,13 @@ def test_chat_full_flow_probe_then_final(chat_client, seeded):
     assert b2["messages"][2]["turn_type"] == "ask"  # 第二题已出
 
 
-def test_chat_five_questions_auto_finish_and_stats(chat_client, seeded):
-    """答满 5 题自动收官；finish 汇总与 stats 趋势可用。"""
+def test_chat_unlimited_qa_and_manual_finish(chat_client, seeded):
+    """#33 持续问答：不设题数上限、不自动收尾；由用户主动 finish 收官。"""
     body = _start(chat_client)
     sid = body["session_id"]
-    # fake 评分语义：每题第 1 轮必追问、第 2 轮终评 → 每题两轮，共 5 题
+    # fake 评分语义：每题第 1 轮必追问、第 2 轮终评
     final = None
-    for i in range(5):
+    for i in range(6):  # 超过旧的 5 题上限，验证不再自动结束
         r1 = chat_client.post("/api/chat/reply", json={"session_id": sid, "content": f"第{i + 1}题初答"})
         assert r1.status_code == 200, r1.text
         assert r1.json()["type"] == "probe"
@@ -150,36 +150,42 @@ def test_chat_five_questions_auto_finish_and_stats(chat_client, seeded):
         assert r2.status_code == 200, r2.text
         b = r2.json()
         assert b["type"] == "final"
+        assert b["finished"] is False, "持续问答模式不应自动收尾"
+        assert b["messages"][-1]["turn_type"] == "ask", "终评后应继续出下一题"
         final = b
-    assert final["finished"] is True
-    assert final["session_summary"]["question_count"] == 5
-    assert len(final["session_summary"]["scores"]) == 5
+    assert final["progress"]["total"] is None
 
-    # finish 后重复结束应仍可幂等返回汇总
+    # 主动结束
     r = chat_client.post("/api/chat/finish", json={"session_id": sid})
     assert r.status_code == 200
-    assert r.json()["question_count"] == 5
+    assert r.json()["question_count"] == 6
+    assert len(r.json()["scores"]) == 6
 
     stats = chat_client.get("/api/chat/stats").json()
     assert stats["total_sessions"] == 1
-    assert stats["total_questions"] == 5
-    assert len(stats["recent"]) == 1
+    assert stats["total_questions"] == 6
 
     history = chat_client.get("/api/chat/history").json()
-    assert len(history) == 1
     assert history[0]["session_id"] == sid
+    assert history[0]["status"] == "finished"
 
 
 def test_chat_off_topic_hint(chat_client, seeded):
+    """离题先给提示；提示也占用补充轮次，连续离题最终强制终评（用户永远有出口）。"""
     body = _start(chat_client)
     sid = body["session_id"]
     r = chat_client.post("/api/chat/reply", json={"session_id": sid, "content": "[offtopic]今天天气不错"})
     assert r.status_code == 200
-    b = r.json()
-    assert b["type"] == "hint"
-    # 离题不消耗追问次数：正常回答仍走追问链
-    r2 = chat_client.post("/api/chat/reply", json={"session_id": sid, "content": "教育是培养人的活动"})
-    assert r2.json()["type"] == "probe"
+    assert r.json()["type"] == "hint"
+
+    r2 = chat_client.post("/api/chat/reply", json={"session_id": sid, "content": "[offtopic]还是天气"})
+    assert r2.json()["type"] == "hint"
+
+    # 第三次：已达补充轮次上限 → 强制终评（不再无限提示）
+    r3 = chat_client.post("/api/chat/reply", json={"session_id": sid, "content": "[offtopic]继续离题"})
+    b3 = r3.json()
+    assert b3["type"] == "final", "离题达上限必须强制终评"
+    assert b3["messages"][1]["points_missed"], "强制终评应记全部要点为遗漏"
 
 
 def test_chat_reply_empty_and_overlong(chat_client, seeded):

@@ -146,9 +146,10 @@ def _current_question(db: ORMSession, s: ChatSession) -> tuple[ChatTurn, list, i
     last_ask = next((t for t in reversed(turns) if t.turn_type == "ask"), None)
     if last_ask is None:
         raise HTTPException(409, "当前没有待回答的问题")
-    # 追问次数 = 该 ask 之后（不含）到末尾的 probe 轮数
+    # #33 补充轮次 = 该 ask 之后的 probe + hint 轮数（提示也占用上限，
+    # 否则用户反复离题会永远收提示、拿不到分、没有出口）
     idx = turns.index(last_ask)
-    probes = sum(1 for t in turns[idx + 1 :] if t.turn_type == "probe")
+    probes = sum(1 for t in turns[idx + 1 :] if t.turn_type in ("probe", "hint"))
     # 终评已出且未被新一轮 ask 覆盖 → 场次已收尾
     if any(t.turn_type == "feedback" for t in turns[idx + 1 :]):
         raise HTTPException(409, "本题已出分，请继续下一题或结束训练")
@@ -196,7 +197,7 @@ def chat_start(
         "difficulty": s.difficulty,
         "module": s.module.value if hasattr(s.module, "value") else str(s.module),
         "messages": [_turn_out(opening), _turn_out(ask)],
-        "progress": {"cur": 1, "total": MAX_QUESTIONS},
+        "progress": {"cur": 1, "total": None},  # #33 无限问答
     }
 
 
@@ -251,13 +252,13 @@ def chat_reply(
     user_turn = _add_turn(db, s, "user", "user", content)
     verdict = payload.get("verdict")
 
-    if verdict == "off_topic":
-        # hint 与 probe 区分类型：离题提示不消耗追问次数（#31 语义）
+    if verdict == "off_topic" and probes < MAX_PROBES:
+        # hint 与 probe 区分类型，但共享补充轮次上限（#33）
         hint = _add_turn(db, s, "ai", "hint", str(payload.get("hint", "请围绕刚才的问题作答哦")))
         return {
             "type": "hint",
             "messages": [_turn_out(user_turn), _turn_out(hint)],
-            "progress": {"cur": s.question_count + 1, "total": MAX_QUESTIONS},
+            "progress": {"cur": s.question_count + 1, "total": None},  # #33 无限问答
         }
 
     if verdict == "need_probe" and probes < MAX_PROBES:
@@ -265,13 +266,18 @@ def chat_reply(
         return {
             "type": "probe",
             "messages": [_turn_out(user_turn), _turn_out(probe)],
-            "progress": {"cur": s.question_count + 1, "total": MAX_QUESTIONS},
+            "progress": {"cur": s.question_count + 1, "total": None},  # #33 无限问答
         }
 
-    # 终评（need_probe 但已达追问上限也强制终评）
+    # 终评（need_probe / off_topic 但已达补充轮次上限也强制终评——用户永远有出口）
     hit = payload.get("hit") or []
     missed = payload.get("missed") or []
     wrong = payload.get("wrong") or []
+    if verdict == "off_topic":
+        # LLM 仍判离题但已达上限：按零命中终评，不给用户无限循环的空洞
+        hit, missed = [], list(key_points)
+        payload["feedback"] = payload.get("feedback") or "几轮下来没有围绕这道题作答，这题先记个低分，我们换下一题。"
+        payload["suggestion"] = payload.get("suggestion") or "先听清题目问的具体情境，再针对性作答"
     score = max(0, min(100, int(payload.get("score") or 0)))
     n = s.question_count + 1
     s.question_count = n
@@ -290,30 +296,18 @@ def chat_reply(
         points_wrong=json.dumps(wrong, ensure_ascii=False),
         suggestion=str(payload.get("suggestion", "")),
     )
-    finished = n >= MAX_QUESTIONS
-    next_ask = None
-    if not finished:
-        # #32：防重复——把本场已问过的问题带给 LLM 换角度出新题
-        asked = [
-            t.content
-            for t in turns
-            if t.turn_type == "ask"
-        ]
-        payload2 = _gen_question(llm, s.difficulty, s.persona, avoid=asked)
-        next_ask = _ask_turn(db, s, payload2)
-    else:
-        s.status = "finished"
+    # #33 持续问答：不再设定题数、不再自动收尾——始终出下一题，由用户主动「结束本场」
+    asked = [t.content for t in turns if t.turn_type == "ask"]
+    payload2 = _gen_question(llm, s.difficulty, s.persona, avoid=asked)
+    next_ask = _ask_turn(db, s, payload2)
     db.commit()
-    messages = [_turn_out(user_turn), _turn_out(fb)]
-    if next_ask is not None:
-        messages.append(_turn_out(next_ask))
     return {
         "type": "final",
-        "messages": messages,
+        "messages": [_turn_out(user_turn), _turn_out(fb), _turn_out(next_ask)],
         "score": score,
-        "finished": finished,
-        "session_summary": _summary(db, s) if finished else None,
-        "progress": {"cur": n, "total": MAX_QUESTIONS},
+        "finished": False,
+        "session_summary": None,
+        "progress": {"cur": n, "total": None},  # total=None：无限问答，不再设上限
     }
 
 
@@ -378,7 +372,7 @@ def chat_replay(
         "module": s.module.value if hasattr(s.module, "value") else str(s.module),
         "status": s.status,
         "messages": [_turn_out(t) for t in turns],
-        "progress": {"cur": s.question_count + (1 if s.status == "active" else 0), "total": MAX_QUESTIONS},
+        "progress": {"cur": s.question_count + (1 if s.status == "active" else 0), "total": None},
     }
 
 

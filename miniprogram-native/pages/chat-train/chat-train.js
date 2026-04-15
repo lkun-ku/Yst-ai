@@ -15,23 +15,27 @@ Page({
     thinking: false,
     finished: false,
     summary: null,
-    progress: { cur: 1, total: MAX_Q },
+    progress: { cur: 1, total: null }, // #33 无限问答，不设上限
     scrollInto: "",
     history: [], // #32 多会话：全部对话（含未完成）
   },
 
   async onLoad() {
-    // 会话恢复：切后台被回收后回前台，重放未结束的对话
-    const sid = wx.getStorageSync(ACTIVE_KEY);
-    if (sid) {
-      await this.resume(sid);
-    }
+    // #33 中间层：进入页面一律先显示对话列表（继续旧对话 / 新建由用户选），
+    // 不再自动跳进上次对话（此前退出重进被强制拉回最新一场，无法选择）
     this.loadHistory();
   },
 
   async onShow() {
-    // 从对话返回配置态时刷新列表
-    if (this.data.mode === "config") this.loadHistory();
+    if (this.data.mode === "config") {
+      this.loadHistory();
+      return;
+    }
+    // 对话中被切后台回收：内存清空但 mode 仍为 chat → 静默重放当前场
+    if (this.data.mode === "chat" && this.data.msgs.length === 0) {
+      const sid = wx.getStorageSync(ACTIVE_KEY);
+      if (sid) await this.resume(sid, true);
+    }
   },
 
   /** #32 多会话：加载全部对话（含 unfinished） */
@@ -126,6 +130,29 @@ Page({
   onBackToList() {
     this.setData({ mode: "config" });
     this.loadHistory();
+  },
+
+  /** #33 主动结束本场：显示本局汇总（持续问答模式下的收官入口） */
+  async onFinishChat() {
+    const sid = wx.getStorageSync(ACTIVE_KEY);
+    if (!sid) return;
+    wx.showModal({
+      title: "结束本场训练？",
+      content: "结束后可查看本局汇总，这场会移入历史对话。",
+      confirmText: "结束",
+      success: async (r) => {
+        if (!r.confirm) return;
+        try {
+          const raw = await request("/api/chat/finish", { method: "POST", data: { session_id: sid } });
+          const scores = raw.scores || [];
+          wx.removeStorageSync(ACTIVE_KEY);
+          this.setData({ finished: true, summary: { ...raw, bestScore: scores.length ? Math.max(...scores) : 0 } });
+          this._scrollBottom();
+        } catch (e) {
+          toastApiError(e);
+        }
+      },
+    });
   },
 
   /** ---- 对话 ---- */
