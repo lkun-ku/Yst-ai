@@ -8,19 +8,6 @@
       <text class="config-sub">和 AI 面试官聊着练：它问、你用大白话答，说得含糊它会追问，最后按要点踩分</text>
     </view>
 
-    <text class="sec-label">训练模块</text>
-    <view class="chip-row">
-      <view
-        wx:for="{{modules}}"
-        wx:key="*this"
-        class="chip {{module === item ? 'chip-on' : ''}}"
-        hover-class="press"
-        hover-stay-time="80"
-        data-m="{{item}}"
-        bindtap="onPickModule"
-      >{{item}}</view>
-    </view>
-
     <text class="sec-label">难度</text>
     <view class="seg-row">
       <view class="seg {{difficulty === 'medium' ? 'seg-on' : ''}}" data-d="medium" bindtap="onPickDifficulty" hover-class="press">基础 · 直问概念</view>

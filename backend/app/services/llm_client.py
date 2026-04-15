@@ -75,18 +75,21 @@ class FakeLLMClient(LLMClient):
                 payloads=payloads,
             )
         if req.kind == "chat_pack":
-            # #31 fake 包装：确定性产物（题目→开放问题+要点），保证测试零额度且可断言
+            # #31/#32 fake 生成：自增编号保证多题不重复（纯 LLM 路线不再绑定官方题）
             ctx = req.context or {}
-            kp = req.knowledge_point
+            n = FakeLLMClient._counter
+            FakeLLMClient._counter += 1
+            mods = ["职业理念", "职业道德", "教育法律法规", "文化素养", "基本能力"]
             return GenerationResult(
-                text=f"[fake-pack] 请谈谈你对《{kp}》的理解。",
+                text=f"[fake-pack] 第{n}题：请谈谈你的看法。",
                 payload={
-                    "open_question": f"（模拟面试）请谈谈你对「{kp}」的理解，可以结合实际教学情境说一说。",
+                    "open_question": f"（模拟面试·第{n}题）假设你在教学中遇到一个关于「素质教育」的真实情境，请谈谈你会如何理解和处理？",
                     "key_points": [
-                        f"准确说出「{kp}」的核心定义",
+                        "准确说出核心概念的定义",
                         "能结合一个教学情境举例说明",
                         "能指出常见的理解误区",
                     ],
+                    "module": mods[n % len(mods)],
                     "difficulty": ctx.get("difficulty", "medium"),
                 },
             )
@@ -193,21 +196,24 @@ class RealLLMClient(LLMClient):
             )
 
         if req.kind == "chat_pack":
-            # #31 真题包装：选择题题干 → 面试官口吻开放问题 + 3-4 个核心要点
+            # #32 纯 LLM 生成路线：现场出情境化面试题 + 评分要点（不再从官方题库包装）
             ctx = req.context or {}
             difficulty = ctx.get("difficulty", "medium")
             style = (
-                "提问要结合真实教学情境设定场景后再设问"
+                "请设计一个具体真实的教学情境（有场景、有人物、有冲突），情境描述完再向候选人提问"
                 if difficulty == "hard"
-                else "提问直指核心概念，简洁直接"
+                else "提一个直指核心概念、但要用自然的面试口吻说出的问题，可以带一点简短背景"
             )
+            avoid = ctx.get("avoid") or []
             prompt = (
-                f'你是模拟面试官。把下面这道教资《综合素质》{ctx.get("module", "")}模块的选择题，'
-                f'改写成一道面试官口吻的开放式问答题（{style}），并提炼出 3-4 个核心回答要点'
-                f'（要点应能从题目解析与正确选项中找到依据）。\n'
-                f'题目：{ctx.get("stem", "")}\n正确答案：{ctx.get("answer_text", "")}\n'
-                f'解析：{ctx.get("explanation", "")}\n'
-                '只输出 JSON：{"open_question": "...", "key_points": ["...", "...", "..."]}'
+                "你是一位有 15 年经验、说话温和但眼光毒辣的教师资格面试官，正在单独面试一位应聘者。\n"
+                f"本场难度：{'进阶' if difficulty == 'hard' else '基础'}。出题要求：{style}。\n"
+                "题目范围：教资《综合素质》五大模块（职业理念/职业道德/教育法律法规/文化素养/基本能力）中的任意考点，自由发挥，"
+                "但要像真人面试官临场想到的问题，禁止出现「关于XX的正确表述是」这类试卷腔。\n"
+                + (f"本场已问过的话题（必须换角度，不要重复）：{json.dumps(avoid, ensure_ascii=False)}\n" if avoid else "")
+                + "同时为这道题提炼 3-4 个核心回答要点（评分踩点用，表述具体可判）。最后标注题目所属模块。\n"
+                '只输出 JSON：{"open_question": "...", "key_points": ["...", "..."], '
+                '"module": "五模块之一"}'
             )
             obj = self._chat_json(prompt, timeout=60)
             if obj is None or not obj.get("open_question") or not obj.get("key_points"):
@@ -217,6 +223,7 @@ class RealLLMClient(LLMClient):
                 payload={
                     "open_question": str(obj["open_question"]),
                     "key_points": [str(k) for k in obj["key_points"]][:4],
+                    "module": str(obj.get("module", "") or ""),
                     "difficulty": difficulty,
                 },
             )
@@ -226,9 +233,10 @@ class RealLLMClient(LLMClient):
             ctx = req.context or {}
             persona = ctx.get("persona", "coach")
             persona_style = (
-                "你是温和的面试教练：先肯定答对的部分，再指出缺口，语气鼓励但不回避问题"
+                "你是温和的面试教练，说话像真人：先接住对方的话（可引用他上一句的原话片段），"
+                "先肯定答对的部分，再自然地指出缺口，语气鼓励但不回避问题"
                 if persona == "coach"
-                else "你是严格的面试考官：不寒暄、直接指出不足、按标准评判"
+                else "你是严格的面试考官：不寒暄、直奔要害，指出不足时直接引用对方原话里的漏洞"
             )
             history = json.dumps(ctx.get("history", []), ensure_ascii=False)
             prompt = (
@@ -238,14 +246,18 @@ class RealLLMClient(LLMClient):
                 f'本轮之前用户已回答但未获终评的内容（含追问轮次）：{history}\n'
                 f'用户本轮回答：{ctx.get("content", "")}\n'
                 f'已追问次数：{ctx.get("probes_used", 0)}（上限 2）\n'
+                '对话纪律（真人感的关键）：\n'
+                '- 追问时必须先回应用户刚才说的内容（引用他原话里的关键词），再自然地发问；禁止凭空抛问题\n'
+                '- 所有文案用口语，禁止表格腔、禁止「首先/其次/综上所述」式公文腔\n'
                 '评判规则：\n'
-                '1. 若回答与问题完全无关，verdict="off_topic"，给一句提示 hint；\n'
+                '1. 若回答与问题完全无关，verdict="off_topic"，hint 用一句话友好提醒；\n'
                 '2. 仅当回答为空泛套话、或完全未触及任何核心要点时才可 verdict="need_probe"'
-                '（已追问次数<2），给一个追问问题 probe_question（针对最关键的缺口）；'
+                '（已追问次数<2），probe_question 针对最关键的缺口，且要先引用用户原话；'
                 '只要回答触及了至少 1 个要点，就必须 verdict="final" 直接评分，不要为难用户；\n'
-                '3. 否则 verdict="final"：score=要点覆盖率百分制整数，'
+                '3. verdict="final"：score=要点覆盖率百分制整数，'
                 'hit=已覆盖要点、missed=遗漏要点、wrong=事实性错误表述（可空数组），'
-                'feedback=30字内总评，suggestion=改进建议。\n'
+                'feedback=像教练口头点评一样的 2-3 句话（先说好的，再说缺的，口语化），'
+                'suggestion=一句具体可操作的改进建议。\n'
                 '只输出 JSON。'
             )
             obj = self._chat_json(prompt, timeout=60)

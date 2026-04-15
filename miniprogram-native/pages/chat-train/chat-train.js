@@ -1,15 +1,12 @@
 import { request, toastApiError } from "../../utils/api.js";
 
-/** #31 AI 模拟答：配置 → 聊天对话（追问式评分）→ 汇总/趋势。 */
-const MODULES = ["职业理念", "职业道德", "教育法律法规", "文化素养", "基本能力"];
+/** #31 AI 模拟答：配置 → 聊天对话（追问式评分）→ 汇总/趋势。#32 纯 LLM 生成：无模块选择。 */
 const MAX_Q = 5;
 const ACTIVE_KEY = "chat_active_session";
 
 Page({
   data: {
     mode: "config", // config | chat
-    modules: MODULES,
-    module: MODULES[0],
     difficulty: "medium",
     persona: "coach",
     msgs: [], // {seq, role, turnType, content, shown, typing, score, hit, missed, wrong, suggestion}
@@ -36,9 +33,6 @@ Page({
   },
 
   /** ---- 配置态 ---- */
-  onPickModule(e) {
-    this.setData({ module: e.currentTarget.dataset.m });
-  },
   onPickDifficulty(e) {
     this.setData({ difficulty: e.currentTarget.dataset.d });
   },
@@ -51,7 +45,7 @@ Page({
       wx.showLoading({ title: "准备中", mask: true });
       const body = await request("/api/chat/start", {
         method: "POST",
-        data: { module: this.data.module, difficulty: this.data.difficulty, persona: this.data.persona },
+        data: { difficulty: this.data.difficulty, persona: this.data.persona },
       });
       wx.setStorageSync(ACTIVE_KEY, body.session_id);
       this.setData({

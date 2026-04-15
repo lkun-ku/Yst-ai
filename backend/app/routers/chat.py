@@ -22,13 +22,9 @@ from ..db import get_db
 from ..deps import get_current_candidate
 from ..models import (
     Candidate,
-    ChatPack,
     ChatSession,
     ChatTurn,
     Module,
-    ProofreadStatus,
-    Question,
-    QuestionSource,
 )
 from ..services.llm_client import LLMClient, get_llm_client
 
@@ -42,8 +38,8 @@ PERSONAS = ("coach", "examiner")
 
 _OPENING = {
     "coach": (
-        "你好呀，我是你的面试教练。接下来我们用聊天的方式过一遍高频考点，"
-        "用自己的话说就行，说得不完整我会追问，咱们一起把它捋顺。准备好了，第一题来了——"
+        "你好呀，我是你的面试教练。接下来咱们不刷题，就像真实面试那样聊——"
+        "我出情境题，你用自己的话答，答得含糊我会追问，咱们把它捋顺。放松，第一题来了——"
     ),
     "examiner": "面试开始。共 5 题，请直接作答，我会视情况追问。第一题——",
 }
@@ -55,7 +51,7 @@ def get_llm_client_dep() -> LLMClient:
 
 
 class ChatStartIn(BaseModel):
-    module: str
+    module: str | None = None  # #32 纯 LLM 生成路线：模块选择已删除，仅保留兼容
     difficulty: str = "medium"
     persona: str = "coach"
 
@@ -101,76 +97,45 @@ def _add_turn(db: ORMSession, s: ChatSession, role: str, turn_type: str, content
     return t
 
 
-def _pick_question(db: ORMSession, c: Candidate, module: str) -> Question:
-    """抽官方真题：优先排除该用户近期已练过的（跨场去重），池不足时放宽。"""
-    base = db.query(Question).filter(
-        Question.source == QuestionSource.POOL,
-        Question.proofread_status == ProofreadStatus.PASSED,
-        Question.module == module,
+def _ask_turn(db: ORMSession, s: ChatSession, payload: dict) -> ChatTurn:
+    """出题 turn：要点存 points_hit 列（#32 复用语义，见 _current_question）。"""
+    return _add_turn(
+        db,
+        s,
+        "ai",
+        "ask",
+        str(payload["open_question"]),
+        points_hit=json.dumps(payload["key_points"], ensure_ascii=False),
     )
-    seen_ids = [
-        r[0]
-        for r in db.query(ChatTurn.question_id)
-        .join(ChatSession, ChatSession.id == ChatTurn.session_id)
-        .filter(
-            ChatSession.candidate_id == c.id,
-            ChatSession.module == module,
-            ChatTurn.question_id.isnot(None),
-        )
-        .all()
-    ]
-    q = base.filter(~Question.id.in_(seen_ids)).order_by(Question.id) if seen_ids else base
-    first = q.order_by(Question.id).first()
-    if first is not None:
-        return first
-    first = base.order_by(Question.id).first()
-    if first is None:
-        raise HTTPException(409, "该模块暂无可练习的题目")
-    return first
 
 
-def _get_or_create_pack(db: ORMSession, llm: LLMClient, q: Question, difficulty: str) -> ChatPack:
-    pack = db.query(ChatPack).filter(ChatPack.question_id == q.id).first()
-    if pack is not None:
-        return pack
-    correct = ""
-    try:
-        opts = json.loads(q.options or "[]")
-        ans = json.loads(q.answer or "[]")
-        correct = "、".join(o.get("text", "") for o in opts if o.get("key") in ans)
-    except Exception:
-        pass
+def _gen_question(llm: LLMClient, difficulty: str, persona: str, avoid: list[str]) -> dict:
+    """#32 纯 LLM 生成：现场出情境化面试题 + 评分要点（不绑官方题库、不走缓存）。"""
     from ..services.llm_client import GenerationRequest
 
     res = llm.generate(
         GenerationRequest(
             kind="chat_pack",
-            knowledge_point=q.knowledge_point,
-            context={
-                "module": q.module if isinstance(q.module, str) else q.module.value,
-                "stem": q.stem,
-                "answer_text": correct,
-                "explanation": q.explanation,
-                "difficulty": difficulty,
-            },
+            knowledge_point="",
+            context={"difficulty": difficulty, "persona": persona, "avoid": avoid},
         )
     )
     payload = res.payload if res else None
     if not payload or not payload.get("open_question") or not payload.get("key_points"):
-        raise HTTPException(503, "AI 包装服务暂时不可用，请稍后重试")
-    pack = ChatPack(
-        question_id=q.id,
-        open_question=payload["open_question"],
-        key_points=json.dumps(payload["key_points"], ensure_ascii=False),
-        difficulty=payload.get("difficulty", difficulty),
-    )
-    db.add(pack)
-    db.commit()
-    db.refresh(pack)
-    return pack
+        raise HTTPException(503, "AI 出题服务暂时不可用，请稍后重试")
+    return payload
 
 
-def _current_question(db: ORMSession, s: ChatSession) -> tuple[ChatTurn, ChatPack, int]:
+def _module_of(payload: dict) -> Module:
+    """LLM 判定题目所属模块；无法判定时默认职业理念（供统计口径）。"""
+    raw = str(payload.get("module", "") or "")
+    for m in Module:
+        if m.value == raw:
+            return m
+    return Module.PROFESSIONAL_IDEA
+
+
+def _current_question(db: ORMSession, s: ChatSession) -> tuple[ChatTurn, list, int]:
     """定位当前未终评的题：最后一轮 ask 与已追问次数。"""
     turns = (
         db.query(ChatTurn)
@@ -187,11 +152,11 @@ def _current_question(db: ORMSession, s: ChatSession) -> tuple[ChatTurn, ChatPac
     # 终评已出且未被新一轮 ask 覆盖 → 场次已收尾
     if any(t.turn_type == "feedback" for t in turns[idx + 1 :]):
         raise HTTPException(409, "本题已出分，请继续下一题或结束训练")
-    qid = last_ask.question_id
-    pack = db.query(ChatPack).filter(ChatPack.question_id == qid).first() if qid else None
-    if pack is None:
-        raise HTTPException(500, "题目包装缺失")
-    return last_ask, pack, probes
+    # #32：要点复用 ask turn 的 points_hit 列存储（纯 LLM 生成路线不走 ChatPack 缓存，零迁移）
+    key_points = json.loads(last_ask.points_hit) if last_ask.points_hit else []
+    if not key_points:
+        raise HTTPException(500, "题目要点缺失")
+    return last_ask, key_points, probes
 
 
 @router.post("/start")
@@ -201,7 +166,7 @@ def chat_start(
     db: ORMSession = Depends(get_db),
     llm: LLMClient = Depends(get_llm_client_dep),
 ):
-    if body.module not in [m.value for m in Module]:
+    if body.module is not None and body.module not in [m.value for m in Module]:
         raise HTTPException(400, "无效模块")
     if body.difficulty not in DIFFICULTIES:
         raise HTTPException(400, "无效难度")
@@ -214,11 +179,11 @@ def chat_start(
         stale.status = "finished"
     db.commit()
 
-    q = _pick_question(db, c, body.module)
-    pack = _get_or_create_pack(db, llm, q, body.difficulty)
+    # #32 纯 LLM 生成：现场出第一题（不再抽官方题库包装）
+    payload = _gen_question(llm, body.difficulty, body.persona, avoid=[])
     s = ChatSession(
         candidate_id=c.id,
-        module=Module(body.module),
+        module=_module_of(payload),
         difficulty=body.difficulty,
         persona=body.persona,
     )
@@ -227,7 +192,7 @@ def chat_start(
     db.refresh(s)
 
     opening = _add_turn(db, s, "ai", "opening", _OPENING[body.persona])
-    ask = _add_turn(db, s, "ai", "ask", pack.open_question, question_id=q.id)
+    ask = _ask_turn(db, s, payload)
     return {
         "session_id": s.id,
         "persona": s.persona,
@@ -254,10 +219,9 @@ def chat_reply(
     s = _own_session(db, c, body.session_id)
     if s.status != "active":
         raise HTTPException(409, "本场训练已结束")
-    ask, pack, probes = _current_question(db, s)
+    ask, key_points, probes = _current_question(db, s)
     if body.force_final:
         probes = MAX_PROBES  # 用户跳过追问：评分链按已到上限处理，直接终评
-    key_points = json.loads(pack.key_points)
 
     # 本题的对话历史（开场白除外，供评分链参考上下文）
     turns = (
@@ -274,7 +238,7 @@ def chat_reply(
 
     res = llm.generate(
         _grade_request(
-            open_question=pack.open_question,
+            open_question=ask.content,
             key_points=key_points,
             history=history,
             content=content,
@@ -332,9 +296,14 @@ def chat_reply(
     finished = n >= MAX_QUESTIONS
     next_ask = None
     if not finished:
-        q = _pick_question(db, c, s.module.value if hasattr(s.module, "value") else str(s.module))
-        pack2 = _get_or_create_pack(db, llm, q, s.difficulty)
-        next_ask = _add_turn(db, s, "ai", "ask", pack2.open_question, question_id=q.id)
+        # #32：防重复——把本场已问过的问题带给 LLM 换角度出新题
+        asked = [
+            t.content
+            for t in turns
+            if t.turn_type == "ask"
+        ]
+        payload2 = _gen_question(llm, s.difficulty, s.persona, avoid=asked)
+        next_ask = _ask_turn(db, s, payload2)
     else:
         s.status = "finished"
     db.commit()

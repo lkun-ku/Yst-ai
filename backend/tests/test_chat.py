@@ -111,7 +111,8 @@ def test_chat_start_opening_and_first_ask(chat_client, seeded):
     types = [m["turn_type"] for m in body["messages"]]
     assert types == ["opening", "ask"]
     assert "面试教练" in body["messages"][0]["content"] or "教练" in body["messages"][0]["content"]
-    assert body["messages"][1]["question_id"] is not None
+    # #32 纯生成路线：要点随 ask turn 返回（points_hit），无官方题绑定
+    assert len(body["messages"][1]["points_hit"]) >= 3
 
 
 def test_chat_full_flow_probe_then_final(chat_client, seeded):
@@ -210,7 +211,9 @@ def test_chat_llm_failure_503(chat_client, seeded):
 
     class BrokenClient(FakeLLMClient):
         def generate(self, req):
-            return GenerationResult(text="", payload=None)  # 模拟 LLM 失败
+            if req.kind == "chat_grade":
+                return GenerationResult(text="", payload=None)  # 仅评分失败
+            return super().generate(req)
 
     app.dependency_overrides[get_llm_client_dep] = lambda: BrokenClient()
     body = _start(chat_client)
@@ -222,17 +225,17 @@ def test_chat_llm_failure_503(chat_client, seeded):
     assert [m["turn_type"] for m in replay["messages"]] == ["opening", "ask"]
 
 
-def test_chat_cross_session_dedup(chat_client, seeded):
-    """跨场去重：第一场答过的题，第二场优先不重复。"""
+def test_chat_cross_session_new_questions(chat_client, seeded):
+    """#32 纯生成路线：fake 自增编号保证跨场题目不重复。"""
     body = _start(chat_client)
     sid = body["session_id"]
-    q1 = body["messages"][1]["question_id"]
+    q1 = body["messages"][1]["content"]
     for i in range(5):
         chat_client.post("/api/chat/reply", json={"session_id": sid, "content": f"第{i + 1}题初答"})
         chat_client.post("/api/chat/reply", json={"session_id": sid, "content": f"第{i + 1}题补充"})
     body2 = _start(chat_client)
-    q2 = body2["messages"][1]["question_id"]
-    assert q2 != q1, "第二场第一题不应重复第一场已答的题"
+    q2 = body2["messages"][1]["content"]
+    assert q2 != q1, "第二场第一题不应与第一场重复"
 
 
 def test_chat_start_rejects_invalid(chat_client, seeded):
