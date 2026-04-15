@@ -7,6 +7,7 @@
 
 import json
 import re
+import time
 import urllib.request
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -154,6 +155,14 @@ class RealLLMClient(LLMClient):
 
     def __init__(self, api_key: str | None = None) -> None:
         self.api_key = api_key or settings.llm_api_key
+        # #36 备用供应商（可选）：主模型重试耗尽后自动切换，聊天链路不被单一供应商波动打断
+        self.fallback = (
+            (settings.llm_fallback_api_base, settings.llm_fallback_api_key, settings.llm_fallback_model)
+            if settings.llm_fallback_api_base
+            and settings.llm_fallback_api_key
+            and settings.llm_fallback_model
+            else None
+        )
 
     def generate(self, req: GenerationRequest) -> GenerationResult:
         if req.kind == "variant":
@@ -245,7 +254,7 @@ class RealLLMClient(LLMClient):
                 f'核心要点（评分踩点依据）：{json.dumps(ctx.get("key_points", []), ensure_ascii=False)}\n'
                 f'本轮之前用户已回答但未获终评的内容（含追问轮次）：{history}\n'
                 f'用户本轮回答：{ctx.get("content", "")}\n'
-                f'已追问次数：{ctx.get("probes_used", 0)}（上限 2）\n'
+                f'已追问/提示轮次：{ctx.get("probes_used", 0)}（上限 {ctx.get("probe_limit", 4)}）\n'
                 '对话纪律（真人感的关键）：\n'
                 '- 追问时必须先回应用户刚才说的内容（引用他原话里的关键词），再自然地发问；禁止凭空抛问题\n'
                 '- 所有文案用口语，禁止表格腔、禁止「首先/其次/综上所述」式公文腔\n'
@@ -286,11 +295,45 @@ class RealLLMClient(LLMClient):
             return None
 
     def _chat(self, prompt: str, timeout: int = 30) -> str | None:
-        if not self.api_key:
+        """#36 主模型瞬时失败重试（退避 2s/4s ×2）；耗尽后切备用供应商（若配置）。"""
+        last_err: Exception | None = None
+        for attempt in range(3):
+            try:
+                return self._do_chat(prompt, timeout=timeout)
+            except Exception as e:  # noqa: BLE001 — 重试耗尽后才降级
+                last_err = e
+                if attempt < 2:
+                    time.sleep(2 ** (attempt + 1))  # 2s / 4s
+        print(f"[llm] 主模型重试耗尽: {type(last_err).__name__}: {last_err}")
+        if self.fallback:
+            base, key, model = self.fallback
+            for attempt in range(2):
+                try:
+                    print(f"[llm] 切换备用模型 {model}（第 {attempt + 1} 次）")
+                    return self._do_chat(prompt, timeout=timeout, base=base, key=key, model=model)
+                except Exception as e:  # noqa: BLE001
+                    last_err = e
+                    if attempt < 1:
+                        time.sleep(2)
+        print(f"[llm] 全部通道失败: {type(last_err).__name__}: {last_err}")
+        return None
+
+    def _do_chat(
+        self,
+        prompt: str,
+        timeout: int = 30,
+        base: str | None = None,
+        key: str | None = None,
+        model: str | None = None,
+    ) -> str | None:
+        use_base = base or settings.llm_api_base
+        use_key = key or self.api_key
+        use_model = model or settings.llm_model
+        if not use_key:
             return None
         body = json.dumps(
             {
-                "model": settings.llm_model,
+                "model": use_model,
                 "messages": [
                     {"role": "system", "content": "你是教资《综合素质》出题与复盘助手，只输出 JSON 或纯文本。"},
                     {"role": "user", "content": prompt},
@@ -298,20 +341,17 @@ class RealLLMClient(LLMClient):
                 "temperature": 0.7,
             }
         ).encode("utf-8")
-        try:
-            req = urllib.request.Request(
-                settings.llm_api_base.rstrip("/") + "/chat/completions",
-                data=body,
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {self.api_key}",
-                },
-            )
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            return data["choices"][0]["message"]["content"]
-        except Exception:
-            return None
+        req = urllib.request.Request(
+            use_base.rstrip("/") + "/chat/completions",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {use_key}",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return data["choices"][0]["message"]["content"]
 
     def ask(self, prompt: str, timeout: int = 30) -> str | None:
         return self._chat(prompt)

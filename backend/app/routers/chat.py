@@ -30,8 +30,8 @@ from ..services.llm_client import LLMClient, get_llm_client
 
 router = APIRouter(prefix="/api/chat")
 
-MAX_QUESTIONS = 5
-MAX_PROBES = 2
+MAX_QUESTIONS = 5  # 仅作场内参考口径保留；#33 起场次无限问答，不再按此收尾
+MAX_PROBES = 2  # 用户裁决（2026-05-30）：单题追问固定 2 轮；场次无限出新题
 MAX_INPUT = 500
 DIFFICULTIES = ("medium", "hard")
 PERSONAS = ("coach", "examiner")
@@ -217,17 +217,43 @@ def chat_reply(
     s = _own_session(db, c, body.session_id)
     if s.status != "active":
         raise HTTPException(409, "本场训练已结束")
-    ask, key_points, probes = _current_question(db, s)
-    if body.force_final:
-        probes = MAX_PROBES  # 用户跳过追问：评分链按已到上限处理，直接终评
 
-    # 本题的对话历史（开场白除外，供评分链参考上下文）
+    # #36 自愈：上一题已终评但下一题出题失败（历史 503 遗留的卡死态）→ 先补出题。
+    # 用户这条消息将作为新题的回答，重发即恢复，无需任何特殊操作。
     turns = (
         db.query(ChatTurn)
         .filter(ChatTurn.session_id == s.id)
         .order_by(ChatTurn.seq)
         .all()
     )
+    last_ask = next((t for t in reversed(turns) if t.turn_type == "ask"), None)
+    if last_ask is not None:
+        idx = turns.index(last_ask)
+        if any(t.turn_type == "feedback" for t in turns[idx + 1 :]):
+            asked = [t.content for t in turns if t.turn_type == "ask"]
+            payload_heal = _gen_question(llm, s.difficulty, s.persona, avoid=asked)
+            _ask_turn(db, s, payload_heal)
+            turns = (
+                db.query(ChatTurn)
+                .filter(ChatTurn.session_id == s.id)
+                .order_by(ChatTurn.seq)
+                .all()
+            )
+    elif not any(t.turn_type == "ask" for t in turns):
+        # active 场却没有任何 ask（异常残留）→ 同样补题
+        payload_heal = _gen_question(llm, s.difficulty, s.persona, avoid=[])
+        _ask_turn(db, s, payload_heal)
+        turns = (
+            db.query(ChatTurn)
+            .filter(ChatTurn.session_id == s.id)
+            .order_by(ChatTurn.seq)
+            .all()
+        )
+
+    ask, key_points, probes = _current_question(db, s)
+    if body.force_final:
+        probes = MAX_PROBES  # 用户跳过追问：评分链按已到上限处理，直接终评
+
     history = [
         {"role": "user" if t.role == "user" else "ai", "content": t.content}
         for t in turns
@@ -241,6 +267,7 @@ def chat_reply(
             history=history,
             content=content,
             probes_used=probes,
+            probe_limit=MAX_PROBES,
             persona=s.persona,
         )
     )
@@ -296,16 +323,27 @@ def chat_reply(
         points_wrong=json.dumps(wrong, ensure_ascii=False),
         suggestion=str(payload.get("suggestion", "")),
     )
-    # #33 持续问答：不再设定题数、不再自动收尾——始终出下一题，由用户主动「结束本场」
+    # #33 持续问答：终评后出下一题。
+    # #36 解耦：出题失败不能让整个请求失败（否则终评已落库、下一题没出成，
+    # 会话卡进「已出分无新题」死锁）——返回 next_failed，用户下一条消息触发自愈补题。
     asked = [t.content for t in turns if t.turn_type == "ask"]
-    payload2 = _gen_question(llm, s.difficulty, s.persona, avoid=asked)
-    next_ask = _ask_turn(db, s, payload2)
-    db.commit()
+    next_ask = None
+    next_failed = False
+    try:
+        payload2 = _gen_question(llm, s.difficulty, s.persona, avoid=asked)
+        next_ask = _ask_turn(db, s, payload2)
+    except HTTPException:
+        next_failed = True
+        db.rollback()
+    messages = [_turn_out(user_turn), _turn_out(fb)]
+    if next_ask is not None:
+        messages.append(_turn_out(next_ask))
     return {
         "type": "final",
-        "messages": [_turn_out(user_turn), _turn_out(fb), _turn_out(next_ask)],
+        "messages": messages,
         "score": score,
         "finished": False,
+        "next_failed": next_failed,
         "session_summary": None,
         "progress": {"cur": n, "total": None},  # total=None：无限问答，不再设上限
     }

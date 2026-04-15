@@ -321,6 +321,54 @@ def test_chat_delete_session(chat_client, seeded):
         _app.dependency_overrides[get_current_candidate] = lambda: Candidate(id=CAND)
 
 
+def test_chat_selfheal_after_nextgen_failure(chat_client, seeded):
+    """#36 死锁自愈：终评成功但下一题出题失败（历史 503）→ 用户重发消息自动补题恢复。
+
+    复现路径：start（出题成功）→ 答两轮终评成功但「第二次出题」失败（next_failed）
+    → 会话处于「已出分无新题」→ 再发一条消息应自动补题并正常评分，而非 409 死锁。
+    """
+
+    class FlakyPackClient(FakeLLMClient):
+        """chat_pack 第 2 次调用失败（模拟出题瞬时抖动），之后恢复。"""
+
+        pack_calls = 0
+
+        def generate(self, req):
+            if req.kind == "chat_pack":
+                FlakyPackClient.pack_calls += 1
+                if FlakyPackClient.pack_calls == 2:
+                    return GenerationResult(text="", payload=None)  # 出题失败
+            return super().generate(req)
+
+    app.dependency_overrides[get_llm_client_dep] = lambda: FlakyPackClient()
+    body = _start(chat_client)  # 第 1 次出题成功
+    sid = body["session_id"]
+
+    # 第 1 题第 1 轮：probe（fake 语义）
+    r0 = chat_client.post("/api/chat/reply", json={"session_id": sid, "content": "初答"})
+    assert r0.status_code == 200
+    assert r0.json()["type"] == "probe"
+
+    # 第 1 题第 2 轮：终评成功，但下一题出题失败（pack 第 2 次调用）→ 不应整体 5xx
+    r1 = chat_client.post("/api/chat/reply", json={"session_id": sid, "content": "补充完整要点"})
+    assert r1.status_code == 200, r1.text
+    b1 = r1.json()
+    assert b1["type"] == "final"
+    assert b1["next_failed"] is True
+    assert b1["messages"][-1]["turn_type"] == "feedback"  # 没有新 ask
+
+    # 死锁态确认：此时再答会命中「已出分」（旧代码在此 409 卡死）
+    # 自愈后：重发消息 → 自动补题 → 正常评分
+    app.dependency_overrides[get_llm_client_dep] = lambda: FakeLLMClient()
+    r2 = chat_client.post("/api/chat/reply", json={"session_id": sid, "content": "重发消息触发自愈"})
+    assert r2.status_code == 200, r2.text
+    b2 = r2.json()
+    # 自愈补的题与本条消息进入正常评分链（fake：第 1 轮 probe）
+    assert b2["type"] == "probe"
+    assert b2["messages"][0]["turn_type"] == "user"
+    assert b2["messages"][1]["turn_type"] == "probe"
+
+
 def test_chat_start_rejects_invalid(chat_client, seeded):
     assert (
         chat_client.post(

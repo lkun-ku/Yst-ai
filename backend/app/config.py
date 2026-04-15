@@ -36,6 +36,10 @@ class Settings:
     llm_api_base: str = os.getenv("LLM_API_BASE", "https://api.openai.com/v1")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    # #36 备用供应商：主模型失败（限流/不可用）时自动切换，保证聊天链路不被单一供应商波动打断
+    llm_fallback_api_base: str = os.getenv("LLM_FALLBACK_API_BASE", "")
+    llm_fallback_api_key: str = os.getenv("LLM_FALLBACK_API_KEY", "")
+    llm_fallback_model: str = os.getenv("LLM_FALLBACK_MODEL", "")
 
     # ---------- AI 出题：文档导入与生成（成本硬约束，见 ADR / 方案 2.7） ----------
     # 解析后不留存原文（A3：降低版权风险），仅保留切片
