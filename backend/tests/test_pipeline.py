@@ -105,7 +105,12 @@ def test_variant_realtime_when_pool_empty(client, db_session):
     assert get_today_usage(db_session, cid, _date.today()) == 1  # 消耗 1 次实时额度
 
 
+@_skip_real
 def test_realtime_daily_limit_3_degrade_silently(client, db_session):
+    """每人每日实时上限 3 次，超出降级纯池化，考生无感（Implementation 14）。
+
+    真实模式下依赖外部 LLM 服务可用性（服务波动即误报），与 fake 路径测试一致跳过。
+    """
     """每人每日实时上限 3 次，超出降级纯池化，考生无感（Implementation 14）。"""
     _reset_kp(db_session, "学生观", n=1)
     import_questions(db_session, items=_mk_items("备用考点", n=2))

@@ -151,9 +151,6 @@ class QuotaOut(BaseModel):
     reset_rule: str  # 「每日 0 点按本地时区自然日重置」
 
 
-class VipActivateOut(BaseModel):
-    is_vip: bool
-
 
 class ReviewOut(BaseModel):
     session_id: int

@@ -6,7 +6,6 @@
 - TTS 结果带 LRU 内存缓存：同一文本不重复合成
 """
 
-import hashlib
 import os
 import tempfile
 from functools import lru_cache
@@ -73,8 +72,3 @@ def synthesize(text: str) -> bytes:
     if not text:
         raise ValueError("empty text")
     return _synthesize_cached(text)
-
-
-def cache_key(text: str) -> str:
-    """TTS 缓存键（文本哈希），供日志与调试。"""
-    return hashlib.sha1(text.encode()).hexdigest()[:12]

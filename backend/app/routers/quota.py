@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session as DBSession
 from ..db import get_db
 from ..deps import get_current_candidate
 from ..models import Candidate, Module, Session
-from ..schemas import QuotaOut, VipActivateOut
+from ..schemas import QuotaOut
 
 router = APIRouter(prefix="/api/quota", tags=["quota"])
 
@@ -78,14 +78,3 @@ def get_quota(
         remaining=max(0, FREE_DAILY_LIMIT - used),
         reset_rule=RESET_RULE,
     )
-
-
-@router.post("/vip-activate", response_model=VipActivateOut)
-def vip_activate(
-    c: Candidate = Depends(get_current_candidate),
-    db: DBSession = Depends(get_db),
-) -> VipActivateOut:
-    """开通 VIP（内测占位：无真实支付链路，ADR-0001；正式版接个体工商户支付）。"""
-    c.is_vip = True
-    db.commit()
-    return VipActivateOut(is_vip=True)

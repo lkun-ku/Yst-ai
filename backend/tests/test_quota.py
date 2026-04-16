@@ -88,19 +88,6 @@ def test_quota_resets_next_day(client, db_session):
     assert q["used_today"] == 0 and q["remaining"] == FREE_DAILY_LIMIT
 
 
-def test_vip_unlimited(client, db_session):
-    """VIP 状态解锁不限量刷题（验收 3）。"""
-    import_questions(db_session)
-    uid = _guest(client)
-    client.post("/api/sessions/start", json={"module": "职业理念", "question_count": 20}, headers={"X-Unionid": uid})
-
-    client.post("/api/quota/vip-activate", headers={"X-Unionid": uid})
-    assert client.get("/api/quota", headers={"X-Unionid": uid}).json()["is_vip"] is True
-
-    r = client.post("/api/sessions/start", json={"module": "职业理念", "question_count": 10}, headers={"X-Unionid": uid})
-    assert r.status_code == 200  # VIP 不限量
-
-
 def test_free_can_access_all_modules(client, db_session):
     """免费全内容可刷：所有模块均可发起（Implementation 31，只限速不设限）。"""
     import_questions(db_session)
@@ -108,10 +95,6 @@ def test_free_can_access_all_modules(client, db_session):
     for m in ["职业理念", "职业道德", "教育法律法规", "文化素养", "基本能力"]:
         r = client.post("/api/sessions/start", json={"module": m, "question_count": 2}, headers={"X-Unionid": uid})
         assert r.status_code == 200, f"模块 {m} 免费不可刷"
-
-
-def test_vip_activate_requires_identity(client):
-    assert client.post("/api/quota/vip-activate").status_code == 401
 
 
 def test_quota_requires_identity(client):

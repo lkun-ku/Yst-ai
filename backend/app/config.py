@@ -23,7 +23,6 @@ class Settings:
     # 本地/测试默认 SQLite，通过环境变量覆盖，DB 引擎可换不影响架构（ADR 未禁止 dev/test 用 SQLite）。
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
     auto_migrate: bool = os.getenv("AUTO_MIGRATE", "true").lower() == "true"
-    app_env: str = os.getenv("APP_ENV", "dev")
     # 票 13：最小审校后台令牌与内容安全模式。
     # wx=真实微信 msgSecCheck（生产默认）；stub=占位放行。
     # 缺 WX_APPID/WX_SECRET 时 get_content_safety() 自动降级 stub，故默认 wx 安全（#18）。
@@ -45,7 +44,6 @@ class Settings:
     # 解析后不留存原文（A3：降低版权风险），仅保留切片
     doc_storage_dir: str = os.getenv("DOC_STORAGE_DIR", "./uploads")
     doc_max_mb: int = int(os.getenv("DOC_MAX_MB", "20"))
-    doc_max_pages: int = int(os.getenv("DOC_MAX_PAGES", "200"))
     doc_max_chars: int = int(os.getenv("DOC_MAX_CHARS", "300000"))
     # 两级切分：结构切分 + 滑窗
     doc_chunk_size: int = int(os.getenv("DOC_CHUNK_SIZE", "1500"))
