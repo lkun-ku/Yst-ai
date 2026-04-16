@@ -1,10 +1,10 @@
 {
   "setting": {
-    "es6": false,
+    "es6": true,
     "postcss": false,
     "minified": false,
     "uglifyFileName": false,
-    "enhance": false,
+    "enhance": true,
     "urlCheck": false,
     "packNpmRelationList": [],
     "babelSetting": {

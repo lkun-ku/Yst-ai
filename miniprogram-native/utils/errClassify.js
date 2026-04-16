@@ -21,7 +21,7 @@ export function classifyRequestError(status, detail) {
     case 410:
       return { kind: "task_expired", message: d || "任务已超时（仅当日有效），明天再来吧" };
     case 429:
-      return { kind: "quota_exceeded", message: d || "今日免费额度已用完，明天再来", action: "benefits" };
+      return { kind: "quota_exceeded", message: d || "今日免费额度已用完，明天再来" };
     default:
       if (status >= 500) return { kind: "server", message: d || "服务器开小差了，请稍后重试" };
       return { kind: "server", message: d || "请求失败，请稍后重试" };

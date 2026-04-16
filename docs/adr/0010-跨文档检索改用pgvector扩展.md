@@ -8,6 +8,11 @@ accepted（2026-05-26）｜ 撤销 ADR-0007（保留 RAG 但不引向量数据�
 >
 > （以上声明格式遵循 `docs/agents/domain.md` §「Flag ADR conflicts」：与既有 ADR 冲突时显式声明，而非静默覆盖。）
 
+## 实施更新（W-19，2026-05-26）
+
+> **本文 Decision 1 的原始表述（新增 `embedding_vec` 双列）已被代码演进取代。** W-19 提交（W-5/W-6 落地批次）将 `embedding_vec` 合并回单列 `document_chunks.embedding`，类型定为 `Vector(1024).with_variant(LargeBinary,"sqlite")`：PostgreSQL 走向量列 + HNSW 索引，SQLite/dev 走二进制，取消双写与 `embedding_vec` 列（详见 `docs/RAG路线三落地复盘.md` W-5）。
+> **以代码为准（总方针「代码即事实」）**：当前真实结构为**单列** `embedding`，下文 Decision 1 的「新增 `embedding_vec` 双列」表述仅作历史存档，不再反映现状。检索分发逻辑（`retrieve_by_scope` 按方言自动路由 PG/SQLite）不变。
+
 ## Context
 
 ADR-0007 在「检索范围是**单个文档**」的前提下裁决「不引向量数据库」：embedding 存 `document_chunks.embedding`（BLOB），检索时进程内做余弦。它同时预留了反转条件：
@@ -40,7 +45,7 @@ ADR-0009 Decision 3 明确「需要检索层能力时复用已落地的 `kb_retr
 
 **在 PostgreSQL 生产库上启用 pgvector 扩展承载跨文档向量检索；dev/test 的 SQLite 仍走内存 numpy 余弦路径。**
 
-1. 新增列 `document_chunks.embedding_vec VECTOR(1024)`（**不替换**原 `embedding` BLOB 列），并建 HNSW 索引（`m=16, ef_construction=64, vector_cosine_ops`）。
+1. ~~新增列 `embedding_vec` 双列~~（**已被 W-19 合并取消**，见「实施更新」）：最终落地为**单列** `embedding` = `Vector(1024).with_variant(LargeBinary,"sqlite")`，HNSW 索引（`m=16, ef_construction=64, vector_cosine_ops`）建于 PG 分支。
 2. `retrieve_by_scope` 按方言自动分发：PostgreSQL → `retrieve_by_scope_pg`（SQL 余弦 + HNSW）；SQLite/dev → 原内存混合检索。两条路径返回结构一致，上层无感。
 3. 写入侧同步：PG 上写切片向量时同时写 `embedding` 与 `embedding_vec`（见 `documents.py._embed_document`），避免 `embedding_vec` 恒 NULL 导致检索静默返空。
 4. **不引入** LangChain 的 `PGVector` / `EnsembleRetriever` 检索封装（沿用 ADR-0009 Decision 3）。

@@ -31,6 +31,26 @@ App({
   },
 
   /**
+   * 全局错误兜底（体检报告 #16）：运行期异常默认「白屏无声」，
+   * 这里把错误显形为弹窗并打到 console，便于定位，避免上线即翻车。
+   * 注意：onError 仅捕获未被页面 try/catch 吞掉的未捕获异常，
+   * 各页仍应在异步失败分支 setData 合法可渲染结构（错误态/空态）。
+   */
+  onError(err) {
+    const msg = (err && (err.message || err.stack)) || String(err);
+    console.error("[onError]", err);
+    try {
+      wx.showModal({
+        title: "页面出错了",
+        content: String(msg).slice(0, 200),
+        showCancel: false,
+      });
+    } catch (e) {
+      /* 兜底失败不应影响主流程 */
+    }
+  },
+
+  /**
    * 写入当前闯关局。字段名沿用后端 snake_case 入参，内部转 camel。
    */
   setSession(payload) {

@@ -1,10 +1,13 @@
 # Python
+
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 backend/.test_tmp.db
+backend/.test_tmp.db-journal
 backend/dev.db
+backend/uploads/
 
 # Node / Taro
 node_modules/
@@ -13,15 +16,22 @@ miniprogram/.temp/
 miniprogram/.rn_temp/
 miniprogram/.swc/
 
-# Env
+# Env（密钥不入库）
 .env
 .env.local
+backend/.env
 
 # OS
 .DS_Store
 
 # 评测产物（本地实验数据，不入库）
 backend/eval/results/
+backend/eval/eval_kb.db
+backend/eval/eval_kb.db-journal
 
-# 本地密钥配置不入库
-backend/.env
+# 上 GitHub 前清理（#40）：IDE 数据 / 旧版目录 / 含密钥的本地脚本
+.codebuddy/
+miniprogram/
+.scratch/
+启动后端-real.bat
+一键冒烟测试.bat
