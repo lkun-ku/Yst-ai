@@ -20,6 +20,7 @@ Page({
     history: [], // #32 多会话：全部对话（含未完成）
     recording: false, // #37 按住说话
     speakingSeq: null, // #37 正在朗读的消息
+    voiceMode: false, // #38 语音模式：开=按住说话+AI 自动朗读；关=文字输出
   },
 
   async onLoad() {
@@ -232,6 +233,10 @@ Page({
       for (const m of body.messages) {
         if (m.role === "user") continue; // 用户消息已在本地渲染
         await this._pushTyping(m);
+        // #38 语音模式：AI 消息打字完成后自动朗读（错误提示不读）
+        if (this.data.voiceMode && m.role === "ai" && m.turn_type !== "error") {
+          this._speak(m.seq, m.content);
+        }
       }
       // #36 下一题出题失败（终评已生效）：提示重发即自愈，不再让用户以为断网
       if (body.next_failed) {
@@ -407,19 +412,24 @@ Page({
     }
   },
 
-  /** ---- #37 语音输出：AI 消息按需朗读 ---- */
-  onSpeak(e) {
-    const seq = Number(e.currentTarget.dataset.seq);
-    const text = e.currentTarget.dataset.text;
-    if (!text) return;
-    // 正在播同一条 → 停止
-    if (this.data.speakingSeq === seq) {
-      this._audio.stop();
-      this.setData({ speakingSeq: null });
+  /** #38 语音模式开关：开=按住说话 + AI 自动朗读；关=文字输出（并停止朗读/录音） */
+  onToggleVoice() {
+    const next = !this.data.voiceMode;
+    if (!next) {
+      // 关闭语音模式：停掉录音与朗读
+      if (this.data.recording) this._recorder.stop();
+      if (this._audio) this._audio.stop();
+      this.setData({ voiceMode: false, recording: false, speakingSeq: null });
       return;
     }
-    if (this._audio) this._audio.stop();
-    wx.showLoading({ title: "合成中", mask: true });
+    this.setData({ voiceMode: true });
+    wx.showToast({ title: "语音模式已开启", icon: "none" });
+  },
+
+  /** #37/#38 朗读指定消息（onSpeak 入口 + 语音模式自动朗读共用） */
+  _speak(seq, text) {
+    if (!text) return;
+    if (this._audio) this._audio.stop(); // 新朗读打断旧朗读
     wx.request({
       url: "http://127.0.0.1:8000/api/chat/tts",
       method: "POST",
@@ -427,9 +437,8 @@ Page({
       responseType: "arraybuffer",
       header: { "X-Unionid": wx.getStorageSync("unionid") || "", "Content-Type": "application/json" },
       success: (r) => {
-        wx.hideLoading();
         if (r.statusCode !== 200) {
-          wx.showToast({ title: "朗读暂时不可用", icon: "none" });
+          if (!this.data.voiceMode) wx.showToast({ title: "朗读暂时不可用", icon: "none" });
           return;
         }
         const path = `${wx.env.USER_DATA_PATH}/tts_${seq}_${Date.now()}.mp3`;
@@ -451,9 +460,21 @@ Page({
         });
       },
       fail: () => {
-        wx.hideLoading();
-        wx.showToast({ title: "网络异常，合成失败", icon: "none" });
+        if (!this.data.voiceMode) wx.showToast({ title: "网络异常，合成失败", icon: "none" });
       },
     });
+  },
+
+  /** #37 朗读按钮入口（手动点按） */
+  onSpeak(e) {
+    const seq = Number(e.currentTarget.dataset.seq);
+    const text = e.currentTarget.dataset.text;
+    if (!text) return;
+    if (this.data.speakingSeq === seq) {
+      this._audio.stop();
+      this.setData({ speakingSeq: null });
+      return;
+    }
+    this._speak(seq, text);
   },
 });

@@ -161,29 +161,49 @@
       <view class="scroll-pad"></view>
     </scroll-view>
 
-    <!-- 输入栏（#37：左侧按住说话） -->
+    <!-- 输入栏（#38：统一语音开关——语音模式按住说话+AI 自动朗读，关闭回文字） -->
     <view class="input-bar">
       <view
-        wx:if="{{!finished && !thinking}}"
-        class="voice-btn {{recording ? 'voice-rec' : ''}}"
+        class="mode-btn {{voiceMode ? 'mode-on' : ''}}"
         hover-class="press"
         hover-stay-time="80"
-        bindtouchstart="onVoiceStart"
-        bindtouchend="onVoiceEnd"
-        bindtouchcancel="onVoiceEnd"
-      >{{recording ? "松开 发送" : "按住 说话"}}</view>
-      <input
-        class="chat-input"
-        value="{{input}}"
-        placeholder="{{finished ? '本局已结束，可「再来一场」' : (recording ? '正在录音…' : '用你自己的话回答…')}}"
-        disabled="{{finished || thinking}}"
-        confirm-type="send"
-        adjust-position
-        cursor-spacing="16"
-        bindinput="onInput"
-        bindconfirm="onSend"
-      />
-      <view class="send-btn {{input || !finished ? '' : 'send-dim'}}" hover-class="press" bindtap="onSend">发送</view>
+        bindtap="onToggleVoice"
+      >{{voiceMode ? "语音聊" : "语音"}}</view>
+
+      <!-- 语音模式：按住说话（大按钮占满输入框位） -->
+      <block wx:if="{{voiceMode && !finished}}">
+        <view
+          class="voice-btn {{recording ? 'voice-rec' : ''}}"
+          hover-class="press"
+          hover-stay-time="80"
+          bindtouchstart="onVoiceStart"
+          bindtouchend="onVoiceEnd"
+          bindtouchcancel="onVoiceEnd"
+        >{{recording ? "松开 发送" : (thinking ? "AI 回复中…" : "按住 说话")}}</view>
+      </block>
+
+      <!-- 文字模式：输入框 + 发送（跳过追问入口保留在此模式） -->
+      <block wx:else>
+        <view
+          wx:if="{{!finished && !thinking}}"
+          class="force-final"
+          hover-class="press"
+          hover-stay-time="80"
+          bindtap="onForceFinal"
+        >直接看评分</view>
+        <input
+          class="chat-input"
+          value="{{input}}"
+          placeholder="{{finished ? '本局已结束，可「再来一场」' : '用你自己的话回答…'}}"
+          disabled="{{finished || thinking}}"
+          confirm-type="send"
+          adjust-position
+          cursor-spacing="16"
+          bindinput="onInput"
+          bindconfirm="onSend"
+        />
+        <view class="send-btn {{input || !finished ? '' : 'send-dim'}}" hover-class="press" bindtap="onSend">发送</view>
+      </block>
     </view>
   </block>
 </view>

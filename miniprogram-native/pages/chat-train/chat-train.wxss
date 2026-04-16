@@ -464,6 +464,26 @@
 }
 .send-dim { opacity: 0.5; }
 
+/* #38 语音模式开关 */
+.mode-btn {
+  flex-shrink: 0;
+  height: 72rpx;
+  line-height: 72rpx;
+  text-align: center;
+  font-size: 26rpx;
+  color: #6b7280;
+  background: #f1f3f5;
+  border-radius: 999rpx;
+  padding: 0 24rpx;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+.mode-on {
+  background: #eef3ff;
+  color: #3b7cff;
+  font-weight: 600;
+}
+
 /* #37 语音 */
 .voice-btn {
   flex-shrink: 0;
