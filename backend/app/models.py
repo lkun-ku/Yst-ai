@@ -395,23 +395,6 @@ class StreakMakeup(Base):
 
 
 # ---------- AI 模拟答（聊天式问答训练，#31；与选择题闯关 Session 完全独立） ----------
-class ChatPack(Base):
-    """真题包装缓存（#31）：官方题 → 面试官口吻开放问题 + 核心要点。
-
-    每道题只包装一次（question_id 唯一索引幂等），训练时零生成额度；
-    要点预置使评分踩点可控（评分口径=要点覆盖式）。
-    """
-
-    __tablename__ = "chat_packs"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"), unique=True, index=True)
-    open_question: Mapped[str] = mapped_column(Text)
-    key_points: Mapped[str] = mapped_column(Text)  # JSON: ["要点1", ...]（3-4 个）
-    difficulty: Mapped[str] = mapped_column(String(16), default="medium")  # medium | hard
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-
-
 class ChatSession(Base):
     """AI 模拟答训练场（#31）。一场多题多轮追问；不与连胜/今日任务联动（用户决策）。"""
 

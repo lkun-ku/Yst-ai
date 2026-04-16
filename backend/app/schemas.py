@@ -28,24 +28,6 @@ class QuestionOut(BaseModel):
     aigc_flag: bool
 
 
-class KbQuestionOut(BaseModel):
-    """知识库出题结果交付：复用题目字段 + source_chunk 溯源（生成所依据的资料切片）。"""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    module: Module
-    knowledge_point: str
-    stem: str
-    options: str
-    answer: str
-    explanation: str
-    type: QuestionType
-    source: QuestionSource
-    aigc_flag: bool
-    source_chunk: Optional[str] = None  # 题目对应的资料切片片段（溯源）
-
-
 class SessionStartOut(BaseModel):
     session_id: int
     candidate_id: int
