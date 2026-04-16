@@ -428,8 +428,9 @@
 }
 .force-final {
   flex-shrink: 0;
-  height: 64rpx;
-  line-height: 62rpx;
+  align-self: flex-end;
+  height: 72rpx;
+  line-height: 70rpx;
   font-size: 22rpx;
   color: #6b7280;
   border: 1rpx solid #d9dde3;
@@ -441,42 +442,46 @@
 .chat-input {
   flex: 1;
   min-width: 0;
-  height: 72rpx;
-  line-height: 72rpx;
+  min-height: 96rpx;
+  max-height: 280rpx;
   background: #f1f3f5;
-  border-radius: 999rpx;
-  padding: 0 28rpx;
+  border-radius: 20rpx;
+  padding: 22rpx 28rpx;
   font-size: 28rpx;
+  line-height: 1.5;
   box-sizing: border-box;
+  width: auto;
 }
 .send-btn {
   flex-shrink: 0;
-  height: 72rpx;
-  line-height: 72rpx;
+  align-self: flex-end;
+  height: 88rpx;
+  line-height: 88rpx;
   background: #3b7cff;
   color: #fff;
-  font-size: 26rpx;
+  font-size: 28rpx;
   font-weight: 600;
   border-radius: 999rpx;
-  padding: 0 30rpx;
+  padding: 0 36rpx;
   box-sizing: border-box;
   white-space: nowrap;
 }
 .send-dim { opacity: 0.5; }
 
-/* #38 语音模式开关 */
+/* #39 输入区域加大：多行输入框 + 更大的按钮 */
 .mode-btn {
   flex-shrink: 0;
-  height: 72rpx;
-  line-height: 72rpx;
+  height: 88rpx;
+  line-height: 88rpx;
   text-align: center;
   font-size: 26rpx;
   color: #6b7280;
   background: #f1f3f5;
   border-radius: 999rpx;
-  padding: 0 24rpx;
+  padding: 0 26rpx;
   box-sizing: border-box;
   white-space: nowrap;
+  align-self: flex-end;
 }
 .mode-on {
   background: #eef3ff;
@@ -486,14 +491,15 @@
 
 /* #37 语音 */
 .voice-btn {
-  flex-shrink: 0;
-  height: 72rpx;
-  line-height: 72rpx;
+  flex: 1;
+  height: 110rpx;
+  line-height: 110rpx;
   text-align: center;
-  font-size: 26rpx;
+  font-size: 30rpx;
+  font-weight: 600;
   color: #374151;
   background: #f1f3f5;
-  border-radius: 999rpx;
+  border-radius: 20rpx;
   padding: 0 24rpx;
   box-sizing: border-box;
   white-space: nowrap;

@@ -182,7 +182,7 @@
         >{{recording ? "松开 发送" : (thinking ? "AI 回复中…" : "按住 说话")}}</view>
       </block>
 
-      <!-- 文字模式：输入框 + 发送（跳过追问入口保留在此模式） -->
+      <!-- 文字模式：多行输入框（#39 加大）+ 发送（跳过追问入口保留在此模式） -->
       <block wx:else>
         <view
           wx:if="{{!finished && !thinking}}"
@@ -191,12 +191,14 @@
           hover-stay-time="80"
           bindtap="onForceFinal"
         >直接看评分</view>
-        <input
+        <textarea
           class="chat-input"
           value="{{input}}"
           placeholder="{{finished ? '本局已结束，可「再来一场」' : '用你自己的话回答…'}}"
           disabled="{{finished || thinking}}"
           confirm-type="send"
+          auto-height
+          maxlength="500"
           adjust-position
           cursor-spacing="16"
           bindinput="onInput"
