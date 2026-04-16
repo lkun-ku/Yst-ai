@@ -18,6 +18,8 @@ Page({
     progress: { cur: 1, total: null }, // #33 无限问答，不设上限
     scrollInto: "",
     history: [], // #32 多会话：全部对话（含未完成）
+    recording: false, // #37 按住说话
+    speakingSeq: null, // #37 正在朗读的消息
   },
 
   async onLoad() {
@@ -221,27 +223,34 @@ Page({
         method: "POST",
         data: { session_id: sid, content, force_final: forceFinal },
       });
-      const extra = {};
       if (body.finished) {
         this.setData({ finished: true, summary: body.session_summary });
         wx.removeStorageSync(ACTIVE_KEY);
       } else {
-        extra.progress = body.progress;
-        this.setData(extra);
+        this.setData({ progress: body.progress });
       }
       for (const m of body.messages) {
         if (m.role === "user") continue; // 用户消息已在本地渲染
         await this._pushTyping(m);
       }
+      // #36 下一题出题失败（终评已生效）：提示重发即自愈，不再让用户以为断网
+      if (body.next_failed) {
+        await this._pushTyping({
+          role: "ai",
+          turn_type: "error",
+          content: "这道题已经评分完成，但下一题出题时网络抖了一下。直接再发一条消息，我会自动补上下一题。",
+        });
+      }
       if (body.finished) {
         await this._pushSummary(body.session_summary);
       }
     } catch (e) {
-      // 评分失败：只提示不落库（与后端 503 语义一致）；无重试按钮，不再给出误导指引
+      // 评分失败：只提示不落库（与后端 503 语义一致）；透传后端真实原因，不再硬编码文案
+      const reason = (e && e.message) || "网络开小差了，评分没能完成。";
       this.setData({
         msgs: [
           ...this.data.msgs,
-          this._toMsg({ role: "ai", turn_type: "error", content: "网络开小差了，评分没能完成。" }, true),
+          this._toMsg({ role: "ai", turn_type: "error", content: reason }, true),
         ],
       });
       this._scrollBottom();
@@ -319,5 +328,132 @@ Page({
   /** 结束态操作：再来一场（直接新开，旧场保留在历史列表） */
   onRestart() {
     this.onNewChat();
+  },
+
+  /** ---- #37 语音输入：按住说话，松开即转写发送 ---- */
+  _ensureRecorder() {
+    if (this._recorder) return this._recorder;
+    const rec = wx.getRecorderManager();
+    rec.onStart(() => this.setData({ recording: true }));
+    rec.onStop((res) => {
+      this.setData({ recording: false });
+      if (res.duration && res.duration < 600) {
+        wx.showToast({ title: "说话时间太短", icon: "none" });
+        return;
+      }
+      this._transcribe(res.tempFilePath);
+    });
+    rec.onError(() => {
+      this.setData({ recording: false });
+      wx.showToast({ title: "录音失败，请重试", icon: "none" });
+    });
+    this._recorder = rec;
+    return rec;
+  },
+
+  onVoiceStart() {
+    if (this.data.thinking || this.data.finished || this._sending) return;
+    const rec = this._ensureRecorder();
+    wx.authorize({
+      scope: "scope.record",
+      success: () => rec.start({ format: "mp3", duration: 60000, sampleRate: 16000, encodeBitRate: 96000 }),
+      fail: () => {
+        // 授权被拒：引导去设置页开启
+        wx.showModal({
+          title: "需要麦克风权限",
+          content: "请在设置中允许使用麦克风，以便语音输入",
+          confirmText: "去设置",
+          success: (r) => {
+            if (r.confirm) wx.openSetting();
+          },
+        });
+      },
+    });
+  },
+
+  onVoiceEnd() {
+    if (this.data.recording) this._recorder.stop();
+  },
+
+  /** 转写 → 松开即发：识别文本直接进入发送流程 */
+  async _transcribe(filePath) {
+    wx.showLoading({ title: "识别中", mask: true });
+    try {
+      const res = await new Promise((resolve, reject) => {
+        wx.uploadFile({
+          url: `${"http://127.0.0.1:8000"}/api/chat/voice`,
+          filePath,
+          name: "file",
+          header: { "X-Unionid": wx.getStorageSync("unionid") || "" },
+          success: (r) => {
+            const body = JSON.parse(r.data || "{}");
+            if (r.statusCode >= 200 && r.statusCode < 300) resolve(body);
+            else reject(new Error(body.detail || "语音识别失败"));
+          },
+          fail: () => reject(new Error("网络异常，语音上传失败")),
+        });
+      });
+      wx.hideLoading();
+      if (this._sending) return;
+      this._sending = true;
+      try {
+        await this._reply({ content: res.text, local: true });
+      } finally {
+        this._sending = false;
+      }
+    } catch (e) {
+      wx.hideLoading();
+      wx.showToast({ title: (e && e.message) || "识别失败", icon: "none" });
+    }
+  },
+
+  /** ---- #37 语音输出：AI 消息按需朗读 ---- */
+  onSpeak(e) {
+    const seq = Number(e.currentTarget.dataset.seq);
+    const text = e.currentTarget.dataset.text;
+    if (!text) return;
+    // 正在播同一条 → 停止
+    if (this.data.speakingSeq === seq) {
+      this._audio.stop();
+      this.setData({ speakingSeq: null });
+      return;
+    }
+    if (this._audio) this._audio.stop();
+    wx.showLoading({ title: "合成中", mask: true });
+    wx.request({
+      url: "http://127.0.0.1:8000/api/chat/tts",
+      method: "POST",
+      data: { text },
+      responseType: "arraybuffer",
+      header: { "X-Unionid": wx.getStorageSync("unionid") || "", "Content-Type": "application/json" },
+      success: (r) => {
+        wx.hideLoading();
+        if (r.statusCode !== 200) {
+          wx.showToast({ title: "朗读暂时不可用", icon: "none" });
+          return;
+        }
+        const path = `${wx.env.USER_DATA_PATH}/tts_${seq}_${Date.now()}.mp3`;
+        wx.getFileSystemManager().writeFile({
+          filePath: path,
+          data: r.data,
+          encoding: "binary",
+          success: () => {
+            if (!this._audio) {
+              this._audio = wx.createInnerAudioContext();
+              this._audio.onEnded(() => this.setData({ speakingSeq: null }));
+              this._audio.onError(() => this.setData({ speakingSeq: null }));
+            }
+            this._audio.src = path;
+            this._audio.play();
+            this.setData({ speakingSeq: seq });
+          },
+          fail: () => wx.showToast({ title: "播放失败", icon: "none" }),
+        });
+      },
+      fail: () => {
+        wx.hideLoading();
+        wx.showToast({ title: "网络异常，合成失败", icon: "none" });
+      },
+    });
   },
 });

@@ -464,4 +464,37 @@
 }
 .send-dim { opacity: 0.5; }
 
+/* #37 语音 */
+.voice-btn {
+  flex-shrink: 0;
+  height: 72rpx;
+  line-height: 72rpx;
+  text-align: center;
+  font-size: 26rpx;
+  color: #374151;
+  background: #f1f3f5;
+  border-radius: 999rpx;
+  padding: 0 24rpx;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+.voice-rec {
+  background: #fff1f0;
+  color: #c25450;
+  font-weight: 600;
+}
+.speak-btn {
+  display: inline-block;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #3b7cff;
+  border: 1rpx solid #3b7cff;
+  border-radius: 999rpx;
+  padding: 4rpx 18rpx;
+}
+.speak-on {
+  background: #eef3ff;
+  font-weight: 600;
+}
+
 .press { opacity: 0.85; transform: scale(0.98); }

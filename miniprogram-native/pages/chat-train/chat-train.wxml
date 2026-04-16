@@ -72,14 +72,23 @@
     <scroll-view class="chat-scroll" scroll-y scroll-into-view="{{scrollInto}}" scroll-with-animation>
       <view wx:for="{{msgs}}" wx:key="index" wx:for-item="msg" id="msg-{{index}}">
 
-        <!-- AI 气泡（含开场/提问/追问/提示/错误） -->
-        <view wx:if="{{msg.role === 'ai' && msg.turnType !== 'feedback'}}" class="row-ai">
+        <!-- AI 气泡（含开场/提问/追问/提示/错误）；#37 非错误消息可朗读 -->
+        <view wx:if="{{msg.role === 'ai' && msg.turnType !== 'feedback' && msg.turnType !== 'error'}}" class="row-ai">
           <view class="avatar">AI</view>
           <view class="bubble-ai">
             <view wx:if="{{msg.turnType === 'probe'}}" class="chip-tag">追问</view>
             <view wx:elif="{{msg.turnType === 'hint'}}" class="chip-tag tag-warn">提示</view>
             <text class="ai-text">{{msg.shown}}</text>
             <text wx:if="{{msg.typing}}" class="caret">▍</text>
+            <view
+              wx:if="{{!msg.typing}}"
+              class="speak-btn {{speakingSeq === msg.seq ? 'speak-on' : ''}}"
+              hover-class="press"
+              hover-stay-time="80"
+              data-seq="{{msg.seq}}"
+              data-text="{{msg.content}}"
+              catchtap="onSpeak"
+            >{{speakingSeq === msg.seq ? "停止" : "朗读"}}</view>
           </view>
         </view>
 
@@ -106,6 +115,14 @@
             </view>
             <text class="fb-text">{{msg.content}}</text>
             <text wx:if="{{msg.suggestion}}" class="fb-sug">建议：{{msg.suggestion}}</text>
+            <view
+              class="speak-btn"
+              hover-class="press"
+              hover-stay-time="80"
+              data-seq="{{msg.seq}}"
+              data-text="{{msg.content}}"
+              catchtap="onSpeak"
+            >{{speakingSeq === msg.seq ? "停止" : "朗读点评"}}</view>
           </view>
         </view>
 
@@ -144,19 +161,21 @@
       <view class="scroll-pad"></view>
     </scroll-view>
 
-    <!-- 输入栏 -->
+    <!-- 输入栏（#37：左侧按住说话） -->
     <view class="input-bar">
       <view
         wx:if="{{!finished && !thinking}}"
-        class="force-final"
+        class="voice-btn {{recording ? 'voice-rec' : ''}}"
         hover-class="press"
         hover-stay-time="80"
-        bindtap="onForceFinal"
-      >直接看评分</view>
+        bindtouchstart="onVoiceStart"
+        bindtouchend="onVoiceEnd"
+        bindtouchcancel="onVoiceEnd"
+      >{{recording ? "松开 发送" : "按住 说话"}}</view>
       <input
         class="chat-input"
         value="{{input}}"
-        placeholder="{{finished ? '本局已结束，可「再来一场」' : '用你自己的话回答…'}}"
+        placeholder="{{finished ? '本局已结束，可「再来一场」' : (recording ? '正在录音…' : '用你自己的话回答…')}}"
         disabled="{{finished || thinking}}"
         confirm-type="send"
         adjust-position

@@ -14,7 +14,7 @@
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session as ORMSession
 
@@ -64,6 +64,59 @@ class ChatReplyIn(BaseModel):
 
 class ChatFinishIn(BaseModel):
     session_id: int
+
+
+class ChatTtsIn(BaseModel):
+    text: str
+
+
+@router.post("/voice")
+async def chat_voice(
+    file: "UploadFile",
+    c: Candidate = Depends(get_current_candidate),
+):
+    """#37 语音输入：录音文件 → ASR 转文字。前端拿到 text 后自行走 reply 发送。"""
+    from ..services.voice import transcribe
+
+    audio = await file.read()
+    if not audio:
+        raise HTTPException(400, "音频内容为空")
+    if len(audio) > 5 * 1024 * 1024:
+        raise HTTPException(400, "语音过长（上限 5MB）")
+    ext = (file.filename or "voice.mp3").rsplit(".", 1)[-1].lower() or "mp3"
+    if ext not in ("mp3", "aac", "wav", "m4a"):
+        ext = "mp3"
+    try:
+        text = transcribe(audio, ext)
+    except RuntimeError as e:
+        print(f"[chat/voice] ASR failed: {e}")
+        raise HTTPException(503, "语音识别暂时不可用，请改用文字输入")
+    if not text:
+        raise HTTPException(400, "没有听清内容，请再试一次")
+    return {"text": text}
+
+
+@router.post("/tts")
+def chat_tts(
+    body: ChatTtsIn,
+    c: Candidate = Depends(get_current_candidate),
+):
+    """#37 语音输出：文本 → mp3 音频（按需合成 + LRU 缓存）。"""
+    from fastapi import Response
+
+    from ..services.voice import synthesize
+
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(400, "文本为空")
+    if len(text) > MAX_INPUT:
+        raise HTTPException(400, "文本过长")
+    try:
+        audio = synthesize(text)
+    except RuntimeError as e:
+        print(f"[chat/tts] TTS failed: {e}")
+        raise HTTPException(503, "语音合成暂时不可用，请稍后重试")
+    return Response(content=audio, media_type="audio/mpeg")
 
 
 def _turn_out(t: ChatTurn) -> dict:

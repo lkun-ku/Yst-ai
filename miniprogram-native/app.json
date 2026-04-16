@@ -12,6 +12,11 @@
     "pages/generate/generate",
     "pages/chat-train/chat-train"
   ],
+  "permission": {
+    "scope.record": {
+      "desc": "用于 AI 模拟答的语音输入，将你说的话转成文字"
+    }
+  },
   "window": {
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#ffffff",
