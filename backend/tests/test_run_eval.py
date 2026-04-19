@@ -13,10 +13,17 @@ import pytest
 
 from app.config import settings
 
+# eval/ 是本地实验目录（#40 清理后不入仓库）：脚本不存在时跳过
+_EVAL_SCRIPT = os.path.join(_ROOT, "backend", "eval", "run_eval.py")
+
 
 @pytest.mark.skipif(
     settings.llm_mode == "real",
     reason="run_eval 的 fake 产出断言依赖 fake LLM 模式（用户决策 2026-05-29 切 real），跳过",
+)
+@pytest.mark.skipif(
+    not os.path.exists(_EVAL_SCRIPT),
+    reason="eval/ 为本地实验目录，仓库中不存在 run_eval.py，跳过",
 )
 def test_run_eval_fake_produces_report():
     r = subprocess.run(
