@@ -36,3 +36,9 @@ miniprogram/
 启动后端-real.bat
 一键冒烟测试.bat
 docs/
+
+# 过程产物与实验内容（本地保留，不入仓库）
+ui-concepts/
+backend/eval/
+AGENTS.md
+CONTEXT.md
