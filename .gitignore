@@ -35,3 +35,4 @@ miniprogram/
 .scratch/
 启动后端-real.bat
 一键冒烟测试.bat
+docs/
