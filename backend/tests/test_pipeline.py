@@ -1,6 +1,6 @@
 """票 14：实时生成管线接入。测试一律用 FakeLLMClient，不消耗 API 额度（测试决策 33/45）。
 
-真实模式（用户决策 2026-05-29）下 fake 路径断言不成立，相关测试跳过。
+真实模式（用户决策 2026-04-09）下 fake 路径断言不成立，相关测试跳过。
 """
 
 import json
@@ -11,7 +11,7 @@ from app.config import settings
 
 _skip_real = pytest.mark.skipif(
     settings.llm_mode == "real",
-    reason="真实模式下默认客户端为 real（用户决策 2026-05-29），fake 路径断言跳过",
+    reason="真实模式下默认客户端为 real（用户决策 2026-04-09），fake 路径断言跳过",
 )
 
 from app.models import (
@@ -220,3 +220,58 @@ def test_batch_generate_rejects_invalid(db_session, monkeypatch):
     stats = batch_generate(db_session, per_kp=1, client=BadClient())
     assert stats["generated"] == 0
     assert stats["rejected"] == 150
+
+
+# ---------------- P0 止血：占位题不得进官方池 ----------------
+#
+# 背景：LLM_MODE 默认 fake，此模式下 FakeLLMClient 的变式题是「同模板占位题」
+# （题干形如「（实时变式1）下列关于《XX》的表述，正确的是？」），一旦以
+# proofread_status=PENDING 写入官方池会被抽题命中（routers/sessions.py 只过滤
+# REJECTED），用户将直接刷到废题。故两个 CLI 入口都必须默认拒绝。
+
+def test_batch_generate_cli_refuses_fake_mode(capsys, monkeypatch):
+    """fake 模式下 CLI 必须拒绝执行，且不写入任何题目。"""
+    from app.pipeline import batch_generate as bg
+
+    monkeypatch.setattr(bg.settings, "llm_mode", "fake")
+    assert bg.main(["--per-kp", "1"]) == 2
+    out = capsys.readouterr().out
+    assert "拒绝执行" in out
+    assert "占位模板题" in out
+
+
+def test_batch_generate_cli_allows_real_mode(monkeypatch):
+    """安全闸不得误伤真实模式：LLM_MODE=real 时放行。
+
+    用桩替换落库与 DB 会话，避免真调外部 API（本用例只验证闸门判定）。
+    """
+    from app import db as db_mod
+    from app.pipeline import batch_generate as bg
+
+    class _DummyQuery:
+        def count(self) -> int:
+            return 0
+
+    class _DummyDB:
+        def query(self, *args, **kwargs) -> _DummyQuery:
+            return _DummyQuery()
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(bg.settings, "llm_mode", "real")
+    monkeypatch.setattr(bg, "batch_generate", lambda db, per_kp=1: {"generated": 0, "rejected": 0})
+    monkeypatch.setattr(db_mod, "init_db", lambda: None)
+    monkeypatch.setattr(db_mod, "SessionLocal", lambda: _DummyDB())
+
+    assert bg.main(["--per-kp", "1"]) == 0
+
+
+def test_seed_cli_refuses_placeholder(capsys):
+    """种子脚本产物是占位模板题，CLI 必须默认拒绝导入。"""
+    from app.seed import import_questions as iq
+
+    assert iq.main([]) == 2
+    out = capsys.readouterr().out
+    assert "拒绝执行" in out
+    assert "import_real_bank" in out  # 提示了正确的重建路径

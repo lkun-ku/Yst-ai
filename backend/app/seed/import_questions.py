@@ -3,8 +3,24 @@
 - 以大纲考点骨架按模块生成变式题，来源=pool、审校=已抽检通过。
 - 幂等：以 (module, knowledge_point, stem) 去重，重跑不重复入库。
 - 运行：python -m app.seed.import_questions
+
+⚠️ **本模块 `build_questions()` 产出的是「占位模板题」，不是真实题库**：
+题干固定为 `下列关于《{考点}》的表述，正确的是？（种子变式N）`，选项为
+「正确表述 / 常见误解 / 无关表述 / 颠倒表述」，**不含任何真实学科内容**。
+它的用途只有两个：
+  1. 早期 MVP 冷启动的最初池骨架（现已被 `real_questions.json` 的 418 题取代）；
+  2. **测试夹具**（`tests/` 直接调用 `import_questions` / `build_questions`）。
+
+因为产物以 `proofread_status=PASSED` 入库，会被抽题直接命中并展示给用户，
+**所以 `main()`（CLI）默认拒绝执行**，必须显式 `--allow-placeholder` 才放行。
+真实题库请用 `python scripts/import_real_bank.py`（在 backend/ 下运行）。
+
+后续改进（见 docs/course/06-架构现状与改造方向.md 的 P1）：
+`Question.source_kind` 列落地后，可用 `source_kind="seed_template"` 结构性区分，
+届时占位题无需再靠调用方自觉。
 """
 
+import argparse
 import json
 
 from sqlalchemy.orm import Session
@@ -71,7 +87,30 @@ def import_questions(db: Session, items: list[dict] | None = None, clear: bool =
     return added
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
+    """CLI 入口。返回进程退出码（0=成功，2=被安全闸拒绝）。
+
+    `argv` 显式传入便于测试（None 时取 sys.argv）。
+    库函数 `import_questions()` 不加闸：测试夹具与显式导入场景需要它。
+    """
+    parser = argparse.ArgumentParser(description="导入考点骨架的占位模板题（非真实题库）")
+    parser.add_argument(
+        "--allow-placeholder",
+        action="store_true",
+        help="确认导入占位模板题（无真实学科内容，仅供本地演示，勿进生产库）",
+    )
+    args = parser.parse_args(argv)
+
+    if not args.allow_placeholder:
+        print(
+            "[seed] 已拒绝执行：本脚本导入的是**占位模板题**——\n"
+            "  题干/选项均为占位文本（如「下列关于《教育观》的表述，正确的是？（种子变式1）」），\n"
+            "  无真实学科内容，入库后会被抽题命中并直接展示给用户。\n"
+            "  真实题库请用：python scripts/import_real_bank.py（在 backend/ 下运行）\n"
+            "  仅本地演示可加 --allow-placeholder。"
+        )
+        return 2
+
     init_db()
     db = SessionLocal()
     try:
@@ -80,7 +119,8 @@ def main() -> None:
         print(f"seed: added={added} total={total}")
     finally:
         db.close()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
