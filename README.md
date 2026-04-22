@@ -26,7 +26,7 @@ graph TB
     APIJS -->|REST/JSON · X-Unionid| ROUTERS
 
     subgraph BE [FastAPI 后端]
-        ROUTERS[routers/ 14 个路由模块] --> SERVICES
+        ROUTERS[routers/ 13 个路由模块] --> SERVICES
         subgraph SERVICES [services/ 业务逻辑]
             LLM[llm_client 接缝B<br/>Fake/Real 同接口]
             VALID[validation 结构化校验]
@@ -42,7 +42,7 @@ graph TB
     RETRIEVAL -->|pgvector HNSW / 内存numpy| DBV[(向量列)]
 ```
 
-**分层**：表现层（原生页面）→ 接口层（14 个 Router）→ 服务层（不依赖 HTTP 的业务逻辑）→ 数据层（唯一 schema 源 + Alembic）。
+**分层**：表现层（原生页面）→ 接口层（13 个 Router）→ 服务层（不依赖 HTTP 的业务逻辑）→ 数据层（唯一 schema 源 + Alembic）。
 
 **LLM 接缝**是本项目的可测试性核心：所有 AI 调用收口到 `LLMClient` 抽象基类，`get_llm_client()` 是唯一切换点；`FakeLLMClient` 返回确定性产物，使全链路测试零 API 额度。
 
@@ -81,7 +81,7 @@ python -m pytest tests/test_chat.py   # 单模块
 
 ```
 backend/
-  app/routers/       14 个路由模块（sessions/documents/chat/admin...）
+  app/routers/       13 个路由模块（sessions/documents/chat/admin...）
   app/services/      LLM 接缝、校验、审校、解析、检索、出题编排、连胜、线程池
   app/pipeline/      闲时批量扩池
   app/seed/          考点骨架 + 真实题库（418 题）
