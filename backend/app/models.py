@@ -51,6 +51,36 @@ class Module(str, Enum):
 OFFICIAL_MODULES: tuple["Module", ...] = tuple(m for m in Module if m is not Module.PERSONAL)
 
 
+class Subject(str, Enum):
+    """科目（P1）。教资三科，考纲与命题范围各不相同，是题库分类的第一维。"""
+
+    COMPREHENSIVE = "综合素质"  # 科目一
+    EDU_KNOWLEDGE = "教育知识与能力"  # 科目二
+    SUBJECT_KNOWLEDGE = "学科知识与教学能力"  # 科目三（按学科细分）
+
+
+# 官方科目全集。与 OFFICIAL_MODULES 同理：任何表达「官方科目」语义的地方都必须用它，
+# 不要直接遍历 Subject（后续若引入「个人资料」等非官方科目，遍历会把它卷进来）。
+OFFICIAL_SUBJECTS: tuple[Subject, ...] = tuple(Subject)
+
+
+class Stage(str, Enum):
+    """学段（P1）。同一科目在不同学段的考纲不同，是题库分类的第二维。"""
+
+    KINDERGARTEN = "幼儿园"
+    PRIMARY = "小学"
+    MIDDLE = "中学"
+
+
+# 新增枚举一律 native_enum=False：
+#   - PG 上若用原生 ENUM，迁移里要额外处理 CREATE TYPE / ALTER TYPE（见实施要点）；
+#   - native_enum=False 渲染为 VARCHAR + CHECK，SQLite 与 PG 行为一致，零方言分支。
+# 注意：SAEnum 落库的是**枚举成员名**（如 "COMPREHENSIVE"）而非中文值——
+# 已实测确认（Module 亦如此）。故手写 SQL 过滤时不能用中文值，必须用成员名。
+SUBJECT_COL = SAEnum(Subject, native_enum=False, length=32, validate_strings=True)
+STAGE_COL = SAEnum(Stage, native_enum=False, length=32, validate_strings=True)
+
+
 class QuestionType(str, Enum):
     SINGLE = "single"
     MULTIPLE = "multiple"
@@ -63,6 +93,15 @@ class QuestionSource(str, Enum):
     POOL = "pool"
     REALTIME = "realtime"
     DOC = "doc"  # 用户文档生成（个人题）
+
+
+# ---------- 题目来源口径（questions.source_kind，P1）----------
+# 用字符串常量而非 Enum：口径会持续增加（P2 还会补真题改编的其他细分），
+# 每加一个值都要改 PG 的 ENUM 类型，迁移成本远高于收益。
+SOURCE_KIND_AI_VARIANT = "ai_variant"  # AI 变式题（官方池主力）
+SOURCE_KIND_OFFICIAL_PAST = "official_past"  # 真题考点改编（只存考点与命题角度，不存真题原文）
+SOURCE_KIND_SEED_TEMPLATE = "seed_template"  # 占位模板题：无学科内容，仅供本地演示与测试夹具
+SOURCE_KIND_DOC_UPLOAD = "doc_upload"  # 用户上传资料生成（个人题）
 
 
 class ProofreadStatus(str, Enum):
@@ -97,6 +136,40 @@ class Candidate(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class KnowledgePoint(Base):
+    """知识点树（自关联，P1）。
+
+    为什么建表而不继续沿用 `questions.knowledge_point` 字符串：
+
+    1. 字符串是**冗余副本**——改一个字就断链（题目指向的考点再也不匹配任何骨架）；
+    2. 字符串**没有层级**——而「这个模块下哪个知识点 0 题」正是覆盖度度量的核心问题，
+       没有层级就答不出来，也无法把掌握度从模块粒度下沉到知识点粒度。
+
+    `level` 存的是**距根深度**（1=顶层模块）而非固定的「1/2/3」语义：
+    当前科目一为 2 级（模块 → 知识点）；引入官方考纲语料后（P2）在中间插入「章节」层，
+    知识点自然降为 3 级——用深度表示则插入层级时无需改表、无需改判定逻辑。
+    """
+
+    __tablename__ = "knowledge_points"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # 稳定业务键：`科目/模块/知识点` 路径（如 "综合素质/职业理念/教育观"）。
+    # 种子幂等与环境对齐都以它为准——不能用 (subject, stage, parent_id, name) 做幂等键：
+    # stage / parent_id 可为 NULL，而 SQL 唯一约束不约束 NULL，重复行会悄悄进来。
+    code: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    subject: Mapped[Subject] = mapped_column(SUBJECT_COL, index=True)
+    # NULL = 三学段通用。综合素质三学段考纲大体一致，P2 拿到分学段考纲后再细化填充。
+    stage: Mapped[Stage | None] = mapped_column(STAGE_COL, nullable=True, index=True)
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("knowledge_points.id"), nullable=True, index=True
+    )
+    level: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    name: Mapped[str] = mapped_column(String(128), index=True)
+    # 真题频次（命题权重）。由 P2 的真题考点分布统计回填；0 表示未知、不参与加权。
+    exam_frequency: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class Question(Base):
     """题目实体（变式题）。携带考点归属、来源、审校状态、AIGC 标识、版本号（Implementation 21）。"""
 
@@ -124,6 +197,28 @@ class Question(Base):
     )  # 来源文档（个人题）
     # 溯源：生成该题目所依据的资料切片片段（跨文档出题用，便于回溯到原文）
     source_chunk: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ---------- P1：多维分类（科目 / 学段 / 知识点树 / 难度 / 来源）----------
+    # 全部可空：存量 418 题与新列并存，迁移不回填也不用停机（新增列一律可空是本仓约定）。
+    subject: Mapped[Subject | None] = mapped_column(SUBJECT_COL, nullable=True, index=True)
+    # NULL = 三学段通用（见 KnowledgePoint.stage 的说明）
+    stage: Mapped[Stage | None] = mapped_column(STAGE_COL, nullable=True, index=True)
+    # easy / medium / hard。此前 real_questions.json 里本就有 difficulty，但入库时被丢弃
+    # （表没有这一列），导致自适应组卷（弱项出 easy、掌握后上 hard）没有任何依据。
+    difficulty: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # ai_variant / official_past / seed_template / doc_upload。
+    # 用 String 而非 Enum：来源是会持续增加的口径（P2 还会加 official_past），
+    # 每次加值都要改 PG 的 ENUM 类型，成本远高于收益。
+    source_kind: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    # 知识点树外键。P1 起为**权威归属**；`knowledge_point` 字符串保留作向后兼容与展示，
+    # 二者由回填脚本保持一致。
+    # **外键显式命名**：跨 SQLite/PG 的 batch 迁移在加带外键的列时要求约束有名字
+    # （否则 `Constraint must have a name`），且命名后「新库 create_all」与
+    # 「老库 alembic 迁移」两条路径产出的约束名一致，不会出现 schema 漂移。
+    kp_id: Mapped[int | None] = mapped_column(
+        ForeignKey("knowledge_points.id", name="fk_questions_kp_id"), nullable=True, index=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

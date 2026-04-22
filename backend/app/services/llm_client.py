@@ -50,12 +50,25 @@ def _variant_payload(kp: str, module: str, variant_no: int) -> dict:
 
 
 class LLMClient(ABC):
+    #: 产出题目的**措辞是否多样**——即同考点出多道时，题干是否会明显不同。
+    #:
+    #: 判重的近似层（字符 n-gram Jaccard）依赖这个前提：真实模型换一道题会换一种说法，
+    #: 而同模板实现只会改编号，彼此相似度约 0.8，近似判重会把它们成批误杀。
+    #:
+    #: 把它放在**客户端**而不是全局配置（`settings.llm_mode`）上是有意的：测试会在
+    #: `LLM_MODE=real` 下注入 `FakeLLMClient`，挂在全局开关上就会漏判、把测试数据误杀干净。
+    produces_varied_stems: bool = True
+
     @abstractmethod
     def generate(self, req: GenerationRequest) -> GenerationResult: ...
 
 
 class FakeLLMClient(LLMClient):
     _counter = 0
+
+    #: 同模板占位实现：题干固定为「（实时变式N）下列关于《考点》的表述，正确的是？」，
+    #: 同考点内只差编号。故对其产物只做精确判重，不做近似/语义判重。
+    produces_varied_stems = False
 
     def generate(self, req: GenerationRequest) -> GenerationResult:
         FakeLLMClient._counter += 1

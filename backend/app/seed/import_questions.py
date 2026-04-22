@@ -26,7 +26,15 @@ import json
 from sqlalchemy.orm import Session
 
 from ..db import SessionLocal, init_db
-from ..models import ProofreadStatus, Question, QuestionSource, QuestionType
+from ..models import (
+    Module,
+    ProofreadStatus,
+    Question,
+    QuestionSource,
+    QuestionType,
+    SOURCE_KIND_SEED_TEMPLATE,
+)
+from .knowledge_tree import TREE_STAGE, TREE_SUBJECT, index_by_module_kp, module_value_of
 from .questions_data import KNOWLEDGE_POINTS
 
 
@@ -62,10 +70,34 @@ def build_questions() -> list[dict]:
                         "proofread_status": ProofreadStatus.PASSED,
                         "aigc_flag": True,
                         "version": 1,
+                        # P1：显式标注来源口径。产出是「无学科内容的占位模板题」，
+                        # 与 AI 变式（ai_variant）区分开——二者质量差异是数量级的。
+                        "source_kind": SOURCE_KIND_SEED_TEMPLATE,
                     }
                 )
                 opt_idx += 1
     return items
+
+
+def _with_dims(item: dict, kp_index: dict[tuple[str, str], int]) -> dict:
+    """补齐 P1 维度（`subject` / `stage` / `kp_id`），**不覆盖**调用方显式给定的值。
+
+    - 个人资料（`Module.PERSONAL`）不属于考纲，三轴一律留空；
+    - 骨架外的考点名（测试夹具的「学生观·变式」之类）解析不到 kp_id → 留空，不猜。
+
+    `source_kind` 刻意不在此兜底：占位模板与真题改编的质量差异是数量级的，
+    由调用方**显式声明**（`build_questions` 写 seed_template，真题导入写 ai_variant），
+    不在这里若明若暗地猜一个默认值。
+    """
+    payload = dict(item)
+    module_value = module_value_of(payload.get("module"))
+    if module_value and module_value != Module.PERSONAL.value:
+        payload.setdefault("subject", TREE_SUBJECT)
+        payload.setdefault("stage", TREE_STAGE)
+    kp_id = kp_index.get((module_value, payload.get("knowledge_point"))) if module_value else None
+    if kp_id is not None:
+        payload.setdefault("kp_id", kp_id)
+    return payload
 
 
 def import_questions(db: Session, items: list[dict] | None = None, clear: bool = False) -> int:
@@ -76,12 +108,15 @@ def import_questions(db: Session, items: list[dict] | None = None, clear: bool =
         (q.module, q.knowledge_point, q.stem)
         for q in db.query(Question.module, Question.knowledge_point, Question.stem).all()
     }
+    # 知识点树索引一次性构建（2 次查询），避免逐题解析 kp_id 造成 418 次往返
+    kp_index = index_by_module_kp(db)
     added = 0
     for it in items:
         key = (it["module"], it["knowledge_point"], it["stem"])
         if key in existing:
             continue
-        db.add(Question(**it))
+        db.add(Question(**_with_dims(it, kp_index)))
+        existing.add(key)  # 同一批 items 内部的重复也要拦（此前只比对库中已有的）
         added += 1
     db.commit()
     return added

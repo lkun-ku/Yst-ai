@@ -3,6 +3,7 @@ import random
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -19,6 +20,8 @@ from ..models import (
     QuestionType,
     Session,
     SessionStatus,
+    Stage,
+    Subject,
 )
 from ..schemas import (
     AnswerIn,
@@ -58,40 +61,57 @@ def _iso_utc(dt) -> str | None:
     return dt.isoformat()
 
 
-def _select_by_weight(db, n: int) -> list:
+def _official_pool_filters(subject: Subject | None, stage: Stage | None) -> list:
+    """官方池抽题的公共过滤条件（P1 加入科目 / 学段维度）。
+
+    `subject` / `stage` 为 None 表示不限定。关键在于题目上的 NULL 语义：
+    **NULL = 不分科目 / 三学段通用**，因此条件是 `等于目标值 或 IS NULL`。
+    若写成严格等值，P1 之前入库的存量题（这两列都是 NULL）会在一夜之间从卷面消失——
+    用户看到的是「模考突然没题了」，而不是任何报错。
+    """
+    filters = [
+        Question.source == QuestionSource.POOL,
+        Question.proofread_status != ProofreadStatus.REJECTED,
+    ]
+    if subject is not None:
+        filters.append(or_(Question.subject == subject, Question.subject.is_(None)))
+    if stage is not None:
+        filters.append(or_(Question.stage == stage, Question.stage.is_(None)))
+    return filters
+
+
+def _sample_pool(db, need: int, filters: list) -> list:
+    """SQL 层随机抽样（P1 性能改造）。
+
+    改造前是 `.all()` 把整个模块的题拉进内存再 `random.shuffle`：418 题无碍，
+    但题库按计划扩到万级后，每次开局都要把上万行读进进程、再在内存里洗牌。
+    改为 `ORDER BY RANDOM() LIMIT n`，让数据库只回真正需要的行。
+
+    代价：PG 上 `RANDOM()` 是全表扫描 + 排序。题库到了十万级时应换成
+    「按 id 随机区间取行」或维护随机排序列；当前量级不值得上这个复杂度。
+    """
+    if need <= 0:
+        return []
+    return db.query(Question).filter(*filters).order_by(func.random()).limit(need).all()
+
+
+def _select_by_weight(db, n: int, subject: Subject | None = None, stage: Stage | None = None) -> list:
     """按官方模块权重抽题，尽量贴近真实卷面分布；题库不足时再补齐。"""
+    base = _official_pool_filters(subject, stage)
     out: list = []
     picked: set = set()
+
     for m, w in MOCK_WEIGHTS:
         need = max(1, round(n * w / 100))
-        rows = (
-            db.query(Question)
-            .filter(
-                Question.source == QuestionSource.POOL,
-                Question.module == m,
-                Question.proofread_status != ProofreadStatus.REJECTED,
-            )
-            .all()
-        )
-        if not rows:
-            continue
-        random.shuffle(rows)
-        for q in rows[:need]:
+        for q in _sample_pool(db, need, base + [Question.module == m]):
             if q.id not in picked:
                 out.append(q)
                 picked.add(q.id)
 
     if len(out) < n:
-        extra = (
-            db.query(Question)
-            .filter(
-                Question.source == QuestionSource.POOL,
-                Question.proofread_status != ProofreadStatus.REJECTED,
-            )
-            .all()
-        )
-        random.shuffle(extra)
-        for q in extra:
+        # 兜底：某模块题量不足时不能整局失败，从全池补足。多取 n 行以抵消
+        # 与上面已选部分的重叠；仍不足说明题库真的不够，按实际数量开局。
+        for q in _sample_pool(db, n, base):
             if len(out) >= n:
                 break
             if q.id not in picked:

@@ -17,31 +17,69 @@
 
 import argparse
 import json
+import logging
 
 from sqlalchemy.orm import Session as DBSession
 
 from ..config import settings
-from ..models import ProofreadStatus, Question, QuestionSource, QuestionType
+from ..models import (
+    ProofreadStatus,
+    Question,
+    QuestionSource,
+    QuestionType,
+    SOURCE_KIND_AI_VARIANT,
+)
+from ..seed.knowledge_tree import TREE_STAGE, TREE_SUBJECT, index_by_module_kp
 from ..seed.questions_data import KNOWLEDGE_POINTS
+from ..services.dedup import bucket_of, find_duplicate, load_official_index
 from ..services.llm_client import GenerationRequest, LLMClient, get_llm_client
 from ..services.validation import validate_question_payload
 
+logger = logging.getLogger(__name__)
+
 _VALID_KPS = {kp for kps in KNOWLEDGE_POINTS.values() for kp in kps}
+
+#: 合法难度取值（与 questions.difficulty 的约定一致）
+DIFFICULTIES = ("easy", "medium", "hard")
+
+
+def _difficulty_of(payload: dict) -> str | None:
+    """取模型回传的难度；非法值**留空**而不硬塞默认值——宁缺勿错。
+
+    塞个默认 medium 会让「这个考点全是 medium」看起来像统计结论，实际是数据缺失，
+    后续自适应组卷会被误导。
+    """
+    value = str(payload.get("difficulty") or "").strip().lower()
+    return value if value in DIFFICULTIES else None
 
 
 def batch_generate(db: DBSession, per_kp: int = 1, client: LLMClient | None = None) -> dict:
-    """按考点批量生成变式题并入库，返回 {generated, rejected} 统计。"""
+    """按考点批量生成变式题并入库。
+
+    返回 `{generated, rejected, deduped}`：
+    - `rejected`：结构化校验不通过（产物本身有问题）；
+    - `deduped`：与**已有题目**重复被拦（考点上已经有能用的题了）。
+
+    两者分开计数是有用的运维信号：前者说明生成质量差，后者说明选题规划在重复劳动
+    （该考点已经不缺题了，却还在给它出）——见 `services/dedup.py` 的三层判重。
+
+    判重口径：逐考点比对，**不跨考点**。跨考点近似比对会系统性误杀
+    （「受教育权」与「受教育权保护」这类相邻考点名天生长得像）。
+    """
     client = client or get_llm_client()
     generated = 0
     rejected = 0
+    deduped = 0
 
-    existing = {
-        (q.module, q.knowledge_point, q.stem)
-        for q in db.query(Question.module, Question.knowledge_point, Question.stem).all()
-    }
+    # 同模板实现（fake）产出的是彼此只差编号的伪题，近似判重会成批误杀 → 退化为精确判重
+    near_dup_enabled = bool(getattr(client, "produces_varied_stems", True))
+    index = load_official_index(db)
+    kp_ids = index_by_module_kp(db)
 
     for module, points in KNOWLEDGE_POINTS.items():
         for kp in points:
+            bucket = bucket_of(index, module.value, kp)
+            kp_id = kp_ids.get((module.value, kp))
             for _ in range(per_kp):
                 res = client.generate(
                     GenerationRequest(kind="variant", knowledge_point=kp, context={"module": module.value})
@@ -53,29 +91,43 @@ def batch_generate(db: DBSession, per_kp: int = 1, client: LLMClient | None = No
                     continue
 
                 stem = payload["stem"]
-                if (module, kp, stem) in existing:
-                    rejected += 1  # 重复弃
+                hit, hit_id = find_duplicate(stem, existing=bucket, enable_near=near_dup_enabled)
+                if hit:
+                    deduped += 1
+                    logger.info(
+                        "batch_generate: 判重命中（%s，与题目 %s 重复），丢弃：%s",
+                        hit,
+                        hit_id,
+                        stem[:30],
+                    )
                     continue
 
-                db.add(
-                    Question(
-                        module=module,
-                        knowledge_point=kp,
-                        stem=stem,
-                        options=json.dumps(payload["options"], ensure_ascii=False),
-                        answer=json.dumps(payload["answer"], ensure_ascii=False),
-                        explanation=payload["explanation"],
-                        type=QuestionType(payload.get("type", "single")),
-                        source=QuestionSource.POOL,
-                        proofread_status=ProofreadStatus.PENDING,
-                        aigc_flag=True,
-                    )
+                question = Question(
+                    module=module,
+                    knowledge_point=kp,
+                    stem=stem,
+                    options=json.dumps(payload["options"], ensure_ascii=False),
+                    answer=json.dumps(payload["answer"], ensure_ascii=False),
+                    explanation=payload["explanation"],
+                    type=QuestionType(payload.get("type", "single")),
+                    source=QuestionSource.POOL,
+                    proofread_status=ProofreadStatus.PENDING,
+                    aigc_flag=True,
+                    # P1 维度：科目 / 学段 / 知识点树 / 难度 / 来源。
+                    # 缺了这几轴，题库扩到万级也只是堆在一个格子里，无法按维度聚合与配额。
+                    subject=TREE_SUBJECT,
+                    stage=TREE_STAGE,
+                    difficulty=_difficulty_of(payload),
+                    source_kind=SOURCE_KIND_AI_VARIANT,
+                    kp_id=kp_id,
                 )
-                existing.add((module, kp, stem))
+                db.add(question)
+                db.flush()  # 取回自增 id：同轮内后续题目命中重复时要能指出撞上了哪一道
+                bucket.append((question.id, stem))
                 generated += 1
 
     db.commit()
-    return {"generated": generated, "rejected": rejected}
+    return {"generated": generated, "rejected": rejected, "deduped": deduped}
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -71,6 +71,17 @@ class Settings:
     # 同模板伪题相似度约 0.8，不跳过会误杀（实测 12 题只剩 3 题）。
     doc_stem_dup_threshold: float = float(os.getenv("DOC_STEM_DUP_THRESHOLD", "0.6"))
 
+    # ---------- P1：官方题库维度与三层判重 ----------
+    # 官方池近似判重阈值。**刻意与文档侧的 0.6 不同**：官方变式题是「同考点出多道」，
+    # 模型天然倾向同一模板，题干高度相似是正常现象；用 0.6 会把同考点的正常变式成批误杀
+    # （文档侧路线① 已因同类原因把阈值提到 0.85）。此处只拦「几乎字面一致」。
+    official_stem_dup_threshold: float = float(os.getenv("OFFICIAL_STEM_DUP_THRESHOLD", "0.85"))
+    # 官方池语义判重阈值（题干向量余弦 ≥ 此值即判重）。字面完全不同、但
+    # 「考点 + 干扰项同构」的灌水题只能靠语义拦住——这是 L1 精确与 L2 近似都看不见的一类。
+    official_stem_semantic_threshold: float = float(
+        os.getenv("OFFICIAL_STEM_SEMANTIC_THRESHOLD", "0.92")
+    )
+
     # ---------- Embedding（文档级语义检索；fake 模式不耗额度） ----------
     embedding_mode: str = os.getenv("EMBEDDING_MODE", "fake")  # fake / real
     embedding_api_base: str = os.getenv("EMBEDDING_API_BASE", "")
