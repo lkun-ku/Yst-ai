@@ -3,7 +3,7 @@ import os
 # 必须在导入 app 之前设定，确保测试使用独立 SQLite 文件库。
 os.environ["DATABASE_URL"] = "sqlite:///./.test_tmp.db"
 os.environ["AUTO_MIGRATE"] = "true"
-# 用户决策（2026-05-29）：测试使用**真实环境**（backend/.env 的 real 模式），
+# 用户决策（2026-04-09）：测试使用**真实环境**（backend/.env 的 real 模式），
 # 不强制 fake——真实模型下的出题/判分/复盘才可信。代价：测试变慢（doc 生成 30s+/次）。
 
 import pytest

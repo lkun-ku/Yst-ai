@@ -1,6 +1,6 @@
 """streak_and_mock_exam
 
-**幂等化（2026-05-26）**：0001_initial 以 `Base.metadata.create_all()` 建立**当前 models 的全量**
+**幂等化（2026-03-29）**：0001_initial 以 `Base.metadata.create_all()` 建立**当前 models 的全量**
 schema，已包含 streaks / streak_makeups 表与 sessions 的 mode 等列。全新库上必须跳过已存在的
 对象，否则 `alembic upgrade head` 会因 duplicate table / duplicate column 失败。
 """

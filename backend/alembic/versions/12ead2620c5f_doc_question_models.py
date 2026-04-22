@@ -4,7 +4,7 @@
 documents / document_chunks / doc_tasks 三张新表由 0001_initial 的 create_all(metadata) 在建库时一并创建，
 本迁移只负责既有 questions 表的增量变更，避免与 0001 重复建表。
 
-**幂等化（2026-05-26）**：0001_initial 以 `Base.metadata.create_all()` 建立**当前 models 的全量**
+**幂等化（2026-03-29）**：0001_initial 以 `Base.metadata.create_all()` 建立**当前 models 的全量**
 schema，已包含本迁移要加的列/索引/外键。因此在全新库上本迁移必须跳过已存在的对象，
 否则 `alembic upgrade head` 会因 duplicate column 失败（此前测试只走 create_all、从不跑 alembic，
 故该问题长期未被发现）。

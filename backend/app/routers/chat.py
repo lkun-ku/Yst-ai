@@ -30,7 +30,7 @@ from ..services.llm_client import LLMClient, get_llm_client
 
 router = APIRouter(prefix="/api/chat")
 
-MAX_PROBES = 2  # 用户裁决（2026-05-30）：单题追问固定 2 轮；场次无限出新题
+MAX_PROBES = 2  # 用户裁决（2026-04-16）：单题追问固定 2 轮；场次无限出新题
 MAX_INPUT = 500
 DIFFICULTIES = ("medium", "hard")
 PERSONAS = ("coach", "examiner")

@@ -17,7 +17,7 @@ W-5 收敛为**一列** `embedding`，用 `Vector(1024).with_variant(LargeBinary
 
 Revision ID: b2c3d4e5f6a7
 Revises: m1a2b3c4d5e6
-Create Date: 2026-05-26 07:00:00.000000
+Create Date: 2026-03-29 07:00:00.000000
 """
 from alembic import op
 
