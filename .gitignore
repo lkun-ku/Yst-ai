@@ -42,3 +42,7 @@ ui-concepts/
 backend/eval/
 AGENTS.md
 CONTEXT.md
+
+# 微信开发者工具本地私有配置（各开发者独立，含本地调试设置，不入仓库）
+project.private.config.json
+miniprogram-native/project.private.config.json
