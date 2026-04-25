@@ -22,6 +22,7 @@
 #   review    复盘报告
 #   sessions  闯关局与判分
 #   admin     审校后台
+#   domain    领域模型与领域包：models 的科目/学段/题型、domain_packs/
 #   cleanup   仓库整理（非模块，仅整理类提交用）
 #   ↑ 新增模块时，同步把这个 scope 补进 AGENTS.md 的 scope 表
 #
@@ -41,4 +42,6 @@
 # ── 提交前自检 ─────────────────────────────────────────────────
 #   [ ] 一个提交只做一件事，能单独 revert
 #   [ ] 跑过 python -m pytest 全量 + 前端 node --check
-#   [ ] 没把 .env / 密钥 / AGENTS.md / docs/ 带进来（见 .gitignore）
+#   [ ] 没把 .env / 密钥 / 本地库 / 实验产物带进来（见 .gitignore）
+#       ⚠️ 2026-06-10 修订：AGENTS.md / docs/ / CONTEXT.md / backend/eval/ 已解除忽略、
+#          纳入版本控制 —— 原文写的是「不要带进来」，该口径已反转（见 AGENTS.md 自检第 3 条）

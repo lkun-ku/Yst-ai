@@ -35,13 +35,18 @@ miniprogram/
 .scratch/
 启动后端-real.bat
 一键冒烟测试.bat
-docs/
+# docs/ 已解除忽略（2026-06-10）：计划书 / ADR / 用户需求文档必须进仓库 ——
+# 否则「归档」与「删除」都无法从 git 恢复（已因此永久丢过一份决策记录）。
+# 目录约定见 docs/README.md：现行文档在顶层，历史文档在 docs/archive/，学习材料在 docs/learning/。
 
 # 过程产物与实验内容（本地保留，不入仓库）
 ui-concepts/
-backend/eval/
-AGENTS.md
-CONTEXT.md
+# backend/eval/ 已解除忽略（2026-06-10）：评测集 datasets/ 是量化证据，必须进仓库；
+# 实验产物与评测库仍忽略（见上方「评测产物」段）。
+
+# AGENTS.md / CONTEXT.md 已解除忽略（2026-06-10）：
+# CONTEXT.md 是「术语单一真相」，AGENTS.md 是协作约定 ——
+# 被忽略会导致「新会话读不到约定」与「术语表不进仓库、随本机丢失」。
 
 # 微信开发者工具本地私有配置（各开发者独立，含本地调试设置，不入仓库）
 project.private.config.json
