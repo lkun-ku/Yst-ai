@@ -20,3 +20,8 @@ langchain-core==1.6.2
 # SQLite/dev 不引：保留 LargeBinary 列与内存余弦路径。
 psycopg2-binary==2.9.9
 pgvector==0.5.0
+
+# --- 领域包（Domain Pack）：科目差异用数据描述，pack.yaml 需 YAML 解析 ---
+# 纯数据格式库，不是框架。不引它就只能把领域包写成 JSON（无法写注释）或
+# Python 字面量（要求非程序员改代码）—— 而领域包最需要的恰恰是注释。
+pyyaml==6.0.1

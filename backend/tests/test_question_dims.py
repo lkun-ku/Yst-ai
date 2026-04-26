@@ -29,6 +29,7 @@ from app.seed.import_questions import build_questions, import_questions
 from app.seed.knowledge_tree import (
     KP_LEVEL,
     MODULE_LEVEL,
+    TREE_SUBJECT,
     backfill_question_dims,
     ensure_knowledge_tree,
     module_value_of,
@@ -42,6 +43,16 @@ from app.services.dedup import (
     load_official_index,
 )
 from app.services.llm_client import GenerationResult, LLMClient
+
+
+def _kp_code(*parts: str) -> str:
+    """知识点树节点 code：`{科目包}/{模块}/{知识点}`。
+
+    刻意**不硬编码** `"综合素质/..."`：code 的前缀以 `Subject.value` 为准，
+    而 `Subject` 已按官方口径改为领域包名（`k1_comprehensive`）。
+    硬编码会让测试在「只是换了口径」时糊里糊涂地红掉，掩盖真正的问题。
+    """
+    return "/".join((TREE_SUBJECT.value, *parts))
 
 
 def _item(module: str, kp: str, stem: str, **extra) -> dict:
@@ -119,17 +130,21 @@ def test_ensure_knowledge_tree_is_idempotent(db_session):
 
 def test_ensure_knowledge_tree_restores_deleted_node(db_session):
     """删掉一个知识点后重跑：补回来，且父子关系接得上（不能成孤儿）。"""
-    code = "综合素质/职业理念/教育观"
+    code = _kp_code(Module.PROFESSIONAL_IDEA.value, "教育观")
     db_session.query(KnowledgePoint).filter(KnowledgePoint.code == code).delete()
     db_session.commit()
 
     assert ensure_knowledge_tree(db_session) == 1
 
     node = db_session.query(KnowledgePoint).filter(KnowledgePoint.code == code).one()
-    root = db_session.query(KnowledgePoint).filter(KnowledgePoint.code == "综合素质/职业理念").one()
+    root = (
+        db_session.query(KnowledgePoint)
+        .filter(KnowledgePoint.code == _kp_code(Module.PROFESSIONAL_IDEA.value))
+        .one()
+    )
     assert node.level == KP_LEVEL
     assert node.parent_id == root.id
-    assert node.subject == Subject.COMPREHENSIVE
+    assert node.subject == Subject.K1_COMPREHENSIVE
     assert node.stage is None  # 三学段通用
 
 
@@ -158,11 +173,11 @@ def test_import_questions_fills_dims_from_tree(db_session):
 
     node = (
         db_session.query(KnowledgePoint)
-        .filter(KnowledgePoint.code == f"综合素质/职业理念/{kp}")
+        .filter(KnowledgePoint.code == _kp_code(Module.PROFESSIONAL_IDEA.value, kp))
         .one()
     )
     q = db_session.query(Question).filter(Question.knowledge_point == kp).one()
-    assert q.subject == Subject.COMPREHENSIVE
+    assert q.subject == Subject.K1_COMPREHENSIVE
     assert q.stage is None  # 三学段通用
     assert q.kp_id == node.id
     # 调用方未声明来源 → 留空，不由导入器猜一个默认值
@@ -194,7 +209,7 @@ def test_import_questions_leaves_unknown_kp_empty(db_session):
 
     q = db_session.query(Question).filter(Question.knowledge_point == kp).one()
     assert q.kp_id is None
-    assert q.subject == Subject.COMPREHENSIVE  # 模块是官方的，科目仍填得出来
+    assert q.subject == Subject.K1_COMPREHENSIVE  # 模块是官方的，科目仍填得出来
 
 
 def test_backfill_fills_existing_rows(db_session):
@@ -211,11 +226,11 @@ def test_backfill_fills_existing_rows(db_session):
 
     node = (
         db_session.query(KnowledgePoint)
-        .filter(KnowledgePoint.code == f"综合素质/职业理念/{kp}")
+        .filter(KnowledgePoint.code == _kp_code(Module.PROFESSIONAL_IDEA.value, kp))
         .one()
     )
     q = db_session.query(Question).filter(Question.knowledge_point == kp).one()
-    assert q.subject == Subject.COMPREHENSIVE
+    assert q.subject == Subject.K1_COMPREHENSIVE
     assert q.kp_id == node.id
 
 
@@ -234,7 +249,7 @@ def test_pool_filter_tolerates_null_dims(db_session):
 
     matched = (
         db_session.query(Question)
-        .filter(*_official_pool_filters(Subject.COMPREHENSIVE, Stage.PRIMARY))
+        .filter(*_official_pool_filters(Subject.K1_COMPREHENSIVE, Stage.PRIMARY))
         .count()
     )
     assert matched > 0
@@ -245,7 +260,7 @@ def test_pool_filter_excludes_rejected_and_other_subject(db_session):
     kp = "教育观"
     _reset_kps(db_session, [(Module.PROFESSIONAL_IDEA.value, kp)])
 
-    filters = _official_pool_filters(Subject.COMPREHENSIVE, None)
+    filters = _official_pool_filters(Subject.K1_COMPREHENSIVE, None)
     total_before = db_session.query(Question).filter(*filters).count()
 
     q = db_session.query(Question).filter(Question.knowledge_point == kp).one()
@@ -254,7 +269,7 @@ def test_pool_filter_excludes_rejected_and_other_subject(db_session):
     assert db_session.query(Question).filter(*filters).count() == total_before - 1
 
     q.proofread_status = ProofreadStatus.PASSED
-    q.subject = Subject.EDU_KNOWLEDGE  # 科目二 → 不该出现在科目一卷面
+    q.subject = Subject.K2_MIDDLE  # 科目二 → 不该出现在科目一卷面
     db_session.commit()
     assert db_session.query(Question).filter(*filters).count() == total_before - 1
 
@@ -371,10 +386,10 @@ def test_batch_generate_sets_all_dims(db_session):
     q = db_session.query(Question).filter(Question.stem == "教育观·P1 固定题干").one()
     node = (
         db_session.query(KnowledgePoint)
-        .filter(KnowledgePoint.code == "综合素质/职业理念/教育观")
+        .filter(KnowledgePoint.code == _kp_code(Module.PROFESSIONAL_IDEA.value, "教育观"))
         .one()
     )
-    assert q.subject == Subject.COMPREHENSIVE
+    assert q.subject == Subject.K1_COMPREHENSIVE
     assert q.stage is None
     assert q.difficulty == "hard"
     assert q.source_kind == SOURCE_KIND_AI_VARIANT

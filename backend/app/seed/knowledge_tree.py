@@ -16,7 +16,7 @@
 
 `level` 存**距根深度**（1=顶层模块），不是固定的「1/2/3」：
 
-- 当前（科目一）2 级：`综合素质 / 职业理念 / 教育观`
+- 当前（科目一）2 级：`k1_comprehensive / 职业理念 / 教育观`
 - P2 引入官方考纲语料后在中间插入「章节」层，知识点自然降为 3 级
 
 用「深度」而非固定语义，插入层级时不必改表、不必改判定逻辑。
@@ -43,8 +43,13 @@ from ..models import (
 from .questions_data import KNOWLEDGE_POINTS
 
 #: 当前树只覆盖科目一；stage=None 表示**三学段通用**
-#: （综合素质三学段考纲大体一致，P2 拿到分学段考纲后再细化填充）。
-TREE_SUBJECT = Subject.COMPREHENSIVE
+#: （综合素质三学段考纲大体一致，后续拿到分学段考纲后再细化填充）。
+#:
+#: 注意是 `K1_COMPREHENSIVE` 而非旧口径的 `COMPREHENSIVE`：`Subject` 已按官方口径
+#: 重构为「科目序号 × 学段」的领域包，枚举值即 `domain_packs/<value>/` 的目录名。
+#: 节点 `code` 的前缀由 `TREE_SUBJECT.value` 生成，因此会自动变为 `k1_comprehensive/...`
+#: （旧库里的 `综合素质/...` 由迁移 `domain_model_fix` 随存量一起清空）。
+TREE_SUBJECT = Subject.K1_COMPREHENSIVE
 TREE_STAGE = None
 
 #: 顶层模块的 level；知识点 = 顶层 + 1

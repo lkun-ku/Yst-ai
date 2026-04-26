@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -51,42 +52,152 @@ class Module(str, Enum):
 OFFICIAL_MODULES: tuple["Module", ...] = tuple(m for m in Module if m is not Module.PERSONAL)
 
 
-class Subject(str, Enum):
-    """科目（P1）。教资三科，考纲与命题范围各不相同，是题库分类的第一维。"""
-
-    COMPREHENSIVE = "综合素质"  # 科目一
-    EDU_KNOWLEDGE = "教育知识与能力"  # 科目二
-    SUBJECT_KNOWLEDGE = "学科知识与教学能力"  # 科目三（按学科细分）
-
-
-# 官方科目全集。与 OFFICIAL_MODULES 同理：任何表达「官方科目」语义的地方都必须用它，
-# 不要直接遍历 Subject（后续若引入「个人资料」等非官方科目，遍历会把它卷进来）。
-OFFICIAL_SUBJECTS: tuple[Subject, ...] = tuple(Subject)
-
-
 class Stage(str, Enum):
-    """学段（P1）。同一科目在不同学段的考纲不同，是题库分类的第二维。"""
+    """学段。与科目共同决定「考纲 + 模块树」，是题库分类的第二维。
+
+    三个取值即覆盖官方全部报考类别：**中职（文化课 / 专业课 / 实习指导）比照中学** ——
+    科目代码同为 301/302，差别只在「考不考科目三」，那是报考规则而非学段。
+    出处：`docs/用户需求文档.md` §1.1。
+    """
 
     KINDERGARTEN = "幼儿园"
     PRIMARY = "小学"
-    MIDDLE = "中学"
+    MIDDLE = "中学"  # 含初级中学 / 高级中学 / 中职（比照中学）
+
+
+class Subject(str, Enum):
+    """领域包（Domain Pack）：由「科目序号 × 学段」唯一确定的那份考纲 + 模块树。
+
+    **旧口径（已废止）**：`COMPREHENSIVE` / `EDU_KNOWLEDGE` / `SUBJECT_KNOWLEDGE`。
+    它的错误是「一个枚举值 = 一科」，而官方口径里**科目二随学段改名**：
+    幼儿园《保教知识与能力》、小学《教育教学知识与能力》、中学《教育知识与能力》。
+    用一个 `EDU_KNOWLEDGE` 指代三者，等于把三套不同考纲（模块数 7 / 7 / 8）压成一套。
+    出处：`docs/用户需求文档.md` §1.1 / §1.2 的「纠正」，以及 §5 的 D2 / D3（🔴 致命）。
+
+    **新口径**：枚举值 = 领域包目录名（`backend/app/domain_packs/<value>/`），
+    于是 `Scope.subject` 可直接当目录名用，不必再维护一张「值 ↔ 目录」映射表。
+
+    **成员数 = 已实现的包数，不是官方的科目数。** 官方有 6 个「科目序号 × 学段」槽位，
+    本仓按 `docs/改造计划.md` §1 只实现 2 个；缺失的 4 个显式登记在 `OFFICIAL_SLOTS`，
+    由 `missing_packs()` 报告 —— **「未实现」与「官方不存在」是两件不同的事**。
+    """
+
+    K1_COMPREHENSIVE = "k1_comprehensive"  # 科目一·综合素质（分卷命题 101/201/301，覆盖全学段）
+    K2_MIDDLE = "k2_middle"  # 科目二·中学·教育知识与能力（302，8 模块）
+
+
+@dataclass(frozen=True)
+class SubjectMeta:
+    """已实现领域包的官方口径元数据。"""
+
+    no: int  # 科目序号：1 / 2 / 3
+    name: str  # 官方科目名称（科目二随学段不同）
+    stages: tuple[Stage, ...]  # 该科目包覆盖的学段
+
+
+#: 已实现包的元数据。之所以要有这张表：科目二的名称随学段变化，
+#: 若把这条规则写成各处的 if/else，就会出现「某个统计口径忘了区分学段」这类漂移 ——
+#: 旧 `EDU_KNOWLEDGE` 正是这么来的。
+SUBJECT_META: dict["Subject", SubjectMeta] = {
+    Subject.K1_COMPREHENSIVE: SubjectMeta(
+        1, "综合素质", (Stage.KINDERGARTEN, Stage.PRIMARY, Stage.MIDDLE)
+    ),
+    Subject.K2_MIDDLE: SubjectMeta(2, "教育知识与能力", (Stage.MIDDLE,)),
+}
+
+
+#: 官方试卷代码（`docs/用户需求文档.md` §1.1）。综合素质**分卷命题** ——
+#: 同一科目包在不同学段对应不同代码，这正是「科目一共用一个包、但题目必须带学段标签」的依据。
+PAPER_CODES: dict["Subject", dict[Stage, str]] = {
+    Subject.K1_COMPREHENSIVE: {
+        Stage.KINDERGARTEN: "101",
+        Stage.PRIMARY: "201",
+        Stage.MIDDLE: "301",
+    },
+    Subject.K2_MIDDLE: {Stage.MIDDLE: "302"},
+}
+
+
+#: 官方「科目序号 × 学段」的**全部合法槽位（§1.1 全表）**，含本仓未实现的。
+#: 用途：让「官方有、本仓没有」这件事**显式可查**，避免后来者把「未实现」误读成
+#: 「官方不存在」；也避免新增包时漏掉某个学段。
+#: 注：音体美 A 代码（201A/202A/301A/302A）是**报考规则**，不改变槽位集合。
+OFFICIAL_SLOTS: tuple[tuple[int, str, Stage], ...] = (
+    (1, "综合素质", Stage.KINDERGARTEN),
+    (1, "综合素质", Stage.PRIMARY),
+    (1, "综合素质", Stage.MIDDLE),
+    (2, "保教知识与能力", Stage.KINDERGARTEN),
+    (2, "教育教学知识与能力", Stage.PRIMARY),
+    (2, "教育知识与能力", Stage.MIDDLE),
+)
+
+
+def subject_of(no: int, stage: Stage) -> Subject | None:
+    """「科目序号 × 学段」→ 已实现的领域包。
+
+    **官方存在、本仓未实现时返回 None**（而不是抛错）—— 两者的区别由 `missing_packs()`
+    表达，调用方据此给出「该科目暂未开放」而不是「不存在」。
+
+    调用方仍须自行按报考规则判断该组合是否合法（如幼儿园不考科目三、
+    中职专业课不笔试科目三）；本函数只做映射，不兼任报考规则判断。
+    """
+    for subject, meta in SUBJECT_META.items():
+        if meta.no == no and stage in meta.stages:
+            return subject
+    return None
+
+
+def paper_code_of(subject: Subject, stage: Stage) -> str | None:
+    """科目包 × 学段 → 官方试卷代码；该组合不存在或未实现时返回 None（不猜、不兜底）。"""
+    return PAPER_CODES.get(subject, {}).get(stage)
+
+
+def missing_packs() -> list[tuple[int, str, Stage]]:
+    """官方有、本仓未实现的「科目序号 × 学段」槽位（按 §1.1 全表比对）。"""
+    implemented = {(meta.no, stage) for meta in SUBJECT_META.values() for stage in meta.stages}
+    return [slot for slot in OFFICIAL_SLOTS if (slot[0], slot[2]) not in implemented]
+
+
+# 官方科目全集（= 已实现包）。与 OFFICIAL_MODULES 同理：任何表达「官方科目」语义的地方
+# 都必须用它，不要直接遍历 Subject（后续若引入「个人资料」等非官方科目，遍历会把它卷进来）。
+OFFICIAL_SUBJECTS: tuple["Subject", ...] = tuple(Subject)
 
 
 # 新增枚举一律 native_enum=False：
 #   - PG 上若用原生 ENUM，迁移里要额外处理 CREATE TYPE / ALTER TYPE（见实施要点）；
 #   - native_enum=False 渲染为 VARCHAR + CHECK，SQLite 与 PG 行为一致，零方言分支。
-# 注意：SAEnum 落库的是**枚举成员名**（如 "COMPREHENSIVE"）而非中文值——
-# 已实测确认（Module 亦如此）。故手写 SQL 过滤时不能用中文值，必须用成员名。
+# 注意：SAEnum 落库的是**枚举成员名**（如 "K1_COMPREHENSIVE"）而非值——
+# 已实测确认（Module 亦如此）。故手写 SQL 过滤时必须用成员名，不能用中文名或包名。
+# 本次 `Subject` 的成员名与值一起改了口径，存量行仍是旧成员名（"COMPREHENSIVE" 等），
+# 按决策「清空存量、全量重建」由迁移 `domain_model_fix` 直接删行，不做值回写
+# （旧 `EDU_KNOWLEDGE` 覆盖三学段，无法无歧义地回写；且 8b 后非中学科目二已无对应包）。
 SUBJECT_COL = SAEnum(Subject, native_enum=False, length=32, validate_strings=True)
 STAGE_COL = SAEnum(Stage, native_enum=False, length=32, validate_strings=True)
 
 
 class QuestionType(str, Enum):
+    """题型（官方题型表见 `docs/用户需求文档.md` §1.5，此处按本期范围裁剪）。
+
+    **注意本枚举的落库方式与 `Subject` 不同**：`Question` 上用的是 `SAEnum(QuestionType)`
+    （未加 `native_enum=False`），在 PG 上是**原生 ENUM 类型** —— 新增成员需要
+    `ALTER TYPE questiontype ADD VALUE`；而 `Subject` 是 VARCHAR + CHECK（重建约束即可）。
+    迁移 `domain_model_fix` 必须分方言走这两条不同路径。
+    """
+
+    # ---- 客观题（科目一 39% 卷面）----
     SINGLE = "single"
     MULTIPLE = "multiple"
     JUDGE = "judge"      # 判断题（复用选项结构，答案为 正确/错误）
     BLANK = "blank"      # 填空题（answer 为可接受答案文本列表）
     SHORT = "short"      # 简答/名词解释（answer 为参考答案，不自动判分）
+
+    # ---- 主观题（科目一 61% 卷面）----
+    # 只加三型：材料分析 + 写作覆盖科目一 61% 卷面；教学设计服务于科目二 / 三。
+    # §1.5 的其余题型（论述 / 辨析 / 解答 / 课例点评 / 诊断 / 活动设计）留到真正要批改时再加，
+    # 避免先长出一批「有题型、无 rubric」的空壳。
+    MATERIAL = "material"  # 材料（案例）分析 —— 科目一 42 分
+    WRITING = "writing"    # 写作 —— 科目一 50 分
+    DESIGN = "design"      # 教学设计 —— 科目二 / 科目三
 
 
 class QuestionSource(str, Enum):
@@ -153,7 +264,7 @@ class KnowledgePoint(Base):
     __tablename__ = "knowledge_points"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # 稳定业务键：`科目/模块/知识点` 路径（如 "综合素质/职业理念/教育观"）。
+    # 稳定业务键：`{领域包}/{模块}/{知识点}` 路径（如 "k1_comprehensive/职业理念/教育观"）。
     # 种子幂等与环境对齐都以它为准——不能用 (subject, stage, parent_id, name) 做幂等键：
     # stage / parent_id 可为 NULL，而 SQL 唯一约束不约束 NULL，重复行会悄悄进来。
     code: Mapped[str] = mapped_column(String(255), unique=True, index=True)

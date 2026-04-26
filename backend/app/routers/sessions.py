@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import get_current_candidate
+from ..domain_packs import module_weights
 from ..routers.quota import enforce_quota
 from ..models import (
     Candidate,
@@ -41,14 +42,11 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 MOCK_QUESTION_COUNT = 30
 MOCK_DURATION_SEC = 45 * 60
 
-#: 官方模块权重（%）：职业理念15 / 职业道德15 / 教育法律法规10 / 文化素养12 / 基本能力48
-MOCK_WEIGHTS = (
-    (Module.PROFESSIONAL_IDEA, 15),
-    (Module.PROFESSIONAL_ETHICS, 15),
-    (Module.EDU_LAW, 10),
-    (Module.CULTURE_LITERACY, 12),
-    (Module.BASIC_ABILITY, 48),
-)
+#: 官方模块权重的**唯一真相在领域包**（`domain_packs/k1_comprehensive/pack.yaml`）。
+#: 此处只把它映射回 `Module` 供组卷使用 —— **不要在本文件另抄一份权重**：
+#: 两份权重并存时，改了其中一处就会出现「卷面结构与考纲不符」，而且不会有任何报错。
+#: 权重是**占比小数**（0.48 表示 48%），不是百分数。
+MOCK_WEIGHTS = module_weights(Subject.K1_COMPREHENSIVE)
 
 
 def _iso_utc(dt) -> str | None:
@@ -102,7 +100,7 @@ def _select_by_weight(db, n: int, subject: Subject | None = None, stage: Stage |
     picked: set = set()
 
     for m, w in MOCK_WEIGHTS:
-        need = max(1, round(n * w / 100))
+        need = max(1, round(n * w))  # w 是占比小数（0.48 = 48%），不是百分数
         for q in _sample_pool(db, need, base + [Question.module == m]):
             if q.id not in picked:
                 out.append(q)
