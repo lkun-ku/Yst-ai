@@ -57,6 +57,9 @@ PG 上落成**原生 ENUM 类型 `questiontype`**。新增的三个题型成员�
 PG 12+ 允许 `ADD VALUE` 在事务内执行，但**新值要到事务提交后才能被使用** ——
 本迁移只新增、不使用，安全。仓库已验证的 TencentDB PostgreSQL 18.x 满足该前提。
 
+**验证状态**：PG 环境（TencentDB PostgreSQL 18.x + pgvector 0.8.2）**此前已端到端跑通**（ADR-0010）；
+本次改动**只在本机 SQLite 路径实测过**，PG 分支待环境配好后复验。
+
 `downgrade()` 只能回滚 schema 侧，**被删除的数据无法恢复**，且 PG 不支持删除 ENUM 成员 ——
 这是一次**单向**迁移。
 """
