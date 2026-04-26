@@ -112,11 +112,19 @@ def _split_general(title: str, body: str) -> list[ChunkPlan]:
     return plans
 
 
+#: 这两个目录下的语料**按「第X条」切**（法律与行政法规都有"条"这个强单元）；
+#: 其余目录（考纲 / rubric）走段落切分。
+ARTICLE_DIRS = ("laws/", "regulations/")
+
+
 def plan_file(rel_path: str, raw: str) -> list[ChunkPlan]:
-    """一个 Markdown 文件 → 切片计划（`laws/` 走条文切分，其余走段落切分）。"""
+    """一个 Markdown 文件 → 切片计划。
+
+    目录约定：`laws/`（法律）与 `regulations/`（行政法规）按条切；其余按段切。
+    """
     meta, body = _parse_frontmatter(raw)
     title = meta.get("law") or meta.get("short") or Path(rel_path).stem
-    if rel_path.replace("\\", "/").startswith("laws/"):
+    if rel_path.replace("\\", "/").startswith(ARTICLE_DIRS):
         return split_law_articles(title, body)
     return _split_general(title, body)
 
