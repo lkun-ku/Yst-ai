@@ -82,6 +82,11 @@ class Settings:
         os.getenv("OFFICIAL_STEM_SEMANTIC_THRESHOLD", "0.92")
     )
 
+    # ---------- 官方语料（考纲 / 法条 / rubric） ----------
+    # 目录内的 Markdown 由 kb_corpus.py 切片入库为 `Document(is_official=True)`。
+    # 相对路径以 backend/ 为基准；语料随仓库走，不放在 uploads/（后者是用户上传物，被 .gitignore 忽略）。
+    official_kb_dir: str = os.getenv("OFFICIAL_KB_DIR", "./data/official")
+
     # ---------- Embedding（文档级语义检索；fake 模式不耗额度） ----------
     embedding_mode: str = os.getenv("EMBEDDING_MODE", "fake")  # fake / real
     embedding_api_base: str = os.getenv("EMBEDDING_API_BASE", "")

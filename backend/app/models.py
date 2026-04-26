@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Enum as SAEnum,
+    false,
     Float,
     ForeignKey,
     Integer,
@@ -437,12 +438,27 @@ class Mastery(Base):
 
 
 class Document(Base):
-    """用户上传的资料（文档出题模块）。解析后落纯文本与切片，归属上传者本人。"""
+    """资料（文档出题模块）。解析后落纯文本与切片。
+
+    **两类归属，靠 `candidate_id` + `is_official` 一起判定**：
+
+    | 类型 | `candidate_id` | `is_official` | 可见性 |
+    | --- | --- | --- | --- |
+    | 个人资料（用户上传） | 上传者 id | False | 仅本人 |
+    | 官方语料（考纲 / 法条 / rubric） | **None** | True | 全员 |
+
+    为什么官方语料的 `candidate_id` 是 **None 而不是哨兵 id**：
+    官方语料**不属于任何考生**。若塞一个哨兵 id，任何「按 candidate_id 查资料」的既有查询
+    都会把官方语料一起捞出来 —— 这正是最该避免的泄漏路径。用 None 则天然不匹配任何用户。
+    """
 
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id"), index=True)
+    # None = 官方语料（不属于任何考生）。见上面的类文档与 `services/scope.py` 的三条不变量。
+    candidate_id: Mapped[int | None] = mapped_column(
+        ForeignKey("candidates.id"), nullable=True, index=True
+    )
     title: Mapped[str] = mapped_column(String(255))
     file_type: Mapped[str] = mapped_column(String(16))  # pdf / docx / txt / md
     char_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -450,6 +466,12 @@ class Document(Base):
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/parsed/failed
     storage_path: Mapped[str] = mapped_column(String(512))
+    # 官方语料标记：True = 全员可见、且可被引用校验回溯到原文。
+    # 用 server_default 而非仅 Python default：保证「新建库 create_all」与「老库迁移」
+    # 两条路径产出的默认值一致，不出现 schema 漂移。
+    is_official: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

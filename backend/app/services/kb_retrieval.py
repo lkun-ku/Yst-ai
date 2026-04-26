@@ -26,10 +26,11 @@ from __future__ import annotations
 
 import numpy as np
 import re
-from sqlalchemy import select, text as sa_text
+from sqlalchemy import and_, or_, select, text as sa_text
 
 from ..models import Document, DocumentChunk
 from .embedding import embed_one, decode_vector, keyword_score, uniform_sample
+from .scope import NAMESPACE_BOTH, NAMESPACE_OFFICIAL, NAMESPACE_PERSONAL, Scope
 
 _RRF_K = 60  # Reciprocal Rank Fusion 收敛常数
 
@@ -45,10 +46,14 @@ def _is_pg(db) -> bool:
 # ---------------- 加载 ----------------
 
 def load_chunks(db, candidate_id: int) -> list[dict]:
-    """加载该考生个人资料库的全部切片（跨文档），转成检索用 dict 列表。
+    """加载某考生**个人**资料库的全部切片（跨文档），转成检索用 dict 列表。
 
     含 embedding 的进入向量通道；全部（含无 embedding 者）进入关键词通道，
     保证即便部分切片 embedding 失败也能被关键词/均匀采样兜底召回（三级降级）。
+
+    ⚠️ **本函数只看个人资料**（不含官方语料）。需要官方语料请用
+    `load_chunks_for_scope` —— 命名空间是显式传入的，不要靠默认参数"顺带"带上，
+    否则新增调用点时很容易忘记自己在查哪个范围。
     """
     rows = (
         db.execute(
@@ -75,6 +80,53 @@ def load_chunks(db, candidate_id: int) -> list[dict]:
             }
         )
     return out
+
+
+def load_chunks_for_scope(db, scope: Scope) -> list[dict]:
+    """按 `Scope` 的命名空间加载切片 —— **权限过滤发生在召回阶段**。
+
+    为什么不"先检索后过滤"：那样无权文档会先进入候选集，挤占 top-k、
+    污染 RRF 排名，而且**内容已经进了上下文**，过滤就失去意义了。
+
+    命名空间 → 条件（官方语料的 `candidate_id` 为 NULL，天然不匹配任何用户）：
+      - `official`  → 仅官方语料
+      - `personal`  → 仅本考生资料
+      - `both`      → 本考生资料 + 官方语料
+    """
+    if scope.namespace == NAMESPACE_OFFICIAL:
+        where_clause = Document.is_official.is_(True)
+    elif scope.namespace == NAMESPACE_BOTH:
+        where_clause = or_(
+            Document.candidate_id == scope.candidate_id, Document.is_official.is_(True)
+        )
+    else:
+        where_clause = and_(
+            Document.candidate_id == scope.candidate_id, Document.is_official.is_(False)
+        )
+
+    rows = (
+        db.execute(
+            select(DocumentChunk).join(Document, Document.id == DocumentChunk.document_id).where(where_clause)
+        )
+        .scalars()
+        .all()
+    )
+    return [_chunk_row(c) for c in rows]
+
+
+def _chunk_row(c) -> dict:
+    """一个 ORM 切片 → 检索用 dict（含 embedding 与降级标记）。"""
+    emb = decode_vector(c.embedding) if c.embedding else []
+    return {
+        "id": c.id,
+        "document_id": c.document_id,
+        "seq": c.seq,
+        "content": c.content or "",
+        "heading_path": c.heading_path,
+        "char_count": c.char_count or len(c.content or ""),
+        "embedding": emb,  # [] 表示无可用向量（降级）
+        "has_vec": bool(emb),
+    }
 
 
 def _clean(c: dict) -> dict:
@@ -165,13 +217,33 @@ def _scope_terms(scope: str) -> list[str]:
 
 # ---------------- 主入口 ----------------
 
+def _pg_namespace_clause(scope_obj: Scope) -> tuple[str, dict]:
+    """PG 路径的命名空间条件（SQL 片段来自常量，无字符串拼接注入面）。
+
+    布尔字面量用 `IS TRUE` / `IS FALSE` 而不是 `= 1` —— 后者在 PostgreSQL 上
+    是「boolean = integer」，会直接报错（SQLite 才用 1/0）。
+    """
+    if scope_obj.namespace == NAMESPACE_OFFICIAL:
+        return "d.is_official IS TRUE", {}
+    if scope_obj.namespace == NAMESPACE_BOTH:
+        return "(d.candidate_id = :cid OR d.is_official IS TRUE)", {"cid": scope_obj.candidate_id}
+    return "(d.candidate_id = :cid AND d.is_official IS FALSE)", {"cid": scope_obj.candidate_id}
+
+
 def retrieve_by_scope_pg(
     db,
     candidate_id: int,
     scope: str,
     k: int = 8,
     embed_fn=None,
+    scope_obj: Scope | None = None,
 ) -> list[dict]:
+    """pgvector 路径（工单 14）：单条 SQL 召回 top-k，余弦距离由 HNSW 索引加速。
+
+    `scope_obj` 为 None 时保持**旧行为**（仅本人资料）；传入 `Scope` 则按命名空间过滤。
+    做成可选参数而不是必填，是为了让 `retrieve_by_scope` / `run_eval` 等既有调用点
+    **逐步迁移** —— 不在一次改动里动所有调用方，降低回归面。新代码请直接用 `retrieve()`。
+    """
     """pgvector 路径（工单 14）：单条 SQL 召回 top-k，余弦距离由 HNSW 索引加速。
 
     与内存 numpy 路径语义对齐：返回结构字段一致（id/document_id/seq/content/heading_path/
@@ -191,18 +263,20 @@ def retrieve_by_scope_pg(
     # 注意：必须用 CAST(:q AS vector) 而非 :q::vector —— SQLAlchemy 的 text() 会把
     # `::` 视为转义/转换符，导致 :q 不被识别为绑定参数而静默丢失（参数里只剩 cid/k，
     # 运行时报 "could not determine data type of parameter"）。
+    ns = scope_obj or Scope(namespace=NAMESPACE_PERSONAL, candidate_id=candidate_id)
+    ns_sql, ns_params = _pg_namespace_clause(ns)
     sql = sa_text(
-        """
+        f"""
         SELECT dc.id, dc.document_id, dc.seq, dc.content, dc.heading_path, dc.char_count,
                1 - (dc.embedding <=> CAST(:q AS vector)) AS sim
         FROM document_chunks dc
         JOIN documents d ON d.id = dc.document_id
-        WHERE d.candidate_id = :cid AND dc.embedding IS NOT NULL
+        WHERE {ns_sql} AND dc.embedding IS NOT NULL
         ORDER BY dc.embedding <=> CAST(:q AS vector)
         LIMIT :k
         """
     )
-    rows = db.execute(sql, {"q": vec_literal, "cid": candidate_id, "k": k}).fetchall()
+    rows = db.execute(sql, {"q": vec_literal, "k": k, **ns_params}).fetchall()
     out: list[dict] = []
     for r in rows:
         sim = float(r[6])
@@ -223,41 +297,47 @@ def retrieve_by_scope_pg(
     return out
 
 
-def retrieve_by_scope(
+def retrieve(
     db,
-    candidate_id: int,
-    scope: str,
+    query: str,
+    scope: Scope,
     k: int = 8,
     embed_fn=None,
 ) -> list[dict]:
-    """跨文档混合检索主入口。
+    """跨文档混合检索主入口 —— **新代码请用这个**。
+
+    ⚠️ **术语冲突提醒（务必先读）**：本模块历史里 `scope` 一直是「自然语言查询文本」
+    的意思（见下方 `retrieve_by_scope` 的 `scope: str`）；而 `Scope` 类是**过滤条件对象**。
+    两者同名不同义。本函数用 `query` 表示查询文本、`scope` 表示 `Scope` 对象来区分 ——
+    别再往这个函数里塞第二个叫 scope 的字符串参数。
 
     按方言自动分发：
     - PostgreSQL → `retrieve_by_scope_pg`（pgvector + HNSW，单条 SQL）
-    - SQLite/dev → 内存 numpy 余弦 + 关键词 RRF + 标题加成（原路径）
+    - SQLite/dev → 内存 numpy 余弦 + 关键词 RRF + 标题加成
 
-    返回 top-k chunk，每个含 fusion_score / vector_score / keyword_score / heading_bonus。
-    embed_fn 可注入（测试用假向量）；默认 embed_one。
+    **命名空间过滤在召回阶段完成**（`load_chunks_for_scope`），不是先检索后过滤 ——
+    否则无权文档会先进入候选、挤占 top-k、污染 RRF 排名，且内容已进上下文。
     """
     if _is_pg(db):
-        return retrieve_by_scope_pg(db, candidate_id, scope, k, embed_fn)
+        candidate = scope.candidate_id
+        return retrieve_by_scope_pg(db, candidate, query, k, embed_fn, scope_obj=scope)
 
-    chunks = load_chunks(db, candidate_id)
+    chunks = load_chunks_for_scope(db, scope)
     if not chunks:
         return []
 
     fn = embed_fn or embed_one
     try:
-        qv = fn(scope)
+        qv = fn(query)
     except Exception:
         qv = None
 
     vec = vector_rank(qv, chunks)
-    kw = keyword_rank(scope, chunks)
+    kw = keyword_rank(query, chunks)
 
     if vec or kw:
         fused = rrf([vec, kw])
-        bonus = heading_bonus(scope, chunks)
+        bonus = heading_bonus(query, chunks)
         ranked = sorted(fused.keys(), key=lambda ci: -(fused[ci] + bonus.get(ci, 0.0)))
         out: list[dict] = []
         for ci in ranked[:k]:
@@ -275,3 +355,26 @@ def retrieve_by_scope(
          "keyword_score": 0, "heading_bonus": 0.0}
         for c in uniform_sample(chunks, k)
     ]
+
+
+def retrieve_by_scope(
+    db,
+    candidate_id: int,
+    scope: str,
+    k: int = 8,
+    embed_fn=None,
+) -> list[dict]:
+    """旧入口：查某考生的**个人**资料库。这里 `scope` 是自然语言查询文本（不是 `Scope`）。
+
+    保留它是为了不让既有调用点（`kb_generate` / `kb_graph` / `run_eval` / `retrieval_eval`）
+    在一次改动里全动 —— 一次改太多调用点是回归的主要来源。
+
+    **新代码请用 `retrieve()`**：它显式传 `Scope`，才能表达「查官方 / 查个人 / 两者都查」。
+    """
+    return retrieve(
+        db,
+        scope,
+        Scope(namespace=NAMESPACE_PERSONAL, candidate_id=candidate_id),
+        k,
+        embed_fn,
+    )
