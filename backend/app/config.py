@@ -87,6 +87,18 @@ class Settings:
     # 相对路径以 backend/ 为基准；语料随仓库走，不放在 uploads/（后者是用户上传物，被 .gitignore 忽略）。
     official_kb_dir: str = os.getenv("OFFICIAL_KB_DIR", "./data/official")
 
+    # ---------- 引用校验（source_quote 子串硬校验，见 services/citation.py） ----------
+    # 开关用于做 A/B 对照（开/关闸门对欠产率与编造率的影响），生产默认开。
+    citation_gate_enabled: bool = os.getenv("CITATION_GATE_ENABLED", "true").lower() == "true"
+    # 是否要求每道题**必须**给出引用。
+    # 默认 false：提示词已要求 source_quote，但模型偶尔漏字段 ——
+    # 「没给引用」是提示词遵守度问题，不是编造，拦截它只会让欠产率上升；
+    # 「给了引用却定位不到」才是编造，那种情况**无论此开关如何都拦**。
+    citation_require_quote: bool = os.getenv("CITATION_REQUIRE_QUOTE", "false").lower() == "true"
+    # 归一化后的最短引用长度：低于此值不能作为证据（"的""学生"在任何切片里都能命中），
+    # 按编造处理 —— 而被它拦下的真实引用本来就是不合格的引用。
+    citation_min_quote_chars: int = int(os.getenv("CITATION_MIN_QUOTE_CHARS", "6"))
+
     # ---------- Embedding（文档级语义检索；fake 模式不耗额度） ----------
     embedding_mode: str = os.getenv("EMBEDDING_MODE", "fake")  # fake / real
     embedding_api_base: str = os.getenv("EMBEDDING_API_BASE", "")

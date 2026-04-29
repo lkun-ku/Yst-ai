@@ -151,7 +151,9 @@ class FakeLLMClient(LLMClient):
             qtype = tm.group(1) if tm else "single"
             cm = re.search(r"生成 (\d+) 道", prompt)
             count = int(cm.group(1)) if cm else 1
-            items = _fake_doc_questions("个人资料-考点", qtype, count)
+            items = _fake_doc_questions(
+                "个人资料-考点", qtype, count, quote=_quote_from_prompt(prompt)
+            )
             return json.dumps({"questions": items}, ensure_ascii=False)
         if "【检索相关性评分】" in prompt:
             return '{"relevant": true, "score": 0.9}'
@@ -379,12 +381,46 @@ def get_llm_client() -> LLMClient:
 
 _FAKE_Q_IDX = 0  # 全局自增，保证跨多次调用生成的题目全局唯一（避免被 _persist_questions 去重丢弃）
 
+#: 出题提示词里的切片块头（`[切片 #12｜法名 / 章 / 条]`），用于让 fake 摘录真实原文。
+_CHUNK_HEADER_RE = re.compile(r"^\[切片 #(\d+)｜[^\]]*\]$")
 
-def _fake_doc_questions(module: str, qtype: str, count: int) -> list[dict]:
+
+def _quote_from_prompt(prompt: str) -> str | None:
+    """从出题提示词的切片块里**原样摘录**一句，作为 fake 的 `source_quote`。
+
+    **为什么 fake 必须摘真实的原文，而不是编一个固定串**：引用闸门（`citation.py`）
+    是硬校验 —— 若 fake 给的引用在任何切片里都定位不到，`LLM_MODE=fake` 下所有题都会被
+    拦截，测试就再也覆盖不到闸门之后的链路（等于把闸门连同下游一起"测没了"）。
+    fake 摘录真实原文，语义上等价于"真实模型引用正确"，闸门放行，链路照常被覆盖。
+
+    摘取规则：取第一个切片块的首段（最多 40 字）。因为出题提示词是**逐行**追加切片正文的，
+    按行还原后再截断，得到的是切片正文的真实前缀 —— 精确子串判定必然命中。
+    """
+    lines = prompt.splitlines()
+    for i, line in enumerate(lines):
+        if not _CHUNK_HEADER_RE.match(line.strip()):
+            continue
+        buf: list[str] = []
+        for nxt in lines[i + 1:]:
+            s = nxt.strip()
+            # 空行 = 该切片正文结束；下一个切片头 / 输出格式行 = 强制结束
+            if not s or _CHUNK_HEADER_RE.match(s) or s.startswith("输出格式"):
+                break
+            buf.append(nxt)
+        text = "\n".join(buf).strip()
+        if len(text) >= 12:
+            return text[:40]
+    return None
+
+
+def _fake_doc_questions(module: str, qtype: str, count: int, quote: str | None = None) -> list[dict]:
     """构造可通过结构化校验的伪题目（kb_generate/kb_graph 测试与 FakeLLMClient 复用）。
 
     module 固定为「个人资料」，跳过官方模块的考点归属校验；按题型补齐 options/answer。
     题干 / 考点用全局自增下标，确保多次调用之间不重复（否则补偿轮被去重）。
+
+    `quote`：写入 `source_quote` 的引用串。调用方（FakeLLMClient.ask）从提示词的
+    切片块中真实摘录，使引用闸门可放行；为 None 时该字段缺省（闸门记为"未给引用"）。
     """
     global _FAKE_Q_IDX
     items: list[dict] = []
@@ -402,6 +438,8 @@ def _fake_doc_questions(module: str, qtype: str, count: int) -> list[dict]:
             "explanation": f"本题考查《{module}》核心要点。",
             "type": qtype,
         }
+        if quote:
+            base["source_quote"] = quote
         if qtype in ("single", "multiple", "judge"):
             if qtype == "judge":
                 base["options"] = [

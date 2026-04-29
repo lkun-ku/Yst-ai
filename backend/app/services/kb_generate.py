@@ -29,6 +29,8 @@ from .doc_generate import (
 )
 from .kb_events import slice_previews
 from .kb_retrieval import retrieve_by_scope
+from .citation import describe as describe_citations
+from .citation import quotes_of, split_by_citation
 from .validation import validate_question_payload
 from .llm_client import get_llm_client, parse_doc_questions
 from .prompts_kb import (
@@ -169,6 +171,39 @@ def _selfcheck_batch(
     return keep, False
 
 
+def _apply_citation_gate(payloads: list[dict], chunks: list[dict], emit=None) -> list[dict]:
+    """引用硬校验闸门：**无法在召回切片中定位的题一律拦截**（services/citation.py）。
+
+    为什么插在「规则校验之后、LLM 自检之前」：
+    - 规则校验回答"格式对不对"，引用校验回答"有没有依据" —— **两者都是确定性判定、
+      零模型调用、零成本**。把它们排在自检之前，可以用最低代价砍掉最危险的一类输出（编造）；
+      自检（有成本、有随机性）只用来处理剩下的"质量好不好"。
+    - 若顺序反过来，会先花 LLM 调用去评估一道**依据根本不存在**的题 —— 既浪费额度，
+      又让自检的结论变得不可信（它在评一道无据题"质量如何"）。
+
+    拦截是**硬**的（不看配置）：开关只控制闸门是否启用，不控制"编造是否放行"。
+    被拦下的题连同其引用一并写进事件详情，供人工复盘"模型到底编了什么"。
+    """
+    items = list(payloads or [])
+    if not items or not settings.citation_gate_enabled:
+        return items
+    kept, blocked, report = split_by_citation(
+        items,
+        chunks,
+        require_quote=settings.citation_require_quote,
+        min_chars=settings.citation_min_quote_chars,
+    )
+    if emit:
+        detail = {
+            "blocked": [
+                {"stem": str(b.get("stem") or "")[:60], "quotes": quotes_of(b)[:3]}
+                for b in blocked[:5]
+            ]
+        }
+        emit("citation", describe_citations(report, blocked), detail)
+    return kept
+
+
 def _generate_batch_with_fallback(
     client,
     scope,
@@ -244,6 +279,8 @@ def _generate_batch_with_fallback(
                 continue
             local_seen.add(stem)
             ok_payloads.append(p)
+        # 引用硬校验：格式过了不代表有依据 —— 编造在这里被拦，不进入自检（省钱且更可信）
+        ok_payloads = _apply_citation_gate(ok_payloads, chunks, emit)
         if not ok_payloads:
             if emit and size != sizes[0]:
                 emit("stage", "第 %d 题粒度生成未通过规则校验，继续降粒度" % size)
@@ -379,6 +416,9 @@ def generate_by_scope(
                 client, scope, qtype, count, difficulty, focus, picked, seen,
                 bloom_mix=bloom_distribution(count, levels), covered_kps=covered,
             )
+            # 引用硬校验**不随 enable_loop 开关**：它是确定性硬约束，不是"质量闭环"的一环。
+            # 若只在 loop 路径加，A/B 对照（loop vs 非 loop）就会混入第二个变量。
+            payloads = _apply_citation_gate(payloads, chunks, emit)
         base = len(created)
         new_qs = _persist_questions(
             db, candidate_id, None, payloads or [], seen,
@@ -419,6 +459,7 @@ def generate_by_scope(
                     bloom_mix=bloom_distribution(compensation_count(need), levels),
                     covered_kps=sorted({str(q.knowledge_point) for q in created if q.knowledge_point}),
                 )
+                payloads = _apply_citation_gate(payloads, chunks, emit)
             created += _persist_questions(
                 db, candidate_id, None, payloads or [], seen,
                 source_chunk=build_source_chunk(picked),

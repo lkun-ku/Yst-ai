@@ -24,8 +24,9 @@ backend/.env
 # OS
 .DS_Store
 
-# 评测产物（本地实验数据，不入库）
-backend/eval/results/
+# 评测产物（2026-06-11 调整）：**基准表入库** —— `results/*.md|json` 是
+# 「某项优化到底有没有效」的唯一证据；不随代码走就等于没有证据（面试时只能口述数字）。
+# 评测库仍是本地重算的中间产物（每次运行都会重建），不入库。
 backend/eval/eval_kb.db
 backend/eval/eval_kb.db-journal
 

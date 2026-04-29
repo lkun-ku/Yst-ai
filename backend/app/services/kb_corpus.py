@@ -61,11 +61,36 @@ def _parse_frontmatter(text: str) -> tuple[dict, str]:
     return meta, text[m.end():]
 
 
+#: 章标题行（可能带 `#` 前缀）。用于把混进条文尾部的**下一章标题**切掉。
+#: 限长 30 字是防误判：真正的章标题很短，而条文正文里不会出现"整行只有第X章…"的写法。
+_CHAPTER_LINE_RE = re.compile(r"(?m)^\s*#{0,6}\s*第[一二三四五六七八九十]+章[\s　]*[^\n]{0,30}$")
+
+
+def _trim_trailing_chapter(segment: str) -> str:
+    """切掉条文尾部混入的**下一章标题**。
+
+    **为什么必须切**：条文片段取的是「本条开头 → 下一条开头」，而这两条之间可能隔着
+    下一章的标题（**章的首条**尤其常见，如第一章末条之后紧接 `## 第二章 权利和义务`）。
+    不切的话，章标题会进入本条正文 —— 后果有两个：
+    ① 检索污染：章标题成了该片内容，会被向量与关键词通道一起命中；
+    ② **引用校验被绕过**：`source_quote` 可以引用一段章标题，
+       而它会因为"确实出现在该片正文里"而通过硬校验 —— 这是个真实的漏洞。
+
+    该方法由 `eval/citation_eval.py` 的基准跑出来的（一条"删中间字"用例漏放，
+    追下去发现差异全在 `## 第二章` 这几个字符上），不是凭空加的防御。
+    """
+    hits = list(_CHAPTER_LINE_RE.finditer(segment))
+    if hits:
+        # 取**最后一个**：它才是本条与下一条之间的那道章边界
+        segment = segment[: hits[-1].start()]
+    return segment.strip()
+
+
 def split_law_articles(title: str, body: str) -> list[ChunkPlan]:
     """把法条正文按「第X条」切成一片一条。
 
     条号前的**章标题**会并入 `heading_path`（如 `第二章 权利和义务 / 第七条`）——
-    这样引用展示时能同时给出章与条，而正文仍只含本条内容。
+    这样引用展示时能同时给出章与条，而正文只含本条内容（见 `_trim_trailing_chapter`）。
     """
     plans: list[ChunkPlan] = []
     current_chapter = ""
@@ -88,7 +113,7 @@ def split_law_articles(title: str, body: str) -> list[ChunkPlan]:
                 current_chapter = last
 
         article = m.group(1)
-        content = segment.strip()
+        content = _trim_trailing_chapter(segment)
         if not content:
             continue
         heading = f"{title} / {current_chapter} / {article}" if current_chapter else f"{title} / {article}"

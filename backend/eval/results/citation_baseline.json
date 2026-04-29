@@ -1,0 +1,76 @@
+{
+  "metadata": {
+    "time": "2026-06-11T01:16:06",
+    "excerpt_chars": 40,
+    "context_window": 5,
+    "min_quote_chars": 6,
+    "n_chunks": 415,
+    "n_cases": 378,
+    "n_positives": 184,
+    "n_negatives": 194,
+    "skipped_negatives": 0,
+    "truth_rule": "反例真值 = 该字符串在语料中精确不存在（独立于校验器的归一化判定）"
+  },
+  "metrics": {
+    "n": 378,
+    "known_fabricated": 194,
+    "intercepted": 194,
+    "passed": 184,
+    "leaked": 0,
+    "interception_rate": 1.0,
+    "leaked_fabrication_rate": 0.0,
+    "false_negative_rate": 0.0,
+    "sound": true
+  },
+  "by_kind": {
+    "逐字摘录": {
+      "n": 48,
+      "passed": 48,
+      "expected_pass": true
+    },
+    "改标点": {
+      "n": 40,
+      "passed": 40,
+      "expected_pass": true
+    },
+    "改断行": {
+      "n": 48,
+      "passed": 48,
+      "expected_pass": true
+    },
+    "出处前缀": {
+      "n": 48,
+      "passed": 48,
+      "expected_pass": true
+    },
+    "换条号": {
+      "n": 48,
+      "passed": 0,
+      "expected_pass": false
+    },
+    "换词": {
+      "n": 48,
+      "passed": 0,
+      "expected_pass": false
+    },
+    "删中间字": {
+      "n": 47,
+      "passed": 0,
+      "expected_pass": false
+    },
+    "拼接两条": {
+      "n": 47,
+      "passed": 0,
+      "expected_pass": false
+    },
+    "凭空编造": {
+      "n": 4,
+      "passed": 0,
+      "expected_pass": false
+    }
+  },
+  "levels": {
+    "exact": 49,
+    "normalized": 135
+  }
+}

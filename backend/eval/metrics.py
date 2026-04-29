@@ -131,3 +131,99 @@ def evaluate_retrieval(
         n_queries=len(labeled),
         ks=ks,
     )
+
+
+@dataclass(frozen=True)
+class CitationGateMetrics:
+    """引用闸门的**成对**度量（改造计划 §3 第 4 项）。
+
+    **为什么必须成对看**：只看「流出编造率 = 0」是自欺 —— 若闸门根本没触发
+    （开关关了、引用字段没人写、候选里压根没有引用），这个 0 与"闸门有效"
+    在数字上**长得一模一样**。必须同时看「拦截率 > 0」：
+    前者证明它拦得住，后者证明它确实在拦。
+
+    两个口径的分母刻意不同：
+    - 拦截率 = 拦下的已知编造 / **已知编造总数**（真值）→ 回答"该拦的拦住了吗"
+    - 流出编造率 = 流出且真值为编造 / **通过总数**（实际输出）→ 回答"出去的东西干净吗"
+    """
+
+    n_total: int
+    n_known_fabricated: int
+    n_intercepted: int
+    n_passed: int
+    n_leaked_fabricated: int
+
+    @property
+    def interception_rate(self) -> float:
+        if not self.n_known_fabricated:
+            return 0.0
+        return round(self.n_intercepted / self.n_known_fabricated, 4)
+
+    @property
+    def leaked_fabrication_rate(self) -> float:
+        if not self.n_passed:
+            return 0.0
+        return round(self.n_leaked_fabricated / self.n_passed, 4)
+
+    @property
+    def false_negative_rate(self) -> float:
+        """误杀率 = 真实引用被拦下的比例 —— 子串匹配的**已知代价**，必须一并上报。"""
+        n_real = self.n_total - self.n_known_fabricated
+        if not n_real:
+            return 0.0
+        return round((n_real - (self.n_passed - self.n_leaked_fabricated)) / n_real, 4)
+
+    @property
+    def sound(self) -> bool:
+        """闸门是否"在干活且干对了"：有已知编造、拦下了、且一条都没漏放。"""
+        return (
+            self.n_known_fabricated > 0
+            and self.interception_rate > 0
+            and self.leaked_fabrication_rate == 0
+        )
+
+    def as_row(self) -> dict:
+        return {
+            "n": self.n_total,
+            "known_fabricated": self.n_known_fabricated,
+            "intercepted": self.n_intercepted,
+            "passed": self.n_passed,
+            "leaked": self.n_leaked_fabricated,
+            "interception_rate": self.interception_rate,
+            "leaked_fabrication_rate": self.leaked_fabrication_rate,
+            "false_negative_rate": self.false_negative_rate,
+            "sound": self.sound,
+        }
+
+
+def evaluate_citation_gate(
+    cases: Sequence[dict],
+    verify_fn: Callable[[str, Sequence], bool],
+) -> CitationGateMetrics:
+    """跑一遍带真值的引用用例，产出成对指标。
+
+    `cases`     : `[{"quote": str, "chunks": [...], "fabricated": bool}, ...]`
+    `verify_fn` : `(quote, chunks) -> bool`（True = 可定位、放行）
+
+    与 `evaluate_retrieval` 同一设计：**指标不 import 校验器**，校验实现由调用方注入，
+    这样换判定算法（子串 → 别的机制）时指标代码不动、历史数字仍可比。
+    """
+    n_fab = n_int = n_pass = n_leak = 0
+    for c in cases:
+        fab = bool(c.get("fabricated"))
+        ok = bool(verify_fn(c.get("quote") or "", c.get("chunks") or []))
+        if fab:
+            n_fab += 1
+            if not ok:
+                n_int += 1
+        if ok:
+            n_pass += 1
+        if fab and ok:
+            n_leak += 1
+    return CitationGateMetrics(
+        n_total=len(cases),
+        n_known_fabricated=n_fab,
+        n_intercepted=n_int,
+        n_passed=n_pass,
+        n_leaked_fabricated=n_leak,
+    )
