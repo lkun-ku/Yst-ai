@@ -1,9 +1,12 @@
 {
   "metadata": {
-    "time": "2026-06-10T23:56:48",
+    "time": "2026-06-11T01:56:10",
     "domain": "教资",
+    "corpus": "personal（评测语料）",
     "n_chunks": 6,
     "n_queries": 15,
+    "n_labels_handwritten": 15,
+    "n_labels_auto": 0,
     "ks": [
       1,
       2,
@@ -11,7 +14,8 @@
     ],
     "mode": "LLM=real, Embedding=real",
     "label_status": "预标（待人工抽检）",
-    "drift": 0
+    "drift": 0,
+    "ingest": null
   },
   "rows": {
     "① dense": {
@@ -22,7 +26,7 @@
       "mrr": 0.9667,
       "ndcg": 0.9754
     },
-    "② sparse": {
+    "② sparse·命中数": {
       "n": 15,
       "recall@1": 1.0,
       "recall@2": 1.0,
@@ -30,7 +34,7 @@
       "mrr": 1.0,
       "ndcg": 1.0
     },
-    "③ +RRF": {
+    "③ sparse·BM25": {
       "n": 15,
       "recall@1": 1.0,
       "recall@2": 1.0,
@@ -38,7 +42,31 @@
       "mrr": 1.0,
       "ndcg": 1.0
     },
-    "④ +RRF+标题加成": {
+    "④ RRF(命中数)": {
+      "n": 15,
+      "recall@1": 1.0,
+      "recall@2": 1.0,
+      "recall@3": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    "⑤ RRF(命中数)+标题 ★生产": {
+      "n": 15,
+      "recall@1": 0.9333,
+      "recall@2": 0.9333,
+      "recall@3": 0.9333,
+      "mrr": 0.95,
+      "ndcg": 0.9333
+    },
+    "⑥ RRF(BM25)": {
+      "n": 15,
+      "recall@1": 1.0,
+      "recall@2": 1.0,
+      "recall@3": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    "⑦ RRF(BM25)+标题": {
       "n": 15,
       "recall@1": 0.9333,
       "recall@2": 0.9333,

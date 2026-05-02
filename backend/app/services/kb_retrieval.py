@@ -9,15 +9,25 @@
 
 检索构成：
 - 向量通道：numpy 矩阵化余弦（单用户数千 chunk 毫秒级）；
-- 关键词通道：二元组命中（复用 `embedding.keyword_score`）；
+- 关键词通道：二元组命中数（`embedding.keyword_score`）；
 - 两路按 **RRF（Reciprocal Rank Fusion）** 融合，叠加标题路径精确命中加成；
 - 三级降级：向量或关键词任一可用即融合；两者皆空则均匀采样兜底（保证覆盖）。
+
+**稀疏通道试过升级为 BM25，被指标否决并回退**（2026-06-11）：
+在 `eval/datasets/官方法条/` 上实测，BM25 的 recall@1 仅为命中数口径的**一半以下**
+（0.26~0.38 vs 0.73），扫遍 k1/b 仍差一倍以上。
+根因不是实现问题，是**本场景的信号结构**：法名的 bigram（`育法`/`法第`）不在条文正文里，
+条号的 bigram（`第一`/`一条`）每部法都有 —— 于是 IDF 压掉的恰好是唯一还能用的那批中等频率内容词。
+完整数据与反转条件见 `embedding.BigramBM25` 的 docstring 与 ADR-0015。
+**这张"升级失败"的表保留在 `eval/retrieval_eval.py`** ——
+它既是回退决策的依据，也是将来语料变大后重新评估的基线。
 
 返回带分值（fusion_score / vector_score / keyword_score / heading_bonus）的 chunk 列表，
 供质量闭环的「相关性评分」节点消费。
 **生产 PG 走 pgvector（工单 14）**：`retrieve_by_scope` 按方言自动分发——
-PostgreSQL → `retrieve_by_scope_pg`（`embedding VECTOR(1024)` + HNSW + SQL 余弦距离）；
-SQLite / dev → 下面的内存混合检索。两条路径返回结构一致，上层无感。
+PostgreSQL → `retrieve_by_scope_pg`（向量走 HNSW + SQL 余弦；关键词走 SQL 粗筛 + 应用层**同口径**打分，
+两路 RRF 融合）；SQLite / dev → 下面的内存混合检索。两条路径返回结构**字段一致**，
+且**用同一个稀疏打分函数**（换方言不该改变检索效果）。
 
 复用 `embedding.py`：embed_one / decode_vector / keyword_score / uniform_sample。
 """
@@ -26,10 +36,18 @@ from __future__ import annotations
 
 import numpy as np
 import re
+from typing import Sequence
 from sqlalchemy import and_, or_, select, text as sa_text
 
 from ..models import Document, DocumentChunk
-from .embedding import embed_one, decode_vector, keyword_score, uniform_sample
+from .embedding import (
+    BigramBM25,
+    decode_vector,
+    embed_one,
+    keyword_score,
+    query_terms,
+    uniform_sample,
+)
 from .scope import NAMESPACE_BOTH, NAMESPACE_OFFICIAL, NAMESPACE_PERSONAL, Scope
 
 _RRF_K = 60  # Reciprocal Rank Fusion 收敛常数
@@ -162,9 +180,35 @@ def vector_rank(query_vec: list[float] | None, chunks: list[dict]) -> list[tuple
 
 
 def keyword_rank(query: str, chunks: list[dict]) -> list[tuple[int, int]]:
-    """关键词通道：二元组命中数排序，返回 [(score, chunk_index)] 降序。"""
+    """关键词通道**旧口径**：二元组命中数排序。
+
+    保留只为消融对照（`eval/retrieval_eval.py` 的新旧并排表）——
+    没有旧口径的数字，「换成 BM25 更有效」这句话无法证明。生产请用 `keyword_rank_bm25`。
+    """
     scored = [(keyword_score(query, c["content"]), i) for i, c in enumerate(chunks)]
     scored = [(s, i) for s, i in scored if s > 0]
+    scored.sort(key=lambda x: -x[0])
+    return scored
+
+
+def keyword_rank_bm25(
+    query: str, chunks: list[dict], index: BigramBM25 | None = None
+) -> list[tuple[float, int]]:
+    """关键词通道的 **BM25 变体** —— **仅供消融对照，生产不用**（见 `BigramBM25` docstring）。
+
+    保留它的唯一理由是让 `eval/retrieval_eval.py` 能把新旧口径并排跑一张表：
+    「升级为 BM25」这个决定是被那张表**否决**的，表与代码一起留着，
+    将来语料规模变化时可以原地重跑、重判。
+
+    `index` 可由调用方预先建好复用（同一批切片多次查询时不必重复 fit）。
+
+    返回的 score 是**绝对值、不可跨查询比较**的 BM25 分（含 IDF，随语料变化）——
+    它只用于排序与展示，**不要**拿它做阈值判定（阈值会随语料规模漂移）。
+    """
+    if not chunks:
+        return []
+    idx = index or BigramBM25.fit([c.get("content") or "" for c in chunks])
+    scored = [(float(s), i) for i, s in enumerate(idx.score(query)) if s > 0]
     scored.sort(key=lambda x: -x[0])
     return scored
 
@@ -230,56 +274,84 @@ def _pg_namespace_clause(scope_obj: Scope) -> tuple[str, dict]:
     return "(d.candidate_id = :cid AND d.is_official IS FALSE)", {"cid": scope_obj.candidate_id}
 
 
-def retrieve_by_scope_pg(
-    db,
-    candidate_id: int,
-    scope: str,
-    k: int = 8,
-    embed_fn=None,
-    scope_obj: Scope | None = None,
+#: PG 双通道的候选深度：**两路取同样的深度再融合**。
+#: RRF 只看排名不看分数，两路长度悬殊会让"长的那一路"的末尾条目凭空拿到排名分。
+_PG_POOL = 60
+#: 关键词 SQL 粗筛的候选上限（比 `_PG_POOL` 宽，留出被 BM25 重排裁剪的余量）。
+_PG_KEYWORD_POOL = 200
+
+
+def _pg_keyword_candidates_sql(ns_sql: str, terms: Sequence[str], pool: int) -> tuple[str, dict]:
+    """构造 PG 关键词候选的 SQL 与参数（**纯函数，可单测**）。
+
+    每个词项一个 `LIKE :t{i}` **绑定参数** —— 不拼接任何用户输入；
+    `ns_sql` 也只来自 `_pg_namespace_clause` 的常量，没有注入面。
+
+    为什么 SQL 只做"粗筛"而不直接算 BM25：**PG 默认没有中文分词**，
+    算不出词频与文档频率；而按 LIKE 命中数排序就退回了被淘汰的"命中数"口径。
+    所以这里只把候选缩到可算规模，精算交给应用层的 `BigramBM25`。
+    """
+    likes = " OR ".join(f"dc.content LIKE :t{i}" for i in range(len(terms)))
+    sql = (
+        "SELECT dc.id, dc.document_id, dc.seq, dc.content, dc.heading_path, dc.char_count "
+        "FROM document_chunks dc "
+        "JOIN documents d ON d.id = dc.document_id "
+        f"WHERE ({ns_sql}) AND ({likes}) "
+        "LIMIT :pool"
+    )
+    params: dict = {f"t{i}": f"%{t}%" for i, t in enumerate(terms)}
+    params["pool"] = pool
+    return sql, params
+
+
+def _fuse_pg_rows(
+    vec_rows,
+    kw_rows,
+    query: str,
+    k: int,
+    pool: int = _PG_POOL,
 ) -> list[dict]:
-    """pgvector 路径（工单 14）：单条 SQL 召回 top-k，余弦距离由 HNSW 索引加速。
+    """把「向量行」与「关键词候选行」融合成最终结果 —— **不碰数据库，因而可单测**。
 
-    `scope_obj` 为 None 时保持**旧行为**（仅本人资料）；传入 `Scope` 则按命名空间过滤。
-    做成可选参数而不是必填，是为了让 `retrieve_by_scope` / `run_eval` 等既有调用点
-    **逐步迁移** —— 不在一次改动里动所有调用方，降低回归面。新代码请直接用 `retrieve()`。
-    """
-    """pgvector 路径（工单 14）：单条 SQL 召回 top-k，余弦距离由 HNSW 索引加速。
+    PG 路径的融合逻辑全部收在这里，`retrieve_by_scope_pg` 只负责执行两条 SQL。
+    这样最容易出错的部分（去重、序号对齐、两路等深裁剪、RRF、标题加成、缺字段补齐）
+    可以在 SQLite 上用**合成行**验证，而不需要真的起一个 PostgreSQL。
 
-    与内存 numpy 路径语义对齐：返回结构字段一致（id/document_id/seq/content/heading_path/
-    char_count/fusion_score/vector_score/keyword_score/heading_bonus）；仅走向量通道，
-    keyword/heading 在 PG 路径下不参与融合（生产 chunk 全部有 embedding，可接受）。
-    query embedding 失败 → 空结果（不静默降级；上层可重试或回退到内存路径）。
+    行布局（两条 SQL 必须一致）：
+        0)id 1)document_id 2)seq 3)content 4)heading_path 5)char_count
+        向量行另有第 7 列 = 余弦相似度；关键词候选行没有第 7 列。
+
+    **与内存路径的口径**：稀疏打分用**同一个** `keyword_score`（命中数）——
+    两条路径必须同口径，否则"换方言"就等于换了检索效果，而换方言不该改变结果。
     """
-    fn = embed_fn or embed_one
-    try:
-        qv = fn(scope) or []
-    except Exception:
-        qv = []
-    if not qv:
+    seen: dict = {}
+    vec_score: dict = {}
+    for r in vec_rows or []:
+        seen[r[0]] = r
+        vec_score[r[0]] = float(r[6]) if len(r) > 6 and r[6] is not None else 0.0
+    for r in kw_rows or []:
+        seen.setdefault(r[0], r)
+    if not seen:
         return []
 
-    vec_literal = "[" + ",".join(f"{x:.7f}" for x in qv) + "]"
-    # 注意：必须用 CAST(:q AS vector) 而非 :q::vector —— SQLAlchemy 的 text() 会把
-    # `::` 视为转义/转换符，导致 :q 不被识别为绑定参数而静默丢失（参数里只剩 cid/k，
-    # 运行时报 "could not determine data type of parameter"）。
-    ns = scope_obj or Scope(namespace=NAMESPACE_PERSONAL, candidate_id=candidate_id)
-    ns_sql, ns_params = _pg_namespace_clause(ns)
-    sql = sa_text(
-        f"""
-        SELECT dc.id, dc.document_id, dc.seq, dc.content, dc.heading_path, dc.char_count,
-               1 - (dc.embedding <=> CAST(:q AS vector)) AS sim
-        FROM document_chunks dc
-        JOIN documents d ON d.id = dc.document_id
-        WHERE {ns_sql} AND dc.embedding IS NOT NULL
-        ORDER BY dc.embedding <=> CAST(:q AS vector)
-        LIMIT :k
-        """
-    )
-    rows = db.execute(sql, {"q": vec_literal, "k": k, **ns_params}).fetchall()
+    rows = list(seen.values())
+    idx_of = {r[0]: i for i, r in enumerate(rows)}
+
+    vec_ranked = [(vec_score[r[0]], idx_of[r[0]]) for r in rows if vec_score.get(r[0], 0.0) > 0.0]
+    vec_ranked.sort(key=lambda x: -x[0])
+
+    kw_ranked = [(keyword_score(query, r[3] or ""), i) for i, r in enumerate(rows)]
+    kw_ranked = [(s, i) for s, i in kw_ranked if s > 0]
+    kw_ranked.sort(key=lambda x: -x[0])
+    kw_ranked = kw_ranked[:pool]  # 与向量路等深，避免长列表凭空带来排名分
+
+    fused = rrf([vec_ranked, kw_ranked])
+    bonus = heading_bonus(query, [{"heading_path": r[4]} for r in rows])
+    order = sorted(fused.keys(), key=lambda i: -(fused[i] + bonus.get(i, 0.0)))
+
     out: list[dict] = []
-    for r in rows:
-        sim = float(r[6])
+    for i in order[:k]:
+        r = rows[i]
         out.append(
             {
                 "id": r[0],
@@ -288,13 +360,81 @@ def retrieve_by_scope_pg(
                 "content": r[3] or "",
                 "heading_path": r[4],
                 "char_count": r[5] or 0,
-                "fusion_score": sim,
-                "vector_score": sim,
-                "keyword_score": 0,
-                "heading_bonus": 0.0,
+                "fusion_score": round(fused[i] + bonus.get(i, 0.0), 4),
+                "vector_score": vec_score.get(r[0], 0.0),
+                "keyword_score": next((s for s, j in kw_ranked if j == i), 0.0),
+                "heading_bonus": bonus.get(i, 0.0),
             }
         )
     return out
+
+
+def retrieve_by_scope_pg(
+    db,
+    candidate_id: int,
+    scope: str,
+    k: int = 8,
+    embed_fn=None,
+    scope_obj: Scope | None = None,
+) -> list[dict]:
+    """pgvector 路径（工单 14）：**向量 ⊕ 关键词双通道**，两路 RRF 融合后取 top-k。
+
+    `scope_obj` 为 None 时保持**旧行为**（仅本人资料）；传入 `Scope` 则按命名空间过滤。
+    做成可选参数而不是必填，是为了让 `retrieve_by_scope` / `run_eval` 等既有调用点
+    **逐步迁移** —— 不在一次改动里动所有调用方，降低回归面。新代码请直接用 `retrieve()`。
+
+    **本次修复的缺口**：此前 PG 路径**只走向量通道**，关键词不参与融合。
+    当时的理由是"生产 chunk 全部有 embedding，可接受"—— 这个推理只覆盖了
+    「能不能召回」，没覆盖「召回得准不准」：像「《教师法》第七条」「试卷代码 101」
+    这类编号与专名在向量空间里接近噪声，纯向量会稳定返回"数学上很像"的错误条款。
+
+    **embedding 失败时不再直接返回空**：改为只走关键词通道 ——
+    原实现在 query embedding 失败时静默返回空结果，那是把"部分能力可用"
+    误报成"没有数据"。
+
+    ⚠️ **本分支未在真实 PostgreSQL 上验证过**（本机与 CI 都没有 PG 实例）。
+    已验证的部分：`_pg_keyword_candidates_sql` 的 SQL/参数构造、
+    `_fuse_pg_rows` 的融合逻辑（合成行单测）、SQLite 下的方言分发。
+    `<=>` / `CAST(... AS vector)` / `IS TRUE` 这些 PG 专有写法**沿用既有代码**，本次未改语义 ——
+    但"未改动"不等于"已验证"，它此前也从未在真 PG 上跑过。
+    """
+    ns = scope_obj or Scope(namespace=NAMESPACE_PERSONAL, candidate_id=candidate_id)
+    ns_sql, ns_params = _pg_namespace_clause(ns)
+
+    fn = embed_fn or embed_one
+    try:
+        qv = fn(scope) or []
+    except Exception:
+        qv = []
+
+    vec_rows: list = []
+    if qv:
+        vec_literal = "[" + ",".join(f"{x:.7f}" for x in qv) + "]"
+        # 注意：必须用 CAST(:q AS vector) 而非 :q::vector —— SQLAlchemy 的 text() 会把
+        # `::` 视为转义/转换符，导致 :q 不被识别为绑定参数而静默丢失（参数里只剩 cid/k，
+        # 运行时报 "could not determine data type of parameter"）。
+        vec_sql = sa_text(
+            f"""
+            SELECT dc.id, dc.document_id, dc.seq, dc.content, dc.heading_path, dc.char_count,
+                   1 - (dc.embedding <=> CAST(:q AS vector)) AS sim
+            FROM document_chunks dc
+            JOIN documents d ON d.id = dc.document_id
+            WHERE {ns_sql} AND dc.embedding IS NOT NULL
+            ORDER BY dc.embedding <=> CAST(:q AS vector)
+            LIMIT :k
+            """
+        )
+        vec_rows = db.execute(
+            vec_sql, {"q": vec_literal, "k": _PG_POOL, **ns_params}
+        ).fetchall()
+
+    terms = query_terms(scope)
+    kw_rows: list = []
+    if terms:
+        kw_sql, kw_params = _pg_keyword_candidates_sql(ns_sql, terms, _PG_KEYWORD_POOL)
+        kw_rows = db.execute(sa_text(kw_sql), {**kw_params, **ns_params}).fetchall()
+
+    return _fuse_pg_rows(vec_rows, kw_rows, scope, k)
 
 
 def retrieve(
@@ -333,6 +473,7 @@ def retrieve(
         qv = None
 
     vec = vector_rank(qv, chunks)
+    # 稀疏通道用命中数口径：BM25 在本项目语料上实测更差，升级被指标否决（见模块 docstring）
     kw = keyword_rank(query, chunks)
 
     if vec or kw:

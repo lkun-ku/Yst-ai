@@ -21,6 +21,8 @@ from __future__ import annotations
 import math
 import re
 import time
+from dataclasses import dataclass
+from typing import Sequence
 
 from ..config import settings
 
@@ -159,11 +161,154 @@ def _terms(query: str) -> list[str]:
 
 
 def keyword_score(query: str, content: str) -> int:
+    """**旧口径**：二元组命中数（每个命中词项一律 +1）。
+
+    保留是为了做**消融对照**（`eval/retrieval_eval.py` 把新旧稀疏通道并排跑一张表）——
+    没有旧口径的数字，「换成 BM25 有效」这句话就无从证明。
+    生产检索请用 `BigramBM25`。
+    """
     terms = _terms(query)
     if not terms:
         return 0
     c = content or ""
     return sum(1 for t in terms if t in c)
+
+
+def _unique_terms(text: str) -> list[str]:
+    """去重保序的查询词项。
+
+    BM25 按**词项**累加，重复词项不应重复计分 —— 查询里出现两次同一个二元组
+    是查询表达式的问题，不是文档更相关的证据。
+    """
+    ordered: dict[str, None] = {}
+    for t in _terms(text):
+        ordered.setdefault(t, None)
+    return list(ordered)
+
+
+def query_terms(text: str) -> list[str]:
+    """对外暴露的查询词项（去重保序）。
+
+    检索层要用**与 BM25 完全一致**的词项去构造候选 SQL（PG 路径的 LIKE 粗筛）——
+    两处若各切各的，候选集与打分口径就会悄悄错位。
+    """
+    return _unique_terms(text)
+
+
+#: BM25 自由参数（Lucene 默认量级）。
+#: k1 控制 TF 饱和速度（命中 1 次与命中 10 次的边际差异），
+#: b 控制长度归一的强度（文档越长，单次命中越"便宜"）。
+_BM25_K1 = 1.5
+_BM25_B = 0.75
+
+
+@dataclass(frozen=True)
+class BigramBM25:
+    """二元组上的 BM25（TF 饱和 + IDF + 文档长度归一）——**仅供消融对照，不是生产口径**。
+
+    ## 实测结论：在本项目语料上，它**比命中数口径差**，因此未采纳
+
+    在 `eval/datasets/官方法条/`（6 部法 / 415 片 / 编号类查询）上测量：
+
+    | 口径 | recall@1 | recall@3 | MRR |
+    | --- | --- | --- | --- |
+    | 命中数（**生产**） | **0.7259** | **0.9333** | **0.8302** |
+    | BM25 b=0.75（默认） | 0.2593 | 0.5556 | 0.4476 |
+    | BM25 b=0.00 | 0.3481 | 0.5704 | 0.5050 |
+    | BM25 b=0.00 k1=0.5（最好档） | 0.3778 | 0.6222 | 0.5426 |
+
+    参数扫遍仍差一倍以上；并且**去掉标注偏袒后依然成立** ——
+    用不带主题词的纯编号查询（n=120）复测：命中数 recall@1=0.40 vs BM25 0.10~0.18。
+    抽查询人工核对过两种排序（如「义务教育法第一条」两者都把目标排第 1），
+    确认**不是实现 bug，是机制差异**。
+
+    ## 为什么 IDF 在这里失效（这是本次真正学到的东西）
+
+    IDF 的前提是「罕见 ⇒ 信息量大」。但本场景的可检索信号长这样：
+
+    - 法名的 bigram（`育法` / `法第`）**在条文正文里根本不存在** —— 法名只在 `heading_path` 里，
+      所以它们对正文检索毫无贡献（idf 高，却匹配不到任何片）；
+    - 条号的 bigram（`第一` / `一条`）**每一部法都有**，df 并不低 —— 它无法区分"哪部法的第一条"；
+    - 剩下的内容词，正是 IDF 会压掉的那批中等频率词。
+
+    于是 IDF 把**唯一还能用的信号压掉**，只剩下条号噪声。命中数口径不做这个假设，
+    它只是问"这片命中了几个查询词" —— 在同质小语料上反而更稳。
+    语料换成"主题词真正无处不在、且存在长尾专名"的大库时，结论可能反转（见 ADR-0015 的反转条件）。
+
+    ## 原始动机（保留）
+
+    换上 BM25 的动机是：命中数对每个词项一律加 1，「的」「学生」这类高频字组与
+    「第七条」这类罕见词**权重完全相同**。这个诊断本身没错，错在**选错了药**：
+    问题不是"没有 IDF"，而是"条号 bigram 不具区分性、法名 bigram 不在正文里"。
+
+    公式（Lucene 口径，IDF 用 `ln(1 + (N-df+0.5)/(df+0.5))` 保证非负）：
+
+        score(D,Q) = Σ_t IDF(t) · tf(t,D)·(k1+1) / ( tf(t,D) + k1·(1−b + b·|D|/avgdl) )
+
+    `|D|` 按**词项数**（二元组个数）计，与词频同量纲。
+    """
+
+    tf: tuple[dict[str, int], ...]
+    doc_len: tuple[int, ...]
+    df: dict[str, int]
+    n_docs: int
+    avgdl: float
+    k1: float = _BM25_K1
+    b: float = _BM25_B
+
+    @classmethod
+    def fit(
+        cls, contents: Sequence[str], k1: float = _BM25_K1, b: float = _BM25_B
+    ) -> "BigramBM25":
+        """建索引。`k1` / `b` 可覆盖 —— 参数必须能被**实验**扫（见 ADR-0015 的参数扫描表）。"""
+        tfs: list[dict[str, int]] = []
+        df: dict[str, int] = {}
+        for text in contents:
+            counts: dict[str, int] = {}
+            for t in _terms(text or ""):
+                counts[t] = counts.get(t, 0) + 1
+            tfs.append(counts)
+            for t in counts:  # df 按**文档**计：一片只算一次，与片内出现几次无关
+                df[t] = df.get(t, 0) + 1
+        n = len(tfs)
+        total = sum(sum(c.values()) for c in tfs)
+        return cls(
+            tf=tuple(tfs),
+            doc_len=tuple(sum(c.values()) for c in tfs),
+            df=df,
+            n_docs=n,
+            avgdl=(total / n) if n else 0.0,
+            k1=k1,
+            b=b,
+        )
+
+    def idf(self, term: str) -> float:
+        """逆文档频率。语料里没有的词项返回 0（它对任何文档都不构成证据）。"""
+        df = self.df.get(term, 0)
+        if df <= 0:
+            return 0.0
+        return math.log(1.0 + (self.n_docs - df + 0.5) / (df + 0.5))
+
+    def score(self, query: str) -> list[float]:
+        """对全部文档打分（与 `fit` 的 contents 顺序一一对应）。"""
+        out = [0.0] * self.n_docs
+        terms = _unique_terms(query)
+        if not terms or not self.n_docs:
+            return out
+        norm = self.avgdl or 1.0
+        k1, b = self.k1, self.b
+        for t in terms:
+            idf = self.idf(t)
+            if idf <= 0.0:
+                continue
+            for i, counts in enumerate(self.tf):
+                f = counts.get(t, 0)
+                if not f:
+                    continue
+                dl = self.doc_len[i] or 1
+                denom = f + k1 * (1.0 - b + b * dl / norm)
+                out[i] += idf * (f * (k1 + 1.0)) / denom
+        return out
 
 
 # ---------------- 均匀采样（兜底通道） ----------------
@@ -220,7 +365,7 @@ def retrieve(
             pairs.sort(key=lambda x: -x[0])
             return [c for _, c in pairs[:k]]
 
-    # 通道 2：关键词检索
+    # 通道 2：关键词检索（命中数口径 —— 与 kb_retrieval 的生产口径保持一致）
     scored = [(keyword_score(query, c.get("content") or ""), c) for c in pool]
     scored = [p for p in scored if p[0] > 0]
     if scored:
