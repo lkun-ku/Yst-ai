@@ -42,6 +42,9 @@ miniprogram/
 
 # 过程产物与实验内容（本地保留，不入仓库）
 ui-concepts/
+# 精排权重（2026-06-11）：266MB，不随仓库走。下载：python -m app.services.rerank --fetch
+# 缺权重时检索自动降级为「不重排」（fail-open），不会因此失败。
+backend/data/models/
 # backend/eval/ 已解除忽略（2026-06-10）：评测集 datasets/ 是量化证据，必须进仓库；
 # 实验产物与评测库仍忽略（见上方「评测产物」段）。
 

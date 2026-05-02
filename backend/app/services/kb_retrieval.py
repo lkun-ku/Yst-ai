@@ -34,11 +34,14 @@ PostgreSQL → `retrieve_by_scope_pg`（向量走 HNSW + SQL 余弦；关键词�
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import re
 from typing import Sequence
 from sqlalchemy import and_, or_, select, text as sa_text
 
+from ..config import settings
 from ..models import Document, DocumentChunk
 from .embedding import (
     BigramBM25,
@@ -48,7 +51,10 @@ from .embedding import (
     query_terms,
     uniform_sample,
 )
+from .rerank import get_reranker
 from .scope import NAMESPACE_BOTH, NAMESPACE_OFFICIAL, NAMESPACE_PERSONAL, Scope
+
+logger = logging.getLogger(__name__)
 
 _RRF_K = 60  # Reciprocal Rank Fusion 收敛常数
 
@@ -364,6 +370,7 @@ def _fuse_pg_rows(
                 "vector_score": vec_score.get(r[0], 0.0),
                 "keyword_score": next((s for s, j in kw_ranked if j == i), 0.0),
                 "heading_bonus": bonus.get(i, 0.0),
+                "rerank_score": None,  # 与内存路径字段一致：精排由调用方在融合后叠加
             }
         )
     return out
@@ -437,6 +444,23 @@ def retrieve_by_scope_pg(
     return _fuse_pg_rows(vec_rows, kw_rows, scope, k)
 
 
+def _apply_rerank(reranker, query: str, candidates: list[dict], k: int) -> list[dict]:
+    """**第二阶段**：把召回池重排后取前 k（见 `services/rerank.py`）。
+
+    `reranker is None`（`RERANK_IMPL=off`）时只做截断 —— **行为与接入精排前逐字节一致**。
+    这一点是刻意保证的：否则"开启精排带来的差异"就混进了别的变化，无法归因。
+
+    精排器 `available()` 为假（权重没下 / 加载失败）时同样退回原顺序，
+    并且**只在日志里说**——不抛错、不阻塞检索（精排是增强不是依赖）。
+    """
+    if reranker is None or not candidates:
+        return candidates[:k]
+    if not reranker.available():
+        logger.warning("精排不可用，按召回顺序返回：%s", reranker.status())
+        return candidates[:k]
+    return reranker.rerank(query, candidates, k)
+
+
 def retrieve(
     db,
     query: str,
@@ -458,9 +482,15 @@ def retrieve(
     **命名空间过滤在召回阶段完成**（`load_chunks_for_scope`），不是先检索后过滤 ——
     否则无权文档会先进入候选、挤占 top-k、污染 RRF 排名，且内容已进上下文。
     """
+    reranker = get_reranker()
+    # 开了精排就要**多召回**：精排只能重排已有候选，收益上限由池深决定（上限 = recall@pool）。
+    # 关掉精排时 pool == k，行为与接入前逐字节一致。
+    pool = max(k, settings.rerank_pool) if reranker is not None else k
+
     if _is_pg(db):
         candidate = scope.candidate_id
-        return retrieve_by_scope_pg(db, candidate, query, k, embed_fn, scope_obj=scope)
+        rows = retrieve_by_scope_pg(db, candidate, query, pool, embed_fn, scope_obj=scope)
+        return _apply_rerank(reranker, query, rows, k)
 
     chunks = load_chunks_for_scope(db, scope)
     if not chunks:
@@ -481,21 +511,23 @@ def retrieve(
         bonus = heading_bonus(query, chunks)
         ranked = sorted(fused.keys(), key=lambda ci: -(fused[ci] + bonus.get(ci, 0.0)))
         out: list[dict] = []
-        for ci in ranked[:k]:
+        for ci in ranked[:pool]:
             c = _clean(chunks[ci])
             c["fusion_score"] = round(fused[ci] + bonus.get(ci, 0.0), 4)
             c["vector_score"] = next((s for s, i in vec if i == ci), 0.0)
             c["keyword_score"] = next((s for s, i in kw if i == ci), 0)
             c["heading_bonus"] = bonus.get(ci, 0.0)
+            c["rerank_score"] = None
             out.append(c)
-        return out
+    else:
+        # 三级降级最终兜底：均匀采样（保证覆盖，避免题目扎堆开头）
+        out = [
+            {**_clean(c), "fusion_score": 0.0, "vector_score": 0.0,
+             "keyword_score": 0, "heading_bonus": 0.0, "rerank_score": None}
+            for c in uniform_sample(chunks, pool)
+        ]
 
-    # 三级降级最终兜底：均匀采样（保证覆盖，避免题目扎堆开头）
-    return [
-        {**_clean(c), "fusion_score": 0.0, "vector_score": 0.0,
-         "keyword_score": 0, "heading_bonus": 0.0}
-        for c in uniform_sample(chunks, k)
-    ]
+    return _apply_rerank(reranker, query, out, k)
 
 
 def retrieve_by_scope(

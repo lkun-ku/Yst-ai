@@ -189,9 +189,13 @@ def test_PG融合_按id去重且字段齐全():
     ids = [c["id"] for c in out]
     assert len(ids) == len(set(ids)) == 3
     for c in out:
+        # 字段集合是**两条路径的契约**：内存路径与 PG 路径必须逐字段一致，
+        # 否则上层（质量闭环、精排）在换方言时会静默拿到不同的结构。
+        # `rerank_score` 由精排阶段叠加，未重排时为 None —— 两条路径都要有。
         assert set(c) == {
             "id", "document_id", "seq", "content", "heading_path",
             "char_count", "fusion_score", "vector_score", "keyword_score", "heading_bonus",
+            "rerank_score",
         }
 
 

@@ -47,6 +47,7 @@ os.environ["DATABASE_URL"] = os.environ.get("EVAL_DATABASE_URL") or "sqlite:///"
 )
 
 from app.db import SessionLocal, init_db  # noqa: E402
+from app.config import settings  # noqa: E402
 from app.services.embedding import BigramBM25, embed_one  # noqa: E402
 from app.services.kb_corpus import ingest_official_corpus  # noqa: E402
 from app.services.kb_retrieval import (  # noqa: E402
@@ -187,7 +188,23 @@ def build_law_labels(chunks: list[dict], limit: int = 120) -> list[dict]:
     return labels
 
 
-def build_configs(chunks: list[dict]) -> dict:
+def _rerank_tier(chunks: list[dict], reranker, pool: int):
+    """「稀疏召回 → 精排」这一档：粗排取前 `pool` 条，精排器重排后返回正文列表。
+
+    **为什么建在稀疏通道上、而不是生产融合链路上**：`EMBEDDING_MODE=fake` 时稠密通道
+    是字符哈希噪声（见本模块 docstring 的警告）—— 建在它上面的数字**不可复现也不可解释**。
+    稀疏通道是确定性的，且它在编号类查询上恰是最强通道（recall@5 = 0.9778），
+    上限清晰（`recall@pool − recall@1`），因此是能承载结论的那条基准线。
+    """
+
+    def f(query: str) -> list[str]:
+        cands = [chunks[i] for _s, i in keyword_rank(query, chunks)[:pool]]
+        return [c["content"] for c in reranker.rerank(query, cands, len(cands))]
+
+    return f
+
+
+def build_configs(chunks: list[dict], rerankers: dict | None = None) -> dict:
     """七档检索配置，每档一个 `query -> 有序切片正文列表` 的函数。
 
     档位顺序即「逐层叠加」，便于读出每一层的边际贡献：
@@ -239,7 +256,7 @@ def build_configs(chunks: list[dict]) -> dict:
         order = sorted(merged, key=lambda ci: -(merged[ci] + bonus.get(ci, 0.0)))
         return [_content(ci) for ci in order]
 
-    return {
+    row = {
         "① dense": dense,
         "② sparse·命中数": sparse_hits,
         "③ sparse·BM25": sparse_bm25,
@@ -247,6 +264,31 @@ def build_configs(chunks: list[dict]) -> dict:
         "⑤ RRF(命中数)+标题 ★生产": lambda q: _fused(q, False, True),
         "⑥ RRF(BM25)": lambda q: _fused(q, True, False),
         "⑦ RRF(BM25)+标题": lambda q: _fused(q, True, True),
+    }
+    # 精排档：按调用方给的 {标签: 精排器} 追加（未开启精排时不出现，避免表里出现空档）
+    for label, rk in (rerankers or {}).items():
+        row[label] = _rerank_tier(chunks, rk, settings.rerank_pool)
+    return row
+
+
+def _build_rerankers() -> dict:
+    """两种口径的精排器：**仅正文** / **含标题**。
+
+    **为什么必须两种都报**：法条的 `heading_path` 形如
+    「中华人民共和国教师法 / 第一章 总则 / 第七条」，而编号类 query 恰是
+    「教师法 + 第七条」—— 把标题喂进去等于**把答案抄给模型**。
+    只报含标题那一档，精排增益会虚高；两档并排才看得出
+    "增益里有多少来自元数据、有多少来自 Cross-Encoder 的语义"。
+    """
+    from app.services.rerank import OnnxReranker
+
+    return {
+        "⑧ sparse→精排(仅正文)": OnnxReranker(
+            include_heading=False, max_chars=settings.rerank_max_chars
+        ),
+        "⑨ sparse→精排(含标题)": OnnxReranker(
+            include_heading=True, max_chars=settings.rerank_max_chars
+        ),
     }
 
 
@@ -256,6 +298,7 @@ def main(
     ks=DEFAULT_KS,
     official: bool = False,
     auto: bool = False,
+    rerank: bool = False,
 ) -> dict:
     """跑一个领域的检索消融表。
 
@@ -299,8 +342,14 @@ def main(
         for query, quote in drift:
             print(f"   - 「{query}」→ 找不到：{quote}")
 
+    rerankers = _build_rerankers() if rerank else {}
+    rerank_status = {}
+    for label, rk in rerankers.items():
+        rerank_status[label] = rk.status()
+        print(f"[精排] {label} → {rk.status()}")
+
     rows: dict[str, dict] = {}
-    for name, retrieve in build_configs(chunks).items():
+    for name, retrieve in build_configs(chunks, rerankers).items():
         m = evaluate_retrieval(labels, retrieve, ks=ks)
         rows[name] = m.as_row()
         metric_text = " | ".join(f"recall@{k}={v}" for k, v in m.recall_at_k.items())
@@ -325,6 +374,8 @@ def main(
             "labels_fingerprint": labels_fingerprint(labels),
             "drift": len(drift),
             "ingest": ingest_stats,
+            "rerank_pool": settings.rerank_pool if rerankers else None,
+            "rerank_status": rerank_status,
         },
         "rows": rows,
     }
@@ -382,5 +433,16 @@ if __name__ == "__main__":
         action="store_true",
         help="把手写标注与程序化标注合并统计（样本量够，但问法不代表真实用户）",
     )
+    ap.add_argument(
+        "--rerank",
+        action="store_true",
+        help="追加精排档（需要 ONNX 权重；缺权重时自动降级为不重排，表中档位仍会列出）",
+    )
     args = ap.parse_args()
-    main(domain=args.domain, out=args.out, official=args.official, auto=args.auto)
+    main(
+        domain=args.domain,
+        out=args.out,
+        official=args.official,
+        auto=args.auto,
+        rerank=args.rerank,
+    )

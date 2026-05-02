@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "time": "2026-06-11T02:18:33",
+    "time": "2026-06-11T02:41:29",
     "domain": "官方法条",
     "corpus": "official（法条）",
     "n_chunks": 415,
@@ -9,6 +9,7 @@
     "n_labels_auto": 120,
     "ks": [
       1,
+      2,
       3
     ],
     "mode": "LLM=real, Embedding=real",
@@ -19,12 +20,18 @@
       "docs": 6,
       "chunks": 415,
       "skipped_empty": 0
+    },
+    "rerank_pool": 20,
+    "rerank_status": {
+      "⑧ sparse→精排(仅正文)": "onnx：可用（data\\models\\bge-reranker-base）",
+      "⑨ sparse→精排(含标题)": "onnx：可用（data\\models\\bge-reranker-base）"
     }
   },
   "rows": {
     "① dense": {
       "n": 135,
       "recall@1": 0.0074,
+      "recall@2": 0.0222,
       "recall@3": 0.0222,
       "mrr": 0.0266,
       "ndcg": 0.0168
@@ -32,6 +39,7 @@
     "② sparse·命中数": {
       "n": 135,
       "recall@1": 0.7111,
+      "recall@2": 0.8667,
       "recall@3": 0.9333,
       "mrr": 0.8227,
       "ndcg": 0.8397
@@ -39,6 +47,7 @@
     "③ sparse·BM25": {
       "n": 135,
       "recall@1": 0.2593,
+      "recall@2": 0.437,
       "recall@3": 0.563,
       "mrr": 0.4494,
       "ndcg": 0.4315
@@ -46,6 +55,7 @@
     "④ RRF(命中数)": {
       "n": 135,
       "recall@1": 0.0741,
+      "recall@2": 0.1259,
       "recall@3": 0.1704,
       "mrr": 0.1864,
       "ndcg": 0.129
@@ -53,6 +63,7 @@
     "⑤ RRF(命中数)+标题 ★生产": {
       "n": 135,
       "recall@1": 0.3111,
+      "recall@2": 0.4,
       "recall@3": 0.4741,
       "mrr": 0.4565,
       "ndcg": 0.4042
@@ -60,6 +71,7 @@
     "⑥ RRF(BM25)": {
       "n": 135,
       "recall@1": 0.0963,
+      "recall@2": 0.1333,
       "recall@3": 0.1556,
       "mrr": 0.1982,
       "ndcg": 0.1308
@@ -67,9 +79,26 @@
     "⑦ RRF(BM25)+标题": {
       "n": 135,
       "recall@1": 0.3333,
+      "recall@2": 0.4815,
       "recall@3": 0.5259,
       "mrr": 0.494,
       "ndcg": 0.449
+    },
+    "⑧ sparse→精排(仅正文)": {
+      "n": 135,
+      "recall@1": 0.563,
+      "recall@2": 0.7556,
+      "recall@3": 0.8519,
+      "mrr": 0.7181,
+      "ndcg": 0.7326
+    },
+    "⑨ sparse→精排(含标题)": {
+      "n": 135,
+      "recall@1": 0.8,
+      "recall@2": 0.9111,
+      "recall@3": 0.9407,
+      "mrr": 0.8753,
+      "ndcg": 0.8849
     }
   }
 }

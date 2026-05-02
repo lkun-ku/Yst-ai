@@ -99,6 +99,28 @@ class Settings:
     # 按编造处理 —— 而被它拦下的真实引用本来就是不合格的引用。
     citation_min_quote_chars: int = int(os.getenv("CITATION_MIN_QUOTE_CHARS", "6"))
 
+    # ---------- 精排（两阶段检索的第二阶段，见 services/rerank.py） ----------
+    # impl：onnx（真实模型，生产与评测）/ fake（离线确定性替身，仅供测试）/ off（不重排）。
+    # **测试套件默认 off** —— 否则单测要加载 266MB 模型：既慢，又让测试依赖一次下载。
+    rerank_impl: str = os.getenv("RERANK_IMPL", "onnx")
+    rerank_model_dir: str = os.getenv("RERANK_MODEL_DIR", "./data/models/bge-reranker-base")
+    # 精排只作用于召回池的头 `rerank_pool` 条。池子越深、上限越高（上限 = recall@pool），
+    # 成本随池深线性上升。20 是折中：法条域稀疏通道 recall@20 = 0.9926。
+    rerank_pool: int = int(os.getenv("RERANK_POOL", "20"))
+    # 是否把 heading_path 一起喂给精排模型。默认 **True** —— 这是**实测决定的**，不是直觉。
+    # 法条域（n=135，编号类查询）：
+    #   · 只喂正文：recall@1 = 0.5630、MRR = 0.7181
+    #   · 含标题　：recall@1 = 0.8000、MRR = 0.8753
+    #   · 完全不精排：recall@1 = 0.7111、MRR = 0.8227
+    # **只喂正文比不精排还差**，原因是第 5 项里那个同源的结构事实：
+    # 法名与条号只出现在 heading_path 里（正文里没有），
+    # 只喂正文时模型无法区分「教师法第七条」与「未成年人保护法第七条」。
+    # ⚠️ 但要清楚这笔增益**主要来自元数据**（法名 + 条号）而不是 Cross-Encoder 的语义，
+    # 所以 eval 里两种口径**并排报**，不合并成一个数字。
+    rerank_include_heading: bool = os.getenv("RERANK_INCLUDE_HEADING", "true").lower() == "true"
+    # 送进模型的候选正文截断（字符）。bge-reranker 有效长度有限，过长只增加耗时。
+    rerank_max_chars: int = int(os.getenv("RERANK_MAX_CHARS", "512"))
+
     # ---------- Embedding（文档级语义检索；fake 模式不耗额度） ----------
     embedding_mode: str = os.getenv("EMBEDDING_MODE", "fake")  # fake / real
     embedding_api_base: str = os.getenv("EMBEDDING_API_BASE", "")

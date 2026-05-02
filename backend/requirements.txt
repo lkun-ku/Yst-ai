@@ -25,3 +25,12 @@ pgvector==0.5.0
 # 纯数据格式库，不是框架。不引它就只能把领域包写成 JSON（无法写注释）或
 # Python 字面量（要求非程序员改代码）—— 而领域包最需要的恰恰是注释。
 pyyaml==6.0.1
+
+# --- 精排（两阶段检索的第二阶段）：ONNX 运行时 + 分词器 ---
+# **刻意不引 torch / transformers**：bge-reranker 已由社区转好 ONNX，
+# 而本项只需要一次前向。引 torch 会让依赖从几十 MB 涨到数 GB，
+# 对"面试官机器上直接能跑"这条硬约束是实打实的伤害。
+# 权重不随仓库走（int8 档 266MB，见 .gitignore）；缺失时自动降级为「不重排」，
+# 不会让检索失败 —— 精排是增强不是依赖（services/rerank.py 的 fail-open）。
+onnxruntime==1.30.0
+tokenizers==0.23.2
