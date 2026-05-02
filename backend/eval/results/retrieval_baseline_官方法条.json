@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "time": "2026-06-11T01:55:49",
+    "time": "2026-06-11T02:18:33",
     "domain": "官方法条",
     "corpus": "official（法条）",
     "n_chunks": 415,
@@ -9,11 +9,11 @@
     "n_labels_auto": 120,
     "ks": [
       1,
-      2,
       3
     ],
     "mode": "LLM=real, Embedding=real",
     "label_status": "手写 + 程序化（问法不代表真实用户）",
+    "labels_fingerprint": "c546386e7906",
     "drift": 0,
     "ingest": {
       "docs": 6,
@@ -24,16 +24,14 @@
   "rows": {
     "① dense": {
       "n": 135,
-      "recall@1": 0.4296,
-      "recall@2": 0.5333,
-      "recall@3": 0.5704,
-      "mrr": 0.5353,
-      "ndcg": 0.5107
+      "recall@1": 0.0074,
+      "recall@3": 0.0222,
+      "mrr": 0.0266,
+      "ndcg": 0.0168
     },
     "② sparse·命中数": {
       "n": 135,
       "recall@1": 0.7111,
-      "recall@2": 0.8667,
       "recall@3": 0.9333,
       "mrr": 0.8227,
       "ndcg": 0.8397
@@ -41,42 +39,37 @@
     "③ sparse·BM25": {
       "n": 135,
       "recall@1": 0.2593,
-      "recall@2": 0.437,
       "recall@3": 0.563,
       "mrr": 0.4494,
       "ndcg": 0.4315
     },
     "④ RRF(命中数)": {
       "n": 135,
-      "recall@1": 0.5556,
-      "recall@2": 0.7481,
-      "recall@3": 0.8296,
-      "mrr": 0.7008,
-      "ndcg": 0.7149
+      "recall@1": 0.0741,
+      "recall@3": 0.1704,
+      "mrr": 0.1864,
+      "ndcg": 0.129
     },
     "⑤ RRF(命中数)+标题 ★生产": {
       "n": 135,
-      "recall@1": 0.6667,
-      "recall@2": 0.7926,
-      "recall@3": 0.8444,
-      "mrr": 0.7703,
-      "ndcg": 0.7692
+      "recall@1": 0.3111,
+      "recall@3": 0.4741,
+      "mrr": 0.4565,
+      "ndcg": 0.4042
     },
     "⑥ RRF(BM25)": {
       "n": 135,
-      "recall@1": 0.4519,
-      "recall@2": 0.5926,
-      "recall@3": 0.7111,
-      "mrr": 0.6012,
-      "ndcg": 0.597
+      "recall@1": 0.0963,
+      "recall@3": 0.1556,
+      "mrr": 0.1982,
+      "ndcg": 0.1308
     },
     "⑦ RRF(BM25)+标题": {
       "n": 135,
-      "recall@1": 0.5926,
-      "recall@2": 0.7778,
-      "recall@3": 0.8074,
-      "mrr": 0.7224,
-      "ndcg": 0.7214
+      "recall@1": 0.3333,
+      "recall@3": 0.5259,
+      "mrr": 0.494,
+      "ndcg": 0.449
     }
   }
 }

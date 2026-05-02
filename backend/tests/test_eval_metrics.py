@@ -153,3 +153,56 @@ def test_标注集每条都有查询与黄金片段():
         items = [x for x in json.load(f) if "query" in x]
     assert len(items) >= 10, "标注集太小，指标分辨率不足"
     assert all(item.get("gold") for item in items), "存在没有黄金片段的查询"
+
+
+# ---------------- 基准的跨进程可复现性（"数字可信"的前提）----------------
+
+_BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+#: 在子进程里生成法条标注并打印指纹。**必须用独立进程** ——
+#: 被验证的正是「字符串哈希按进程随机化」这件事，同进程内重复调用测不出来。
+_CHILD_SCRIPT = "\n".join(
+    [
+        "import os, sys",
+        "sys.path.insert(0, os.getcwd())",
+        "from pathlib import Path",
+        "from app.services.kb_corpus import plan_file",
+        "from eval.retrieval_eval import build_law_labels, labels_fingerprint",
+        "files = ['laws/教师法.md', 'laws/未成年人保护法.md', 'laws/义务教育法.md']",
+        "chunks = []",
+        "for rel in files:",
+        "    raw = Path('data/official/' + rel).read_text(encoding='utf-8')",
+        "    chunks += [{'content': p.content, 'heading_path': p.heading_path} "
+        "for p in plan_file(rel, raw)]",
+        "print(labels_fingerprint(build_law_labels(chunks, limit=60)))",
+    ]
+)
+
+
+def _fingerprint_with_hash_seed(seed: str) -> str:
+    import subprocess
+    import sys
+
+    out = subprocess.run(
+        [sys.executable, "-c", _CHILD_SCRIPT],
+        cwd=_BACKEND,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONHASHSEED": seed},
+        timeout=180,
+    )
+    assert out.returncode == 0, out.stderr
+    return out.stdout.strip().splitlines()[-1]
+
+
+def test_程序化标注跨进程可复现():
+    """基准数字的**前提**：同一份语料必须生成同一套标注。
+
+    真实踩坑（ADR-0015 勘误）：主题词排序键写成 `key=lambda t: -df.get(t, 0)`，
+    `df` 相同时的先后取决于 `set` 的迭代顺序 → 取决于字符串哈希 →
+    CPython 默认**按进程随机化**。于是标注跨进程不同、基准数字每次运行都变，
+    而**它不会报错**。当时同一配置两次跑出 recall@1 = 0.6667 与 0.3037。
+
+    **必须用子进程**：同进程内重复调用拿到的是同一套哈希种子，测不出这个问题。
+    """
+    assert _fingerprint_with_hash_seed("0") == _fingerprint_with_hash_seed("1")

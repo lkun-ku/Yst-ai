@@ -32,6 +32,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -95,6 +96,22 @@ def check_label_drift(labels: list[dict], chunks: list[dict]) -> list[tuple[str,
 _ART_HEAD_RE = re.compile(r"^第[一二三四五六七八九十百零〇\d]+条[\s　]*")
 
 
+def labels_fingerprint(labels: list[dict]) -> str:
+    """标注集的指纹（用于**跨进程可复现性**自检）。
+
+    只对 `query` / `gold` 取摘要，**不含 `note`** —— 说明文字是给人看的，
+    改文案不该让指纹变化（否则自检会因为改注释而失败，变成噪声）。
+
+    它存在的理由是一次真实的踩坑：程序化标注曾因排序键不完整而**跨进程不同**
+    （详见 `build_law_labels` 里的说明），而那种漂移**不会报错**，
+    只会让基准数字每次运行都不一样 —— 正是最难发现的一类问题。
+    """
+    blob = json.dumps(
+        [(x.get("query"), x.get("gold")) for x in labels], ensure_ascii=False
+    )
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
+
+
 def build_law_labels(chunks: list[dict], limit: int = 120) -> list[dict]:
     """程序化生成法条标注（条号 + 高频繁主题词 → 目标条文的**唯一**片段）。
 
@@ -130,9 +147,17 @@ def build_law_labels(chunks: list[dict], limit: int = 120) -> list[dict]:
         if len(body) < 40:
             continue
 
-        # 主题词：本条出现、且在全语料高频（≥5 片）的二元组 —— 高频才有"竞争"，才测得准
-        topics = sorted((t for t in set(query_terms(body)) if df.get(t, 0) >= 5),
-                        key=lambda t: -df.get(t, 0))[:3]
+        # 主题词：本条出现、且在全语料高频（≥5 片）的二元组 —— 高频才有"竞争"，才测得准。
+        #
+        # ⚠️ 排序键**必须完全确定**：只按 df 排序时，df 相同的词项其先后取决于 `set` 的
+        # 迭代顺序，而 set 的迭代顺序取决于字符串哈希 —— CPython **默认按进程随机化**
+        # （PYTHONHASHSEED），于是**跨进程生成的标注就不同，基准数字也随之不可复现**。
+        # 补上 `t` 作次级键后排序完全确定。
+        # （本项踩过：同一份代码、同一个域，两次跑出 recall@1 = 0.6667 与 0.3037。）
+        topics = sorted(
+            (t for t in set(query_terms(body)) if df.get(t, 0) >= 5),
+            key=lambda t: (-df.get(t, 0), t),
+        )[:3]
         if not topics:
             continue
 
@@ -297,6 +322,7 @@ def main(
             "ks": list(ks),
             "mode": mode,
             "label_status": "预标（待人工抽检）" if not auto else "手写 + 程序化（问法不代表真实用户）",
+            "labels_fingerprint": labels_fingerprint(labels),
             "drift": len(drift),
             "ingest": ingest_stats,
         },
@@ -323,9 +349,13 @@ def _write_markdown(path: str, result: dict) -> None:
         f"- 领域：{meta['domain']}　语料：{meta['n_chunks']} 片　查询：{meta['n_queries']} 条",
         f"- 运行模式：{meta['mode']}",
         f"- 标注状态：{meta['label_status']}　漂移条数：{meta['drift']}",
+        f"- 标注指纹（跨进程可复现性）：`{meta.get('labels_fingerprint', '')}`",
         "",
-        "> ⚠️ `Embedding=fake` 时的向量来自字符哈希伪向量，本质是词形匹配、没有语义。",
-        "> 此时本表只证明「管线通、指标算得出、各档确实不同」，**不是**稠密通道效果的证据。",
+        "> ⚠️ **`Embedding=fake` 时，①④⑤⑥⑦ 这五行（稠密与融合）的数字不可解释**：",
+        "> 伪向量是「字符 → 哈希桶」的计数，本质是**噪声**，不含任何语义。",
+        "> 实测后果：同一份代码、同一个域，两次运行 `recall@1` 可从 0.43 掉到 0.01 ——",
+        "> 查询词稍变，排序就完全变样。**因此本表只有稀疏档（②③）的对比可用于判断**，",
+        "> 稠密与融合档须 `EMBEDDING_MODE=real` 后重跑才有意义。",
         "> 语料规模小时不取 k=10（6 片语料上 recall@10 恒为 1.0）。",
         "",
         "| 配置 | " + " | ".join(f"recall@{k}" for k in ks) + " | MRR | nDCG |",
