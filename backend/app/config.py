@@ -121,6 +121,12 @@ class Settings:
     # 送进模型的候选正文截断（字符）。bge-reranker 有效长度有限，过长只增加耗时。
     rerank_max_chars: int = int(os.getenv("RERANK_MAX_CHARS", "512"))
 
+    # ---------- 问答老师 Agent（见 services/teacher_agent.py） ----------
+    # 工具循环硬上限。**必须有**：模型可能反复查同一个东西，
+    # 而图里的环没有上限就会撞 LangGraph 的 recursion_limit（默认 25）报错。
+    # 4 次足够覆盖"检索 → 查条文 → 自检"这类多跳，再多只是在烧调用。
+    agent_max_tool_calls: int = int(os.getenv("AGENT_MAX_TOOL_CALLS", "4"))
+
     # ---------- Embedding（文档级语义检索；fake 模式不耗额度） ----------
     embedding_mode: str = os.getenv("EMBEDDING_MODE", "fake")  # fake / real
     embedding_api_base: str = os.getenv("EMBEDDING_API_BASE", "")

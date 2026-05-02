@@ -18,6 +18,7 @@ from .routers import (
     sessions,
     streak,
     tasks,
+    teacher,
 )
 
 
@@ -52,3 +53,4 @@ app.include_router(documents.router, tags=["documents"])
 app.include_router(tasks.router, tags=["tasks"])
 app.include_router(streak.router, tags=["streak"])
 app.include_router(chat.router, tags=["chat"])
+app.include_router(teacher.router, tags=["teacher"])

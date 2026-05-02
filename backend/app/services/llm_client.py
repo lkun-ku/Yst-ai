@@ -155,6 +155,10 @@ class FakeLLMClient(LLMClient):
                 "个人资料-考点", qtype, count, quote=_quote_from_prompt(prompt)
             )
             return json.dumps({"questions": items}, ensure_ascii=False)
+        if "【工具决策】" in prompt:
+            return _fake_tool_decision(prompt)
+        if "【答疑作答】" in prompt:
+            return _fake_teacher_answer(prompt)
         if "【检索相关性评分】" in prompt:
             return '{"relevant": true, "score": 0.9}'
         if "【生成自检】" in prompt:
@@ -381,8 +385,12 @@ def get_llm_client() -> LLMClient:
 
 _FAKE_Q_IDX = 0  # 全局自增，保证跨多次调用生成的题目全局唯一（避免被 _persist_questions 去重丢弃）
 
-#: 出题提示词里的切片块头（`[切片 #12｜法名 / 章 / 条]`），用于让 fake 摘录真实原文。
-_CHUNK_HEADER_RE = re.compile(r"^\[切片 #(\d+)｜[^\]]*\]$")
+#: 提示词里的材料块头。**两种写法都要认**：
+#: 出题链路是 `[切片 #12｜法名 / 章 / 条]`，问答老师的工具观察是 `[依据 #12｜…]`。
+#: 只认一种会让另一半 fake 路径悄悄失去"可校验的引用"。
+_BLOCK_HEADER_RE = re.compile(r"^\[(?:切片|依据) #(\d+)｜[^\]]*\]$")
+#: 兼容旧名（模块内其它地方可能引用）
+_CHUNK_HEADER_RE = _BLOCK_HEADER_RE
 
 
 def _quote_from_prompt(prompt: str) -> str | None:
@@ -411,6 +419,64 @@ def _quote_from_prompt(prompt: str) -> str | None:
         if len(text) >= 12:
             return text[:40]
     return None
+
+
+def _block_source(prompt: str) -> str:
+    """从材料块头里取出处（`[依据 #12｜教师法 / 第二章 / 第七条]` → `教师法 / …`）。"""
+    m = re.search(r"^\[(?:切片|依据) #\d+｜([^\]]*)\]$", prompt, re.M)
+    return (m.group(1).strip() if m else "")
+
+
+def _fake_tool_decision(prompt: str) -> str:
+    """确定性工具决策：**没查过就查一次，查过就作答**。
+
+    刻意只走"最少动作"：lookup_law / check_quote 的分支由单测直接构造提示词覆盖，
+    这里保持链路短而稳定（工具循环本身另有专项用例）。
+    不这么做的话，fake 模式下的问答会变成"每次都查一遍再答"，
+    工具循环的轮次上限与"够不够"判据就测不出来了。
+    """
+    m = re.search(r"已用轮次：(\d+)/(\d+)", prompt)
+    used = int(m.group(1)) if m else 0
+    if used > 0 or "（还没有任何检索结果）" not in prompt:
+        return json.dumps({"tool": "answer"}, ensure_ascii=False)
+    q = re.search(r"用户问题：(.*)", prompt)
+    return json.dumps(
+        {
+            "tool": "search_kb",
+            "args": {"query": (q.group(1).strip() if q else "")},
+            "reason": "先检索材料",
+        },
+        ensure_ascii=False,
+    )
+
+
+def _fake_teacher_answer(prompt: str) -> str:
+    """确定性作答：**从观察块里原样摘录**作为引用。
+
+    与出题链路同一个道理（见 `_quote_from_prompt`）：引用要能被 `citation.verify_quote`
+    逐字命中，否则 fake 模式下每条回答都会被引用闸门拦成拒答 ——
+    于是"有据答疑"这条链路在测试里永远走不到成功分支，等于没测。
+    """
+    quote = _quote_from_prompt(prompt)
+    if not quote:
+        return json.dumps(
+            {
+                "answer": "现有资料里没有能支撑这个问题的内容。",
+                "citations": [],
+                "confidence": "low",
+                "insufficient": True,
+            },
+            ensure_ascii=False,
+        )
+    return json.dumps(
+        {
+            "answer": f"依据资料原文：{quote}",
+            "citations": [{"quote": quote, "source": _block_source(prompt)}],
+            "confidence": "high",
+            "insufficient": False,
+        },
+        ensure_ascii=False,
+    )
 
 
 def _fake_doc_questions(module: str, qtype: str, count: int, quote: str | None = None) -> list[dict]:
