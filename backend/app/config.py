@@ -121,6 +121,16 @@ class Settings:
     # 送进模型的候选正文截断（字符）。bge-reranker 有效长度有限，过长只增加耗时。
     rerank_max_chars: int = int(os.getenv("RERANK_MAX_CHARS", "512"))
 
+    # ---------- 出题质量闸门 G2 / G3（见 services/quality_gates.py） ----------
+    # G2 事实一致性（**零成本硬匹配**）：扫题干/选项/解析里出现的「《X》第N条」，
+    # 逐条核对是否真在依据里。它补的是引用校验的缺口 ——
+    # 模型可能把一条编造的法条写进题干，却不把它申报为 source_quote。
+    gate_g2_enabled: bool = os.getenv("GATE_G2_ENABLED", "true").lower() == "true"
+    # G3 答案唯一性投票：**N 倍成本，默认关闭**。盲答 N 次，既要彼此一致、
+    # 也要与题目自带答案相符。只在"高价值题"（如官方语料出的题）上开。
+    gate_g3_enabled: bool = os.getenv("GATE_G3_ENABLED", "false").lower() == "true"
+    gate_g3_votes: int = int(os.getenv("GATE_G3_VOTES", "3"))
+
     # ---------- 问答老师 Agent（见 services/teacher_agent.py） ----------
     # 工具循环硬上限。**必须有**：模型可能反复查同一个东西，
     # 而图里的环没有上限就会撞 LangGraph 的 recursion_limit（默认 25）报错。

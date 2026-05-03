@@ -155,6 +155,8 @@ class FakeLLMClient(LLMClient):
                 "个人资料-考点", qtype, count, quote=_quote_from_prompt(prompt)
             )
             return json.dumps({"questions": items}, ensure_ascii=False)
+        if "【盲答投票】" in prompt:
+            return _fake_blind_answer(prompt)
         if "【工具决策】" in prompt:
             return _fake_tool_decision(prompt)
         if "【答疑作答】" in prompt:
@@ -477,6 +479,22 @@ def _fake_teacher_answer(prompt: str) -> str:
         },
         ensure_ascii=False,
     )
+
+
+def _fake_blind_answer(prompt: str) -> str:
+    """确定性盲答（G3 唯一性投票用）：按 `_fake_doc_questions` 的字面约定挑正确选项。
+
+    约定：正确选项的文本里带「正确表述」；多选题的答案是 `["A", "B"]`。
+    fake 靠这个字面线索"答对"，用来模拟一个能独立推导出正确答案的模型 ——
+    若它答不对，G3 会把 fake 模式下的**每一道题**都拦掉，那条链路就再也测不到了。
+    （与 `_quote_from_prompt` 同一个道理：替身必须能走通成功分支，
+    否则"有这道闸门"这件事本身就无法在离线环境里验证。）
+    """
+    if "可选多个" in prompt:
+        return json.dumps({"answer": ["A", "B"]}, ensure_ascii=False)
+    pairs = re.findall(r'"key"\s*:\s*"([A-Z])"\s*,\s*"text"\s*:\s*"([^"]*)"', prompt)
+    good = [k for k, text in pairs if "正确表述" in text]
+    return json.dumps({"answer": good or ["A"]}, ensure_ascii=False)
 
 
 def _fake_doc_questions(module: str, qtype: str, count: int, quote: str | None = None) -> list[dict]:

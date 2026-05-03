@@ -179,6 +179,24 @@ def self_check_prompt(
     )
 
 
+def blind_answer_prompt(stem: str, options, qtype: str) -> str:
+    """盲答提示词（G3 唯一性投票用）。
+
+    **绝不能把答案放进来** —— 这是 G3 与「生成自检」的本质差别：
+    自检看着答案评"对不对"，对答案本身的歧义完全不敏感；
+    盲答让模型在不知道标准答案的情况下独立推导，才能测出"这题有没有唯一解"。
+    """
+    opts = json.dumps(options, ensure_ascii=False) if options is not None else "[]"
+    rule = "只能选 1 个" if qtype in ("single", "judge") else "可选多个"
+    return (
+        "请独立作答下面这道题，不要猜测出题人意图之外的额外信息。\n"
+        f"题干：{stem}\n选项：{opts}\n"
+        f"要求：{rule}。\n"
+        '只输出 JSON：{"answer": ["正确选项键", ...]}\n'
+        "【盲答投票】"
+    )
+
+
 # ---------------- 解析 ----------------
 
 def _extract_json(text: str) -> dict:
@@ -220,6 +238,20 @@ def parse_thinking(text: str) -> list[str]:
         return []
     parts = [s.strip() for s in re.split(r"[。！？；\n]+", raw) if s.strip()]
     return parts[:6]  # 限句数，避免刷屏
+
+
+def parse_blind_answer(text: str) -> list[str]:
+    """解析盲答结果。无法解析返回空列表（调用方按"这次投票无效"处理）。
+
+    容错：模型有时给字符串而不是数组（`{"answer": "A"}`），也接受。
+    """
+    d = _extract_json(text)
+    ans = d.get("answer")
+    if isinstance(ans, str):
+        return [ans.strip()] if ans.strip() else []
+    if isinstance(ans, list):
+        return [str(x).strip() for x in ans if str(x).strip()]
+    return []
 
 
 def parse_selfcheck(text: str) -> tuple[bool, float, list]:

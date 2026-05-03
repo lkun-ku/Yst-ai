@@ -31,6 +31,7 @@ from .kb_events import slice_previews
 from .kb_retrieval import retrieve_by_scope
 from .citation import describe as describe_citations
 from .citation import quotes_of, split_by_citation
+from .quality_gates import apply_fact_gate, apply_uniqueness_gate
 from .validation import validate_question_payload
 from .llm_client import get_llm_client, parse_doc_questions
 from .prompts_kb import (
@@ -204,6 +205,20 @@ def _apply_citation_gate(payloads: list[dict], chunks: list[dict], emit=None) ->
     return kept
 
 
+def _apply_extra_gates(payloads: list[dict], chunks: list[dict], client=None, emit=None) -> list[dict]:
+    """G2（零成本）+ G3（开关控制）——**两个分支都要过**。
+
+    与引用闸门同一条纪律：若只在 `enable_loop=True` 路径加，
+    编排 A/B 对照（loop vs 非 loop）就混入了第二个变量，实验结论不成立。
+
+    顺序即成本顺序：G2 是纯字符串核对（零成本）先砍一遍，
+    再让 G3 花 N 倍成本 —— 前面砍干净的题不必进投票。
+    """
+    kept, _ = apply_fact_gate(list(payloads or []), chunks, emit)
+    kept, _ = apply_uniqueness_gate(client, kept, emit)
+    return kept
+
+
 def _generate_batch_with_fallback(
     client,
     scope,
@@ -281,6 +296,12 @@ def _generate_batch_with_fallback(
             ok_payloads.append(p)
         # 引用硬校验：格式过了不代表有依据 —— 编造在这里被拦，不进入自检（省钱且更可信）
         ok_payloads = _apply_citation_gate(ok_payloads, chunks, emit)
+        # G2 事实一致性（零成本）：扫题干/解析里的「《X》第N条」——
+        # 它补的是引用校验的缺口（模型可能把编造的法条写进题干，却不申报为 source_quote）
+        ok_payloads, _g2_blocked = apply_fact_gate(ok_payloads, chunks, emit)
+        # G3 唯一性投票：N 倍成本，默认关闭（settings.gate_g3_enabled）。
+        # 放在最后 —— 前面三道都是零成本确定性判定，砍完之后只剩下值得花 N 倍的题。
+        ok_payloads, _g3_blocked = apply_uniqueness_gate(client, ok_payloads, emit)
         if not ok_payloads:
             if emit and size != sizes[0]:
                 emit("stage", "第 %d 题粒度生成未通过规则校验，继续降粒度" % size)
@@ -419,6 +440,7 @@ def generate_by_scope(
             # 引用硬校验**不随 enable_loop 开关**：它是确定性硬约束，不是"质量闭环"的一环。
             # 若只在 loop 路径加，A/B 对照（loop vs 非 loop）就会混入第二个变量。
             payloads = _apply_citation_gate(payloads, chunks, emit)
+            payloads = _apply_extra_gates(payloads, chunks, client, emit)
         base = len(created)
         new_qs = _persist_questions(
             db, candidate_id, None, payloads or [], seen,
@@ -460,6 +482,7 @@ def generate_by_scope(
                     covered_kps=sorted({str(q.knowledge_point) for q in created if q.knowledge_point}),
                 )
                 payloads = _apply_citation_gate(payloads, chunks, emit)
+            payloads = _apply_extra_gates(payloads, chunks, client, emit)
             created += _persist_questions(
                 db, candidate_id, None, payloads or [], seen,
                 source_chunk=build_source_chunk(picked),
