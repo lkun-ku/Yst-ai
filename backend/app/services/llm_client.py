@@ -155,6 +155,8 @@ class FakeLLMClient(LLMClient):
                 "个人资料-考点", qtype, count, quote=_quote_from_prompt(prompt)
             )
             return json.dumps({"questions": items}, ensure_ascii=False)
+        if "【主观题批改】" in prompt:
+            return _fake_marking(prompt)
         if "【盲答投票】" in prompt:
             return _fake_blind_answer(prompt)
         if "【工具决策】" in prompt:
@@ -476,6 +478,27 @@ def _fake_teacher_answer(prompt: str) -> str:
             "citations": [{"quote": quote, "source": _block_source(prompt)}],
             "confidence": "high",
             "insufficient": False,
+        },
+        ensure_ascii=False,
+    )
+
+
+def _fake_marking(prompt: str) -> str:
+    """确定性批改（主观题批改链路用）。
+
+    与出题链路的引用校验同理：引用必须能被逐字命中，否则 fake 模式下
+    **每次批改都会因"引用了依据里找不到的原文"而拒批** ——
+    那条链路就再也测不到成功分支了。所以这里从依据块里原样摘一句。
+    """
+    quote = _quote_from_prompt(prompt)
+    dims = {k: 72.0 for k in ("relevance", "evidence", "structure", "language")}
+    return json.dumps(
+        {
+            "dimensions": dims,
+            "comments": {k: "（替身评语，非真实批改）" for k in dims},
+            "deductions": ["（替身）论据未结合材料"] if quote else [],
+            "suggestions": ["（替身）先亮明理论点，再引材料佐证"],
+            "citations": [{"quote": quote}] if quote else [],
         },
         ensure_ascii=False,
     )

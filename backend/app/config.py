@@ -121,6 +121,14 @@ class Settings:
     # 送进模型的候选正文截断（字符）。bge-reranker 有效长度有限，过长只增加耗时。
     rerank_max_chars: int = int(os.getenv("RERANK_MAX_CHARS", "512"))
 
+    # ---------- 主观题批改（见 services/marking.py） ----------
+    # 一致性度量的独立批改次数：**N 倍成本**，默认 3。
+    # 它是给"AI 批改不可信"一个数字的手段（各维度标准差 + 总分一致率），
+    # 不是每次都需要的功能 —— 由调用方按需触发，不要默认跑在每一次批改上。
+    marking_votes: int = int(os.getenv("MARKING_VOTES", "3"))
+    # 批改依据（采分点来源）检索条数
+    marking_rubric_k: int = int(os.getenv("MARKING_RUBRIC_K", "6"))
+
     # ---------- 出题质量闸门 G2 / G3（见 services/quality_gates.py） ----------
     # G2 事实一致性（**零成本硬匹配**）：扫题干/选项/解析里出现的「《X》第N条」，
     # 逐条核对是否真在依据里。它补的是引用校验的缺口 ——
