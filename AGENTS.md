@@ -125,7 +125,12 @@ single-context 布局：根 `CONTEXT.md` + `docs/adr/`。See `docs/agents/domain
 > 理由：被忽略会让「归档」与「删除」都无法从 git 恢复（本仓已因此永久丢过一份决策记录）；
 > 且 `CONTEXT.md` 是术语的单一真相、`AGENTS.md` 是协作约定，必须随仓库走。
 > 仍被忽略的：`.env` / 密钥 / `backend/dev.db` / `backend/uploads/` /
-> `backend/eval/results/`、`backend/eval/eval_kb.db` / `ui-concepts/` / `.scratch/`。
+> `backend/eval/eval_kb.db` / `ui-concepts/` / `.scratch/`。
+>
+> ⚠️ **2026-06-11 二次修订**：`backend/eval/results/` **已解除忽略**（原列在上面那行里）。
+> 理由：`results/*.md|json` 是「某项优化到底有没有效」的**唯一证据**，
+> 不随代码走就等于没有证据（面试时只能口述数字）。
+> 评测库 `eval_kb.db` 仍是本地重算的中间产物，继续忽略。
 
 
 
