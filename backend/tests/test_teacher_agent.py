@@ -52,22 +52,31 @@ _TEST_LAW = "测试示例法"
 _TEST_STORAGE_PATH = "laws/__test_teacher__.md"
 
 
-def _seed_official(db, rows: list[tuple[str, str]]) -> None:
-    """建一份官方语料：rows = [(heading_path, content)]。
+def _drop_test_official(db) -> None:
+    """删掉本文件播种的官方语料（setup 前与 teardown 后都调用）。
 
-    ⚠️ **必须先清掉本文件上次留下的那份**：本仓的测试库是**会话级**重建
-    （`conftest._reset_db` 是 session 作用域），**不逐用例回滚** ——
-    否则同一文件里每个用例都会往同一份库里追加，条号查询越查越多条。
-    （这个坑让 `test_按条号精确取条文` 一开始返回了 3 条而不是 1 条。）
+    **测试必须清理自己**：本仓测试库是**会话级**重建、不逐用例回滚，
+    留下的官方文档能跨文件生效 —— 而 `test_namespace_scope.py` 断言的是
+    官方语料的**精确 id 集合**，多一份就失败。
     """
     old = [r[0] for r in db.query(Document.id).filter(
         Document.storage_path == _TEST_STORAGE_PATH).all()]
-    if old:
-        db.query(DocumentChunk).filter(DocumentChunk.document_id.in_(old)).delete(
-            synchronize_session=False
-        )
-        db.query(Document).filter(Document.id.in_(old)).delete(synchronize_session=False)
-        db.commit()
+    if not old:
+        return
+    db.query(DocumentChunk).filter(DocumentChunk.document_id.in_(old)).delete(
+        synchronize_session=False
+    )
+    db.query(Document).filter(Document.id.in_(old)).delete(synchronize_session=False)
+    db.commit()
+
+
+def _seed_official(db, rows: list[tuple[str, str]]) -> None:
+    """建一份官方语料：rows = [(heading_path, content)]。
+
+    ⚠️ **必须先清掉本文件上次留下的那份**：否则同一文件里每个用例都会往同一份库里追加，
+    条号查询越查越多条（这个坑让 `test_按条号精确取条文` 一开始返回了 3 条而不是 1 条）。
+    """
+    _drop_test_official(db)
 
     doc = Document(
         candidate_id=None,
@@ -103,7 +112,10 @@ _OFFICIAL_ROWS = [
 @pytest.fixture
 def official(db_session):
     _seed_official(db_session, _OFFICIAL_ROWS)
-    return Scope(namespace=NAMESPACE_OFFICIAL)
+    yield Scope(namespace=NAMESPACE_OFFICIAL)
+    # teardown：同 test_mcp_server 的道理 —— 本仓测试库会话级重建、不逐用例回滚，
+    # 留下的官方文档会让断言"精确 id 集合"的用例失败（只是靠字母序侥幸没暴露）。
+    _drop_test_official(db_session)
 
 
 def _ctx(db, scope) -> ToolContext:
