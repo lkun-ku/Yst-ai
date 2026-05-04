@@ -10,7 +10,9 @@
     "pages/docs/docs",
     "pages/doc-detail/doc-detail",
     "pages/generate/generate",
-    "pages/chat-train/chat-train"
+    "pages/chat-train/chat-train",
+    "pages/teacher/teacher",
+    "pages/subjective/subjective"
   ],
   "permission": {
     "scope.record": {

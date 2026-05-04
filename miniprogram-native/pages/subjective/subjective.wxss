@@ -1,0 +1,306 @@
+/* 主观题批改页：沿用「纸卷 v1」令牌。内容/结果呈现型，重心是可读性与可追溯。 */
+
+.subjective {
+  background: var(--ink-50);
+  /* 底部固定免责条 */
+  padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
+}
+
+/* ---------------- 顶部 ---------------- */
+.top-bar {
+  margin-bottom: 24rpx;
+}
+
+.qtype-bar {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.qtype-pill {
+  padding: 10rpx 24rpx;
+  margin: 0 12rpx 12rpx 0;
+  border-radius: var(--r-spec);
+  border: 1rpx solid var(--ink-300);
+  background: var(--paper);
+  color: var(--ink-500);
+  font-size: 26rpx;
+}
+
+.qtype-pill.on {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.meta-score {
+  font-size: 24rpx;
+  color: var(--ink-500);
+}
+
+.meta-timer {
+  font-size: 26rpx;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- 折叠头 ---------------- */
+.fold-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fold-tap {
+  font-size: 24rpx;
+  color: var(--primary);
+}
+
+/* ---------------- 输入区 ---------------- */
+.stem-input,
+.answer-input {
+  width: 100%;
+  min-height: 180rpx;
+  padding: 20rpx 0 0;
+  background: transparent;
+  border: none;
+  font-size: 28rpx;
+  color: var(--ink-900);
+  line-height: 1.7;
+  box-sizing: border-box;
+}
+
+.answer-input {
+  min-height: 320rpx;
+}
+
+.ph {
+  color: var(--ink-400);
+  font-size: 26rpx;
+}
+
+.stem-preview {
+  display: block;
+  font-size: 26rpx;
+  color: var(--ink-700);
+  line-height: 1.7;
+}
+
+.count-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12rpx;
+  border-top: 1rpx solid var(--ink-300);
+}
+
+.count {
+  font-size: 22rpx;
+  color: var(--ink-400);
+}
+
+.count-warn {
+  color: var(--warn);
+}
+
+/* 主按钮禁用态：纸卷 v1 的 .btn-main 没有禁用样式，这里补一个 */
+.btn-main.off {
+  background: var(--ink-300);
+  color: var(--ink-50);
+}
+
+/* ---------------- 提交态 ---------------- */
+.stages {
+  display: flex;
+  justify-content: center;
+  padding: 24rpx 0;
+}
+
+.stage {
+  font-size: 24rpx;
+  color: var(--ink-400);
+  margin: 0 16rpx;
+}
+
+.stage-on {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* ---------------- 结果 ---------------- */
+.refuse-text {
+  display: block;
+  font-size: 28rpx;
+  color: var(--ink-900);
+  line-height: 1.7;
+  margin-bottom: 12rpx;
+}
+
+.total-row {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 20rpx;
+}
+
+.total-num {
+  font-size: 64rpx;
+  font-weight: 600;
+  color: var(--primary);
+  line-height: 1.1;
+}
+
+.total-unit {
+  font-size: 24rpx;
+  color: var(--ink-500);
+  margin-left: 12rpx;
+}
+
+.dim-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.dim-name {
+  width: 120rpx;
+  font-size: 26rpx;
+  color: var(--ink-700);
+}
+
+.dim-track {
+  flex: 1;
+  height: 16rpx;
+  border-radius: var(--r-spec);
+  background: var(--ink-200);
+  overflow: hidden;
+}
+
+.dim-fill {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.3s var(--ease-spec);
+}
+
+.dim-val {
+  width: 72rpx;
+  text-align: right;
+  font-size: 26rpx;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.disclaimer {
+  display: block;
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--ink-300);
+  font-size: 22rpx;
+  color: var(--ink-500);
+  line-height: 1.5;
+}
+
+.comment-row {
+  margin-bottom: 16rpx;
+}
+
+.comment-name {
+  display: block;
+  font-size: 24rpx;
+  color: var(--primary);
+  margin-bottom: 4rpx;
+}
+
+.comment-text {
+  display: block;
+  font-size: 26rpx;
+  color: var(--ink-700);
+  line-height: 1.65;
+}
+
+.line-item {
+  display: flex;
+  margin-bottom: 12rpx;
+}
+
+.dot {
+  width: 20rpx;
+  color: var(--ink-400);
+  font-size: 26rpx;
+}
+
+.line-text {
+  flex: 1;
+  font-size: 26rpx;
+  color: var(--ink-700);
+  line-height: 1.65;
+}
+
+.rubric-item {
+  padding: 16rpx 20rpx;
+  margin-bottom: 12rpx;
+  border-radius: var(--r-spec);
+  background: var(--ink-50);
+}
+
+.rubric-src {
+  display: block;
+  font-size: 24rpx;
+  color: var(--primary);
+  margin-bottom: 6rpx;
+}
+
+.rubric-text {
+  display: block;
+  font-size: 26rpx;
+  color: var(--ink-700);
+  line-height: 1.6;
+}
+
+.cite-block {
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid var(--ink-300);
+}
+
+.cite-quote {
+  font-size: 24rpx;
+  color: var(--ink-500);
+  line-height: 1.6;
+  margin-bottom: 8rpx;
+}
+
+.consist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10rpx 0;
+}
+
+.consist-label {
+  font-size: 26rpx;
+  color: var(--ink-700);
+}
+
+.consist-val {
+  font-size: 26rpx;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- 固定免责条 ---------------- */
+.disclaim-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
+  background: var(--ink-100);
+  border-top: 1rpx solid var(--ink-200);
+  text-align: center;
+  font-size: 22rpx;
+  color: var(--ink-500);
+}

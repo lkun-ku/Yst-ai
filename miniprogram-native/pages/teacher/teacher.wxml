@@ -1,0 +1,97 @@
+<view class="page-wrap teacher">
+  <!-- 模式切换：三档对应后端 mode（grounded / agent / plain），语义见 teacher.js 的 MODES -->
+  <view class="mode-bar">
+    <view
+      wx:for="{{MODES}}"
+      wx:key="key"
+      class="mode-pill {{mode === item.key ? 'on' : ''}}"
+      hover-class="press"
+      hover-stay-time="80"
+      data-key="{{item.key}}"
+      bindtap="onPickMode"
+    >{{item.name}}</view>
+  </view>
+  <text class="mode-hint">{{modeHint}}</text>
+
+  <!-- 空态：给出口语化的提问范例，而不是一句「请输入问题」 -->
+  <block wx:if="{{!msgs.length}}">
+    <view class="card-mod">
+      <text class="zone-label">可以这样问</text>
+      <view class="chips">
+        <view
+          wx:for="{{QUICKS}}"
+          wx:key="*this"
+          class="chip"
+          hover-class="press"
+          hover-stay-time="80"
+          data-q="{{item}}"
+          bindtap="onQuick"
+        >{{item}}</view>
+      </view>
+    </view>
+    <text class="empty-note">只答检索得到依据的问题；检索不到会明确拒答，不会硬编一个答案。</text>
+  </block>
+
+  <!-- 对话流 -->
+  <view wx:for="{{msgs}}" wx:key="k" class="turn">
+    <view wx:if="{{item.role === 'user'}}" class="bubble-user">{{item.content}}</view>
+
+    <block wx:else>
+      <view class="bubble-ai {{item.error ? 'bubble-err' : ''}}">
+        <view wx:if="{{item.refused}}" class="refused-row">
+          <text class="refused-tag">已拒答</text>
+        </view>
+        <text class="bubble-text">{{item.shown}}</text>
+        <view wx:if="{{item.typing}}" class="caret" />
+      </view>
+
+      <!-- 引用折叠条：默认收起，符合「先给结论、要追溯再展开」的读法 -->
+      <block wx:if="{{item.citations.length}}">
+        <view
+          class="cite-fold"
+          hover-class="press"
+          hover-stay-time="80"
+          data-idx="{{index}}"
+          bindtap="onToggleCite"
+        >
+          <text class="cite-head">依据 {{item.citations.length}} 处</text>
+          <text class="cite-toggle">{{item.citeOpen ? '收起' : '展开'}}</text>
+        </view>
+        <view wx:if="{{item.citeOpen}}" class="cite-body">
+          <view wx:for="{{item.citations}}" wx:for-item="c" wx:key="k" class="cite-item">
+            <text wx:if="{{c.source}}" class="cite-src">{{c.source}}</text>
+            <text wx:if="{{c.matched === false}}" class="cite-flag">未在展示的依据里找到对应段落</text>
+            <text class="cite-quote">{{c.quote}}</text>
+          </view>
+        </view>
+      </block>
+
+      <!-- 置信提示：低置信才出现，避免每一条都挂免责 -->
+      <view wx:if="{{item.confidence === 'low' && !item.refused}}" class="warn-bar">
+        <text>此说法存在争议，建议以官方教材为准</text>
+      </view>
+      <text wx:if="{{item.toolCalls}}" class="tool-note">本轮检索 {{item.toolCalls}} 次</text>
+    </block>
+  </view>
+
+  <view wx:if="{{thinking}}" class="thinking">正在检索官方语料…</view>
+
+  <!-- 滚动锚点：两个 id 交替触发重滚（同值 scroll-into-view 不生效） -->
+  <view id="teacher-anchor-a" class="anchor" />
+  <view id="teacher-anchor-b" class="anchor" />
+
+  <!-- 底部行动条（固定定位，页面留出等高内边距，见 teacher.wxss 的 padding-bottom） -->
+  <view class="bar">
+    <input
+      class="bar-input"
+      value="{{input}}"
+      placeholder="问一个考点，例如「教师法第七条讲了什么」"
+      placeholder-class="bar-ph"
+      confirm-type="send"
+      maxlength="500"
+      bindinput="onInput"
+      bindconfirm="onSend"
+    />
+    <view class="bar-send {{thinking ? 'off' : ''}}" hover-class="press" hover-stay-time="80" bindtap="onSend">发送</view>
+  </view>
+</view>

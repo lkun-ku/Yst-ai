@@ -9,6 +9,10 @@ const DRAFT_KEY = "quest_draft";
 const ENTRIES = [
   { icon: ENTRY_ICONS.flag, title: "进入闯关", desc: "按模块或考点发起", bg: "#e6f7f6", url: "/pages/quest/quest" },
   { icon: ENTRY_ICONS.message, title: "AI 模拟答", desc: "和 AI 聊着练考点", bg: "#eef3ff", url: "/pages/chat-train/chat-train" },
+  // 问答老师 vs AI 模拟答：前者是「我提问 → 检索考纲法条 → 带引用作答」，后者是
+  // 「AI 提问 → 我回答 → 评分」。方向相反，是两个入口而不是一个。
+  { icon: ENTRY_ICONS.message, title: "问答老师", desc: "问考点，答必有出处", bg: "#eaf2fd", url: "/pages/teacher/teacher" },
+  { icon: ENTRY_ICONS.file_text, title: "主观题批改", desc: "材料分析/写作按采分点批", bg: "#e8f8ee", url: "/pages/subjective/subjective" },
   { icon: ENTRY_ICONS.book, title: "错题本", desc: "今日任务与考点重练", bg: "#fff4e5", url: "/pages/mistakes/mistakes" },
   { icon: ENTRY_ICONS.history, title: "历史闯关", desc: "回看往期复盘", bg: "#f3ecfd", url: "/pages/history/history" },
   { icon: ENTRY_ICONS.file_text, title: "我的资料", desc: "上传资料出试题", bg: "#e8f8ee", url: "/pages/docs/docs" },

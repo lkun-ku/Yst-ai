@@ -1,0 +1,165 @@
+<view class="page-wrap subjective">
+  <!-- 顶部：题型 + 单题分值 + 计时 -->
+  <view class="top-bar">
+    <view class="qtype-bar">
+      <view
+        wx:for="{{QTYPES}}"
+        wx:key="key"
+        class="qtype-pill {{qtype === item.key ? 'on' : ''}}"
+        hover-class="press"
+        hover-stay-time="80"
+        data-key="{{item.key}}"
+        bindtap="onPickType"
+      >{{item.name}}</view>
+    </view>
+    <view class="meta-row">
+      <text class="meta-score">{{qtypeScore}}</text>
+      <text class="meta-timer">{{elapsedText}}</text>
+    </view>
+  </view>
+
+  <!-- 题目区：可折叠的材料 + 作答要求 -->
+  <view class="card-mod">
+    <view class="fold-head" hover-class="press" hover-stay-time="80" bindtap="onToggleStem">
+      <text class="zone-label">题目 / 材料</text>
+      <text class="fold-tap">{{stemOpen ? '收起' : '展开'}}</text>
+    </view>
+    <textarea
+      wx:if="{{stemOpen}}"
+      class="stem-input"
+      value="{{stem}}"
+      placeholder="把题目或材料粘进来（含作答要求）。批改只依据它检索到的评分标准，不会用你的作答去反推标准。"
+      placeholder-class="ph"
+      maxlength="2000"
+      auto-height
+      bindinput="onStemInput"
+    />
+    <text wx:else class="stem-preview">{{stem ? stemPreview : '尚未录入题目，点「展开」粘贴材料'}}</text>
+  </view>
+
+  <!-- 作答区 -->
+  <view class="card-mod">
+    <text class="zone-label">我的作答</text>
+    <textarea
+      class="answer-input"
+      value="{{answer}}"
+      placeholder="在这里写你的答案。写完点下面的「提交批改」。"
+      placeholder-class="ph"
+      maxlength="2000"
+      bindinput="onAnswerInput"
+    />
+    <view class="count-row">
+      <text class="count {{answer.length > 1800 ? 'count-warn' : ''}}">{{answer.length}} / 2000</text>
+    </view>
+  </view>
+
+  <view class="btn-main {{canSubmit ? '' : 'off'}}" hover-class="press" hover-stay-time="80" bindtap="onSubmit">提交批改</view>
+
+  <!-- 提交态：阶段文案（顺序与后端实际动作一致） -->
+  <view wx:if="{{loading}}" class="stages">
+    <text wx:for="{{STAGES}}" wx:key="*this" class="stage {{index <= stageIdx ? 'stage-on' : ''}}">{{item}}</text>
+  </view>
+
+  <!-- 批改结果 -->
+  <block wx:if="{{result}}">
+    <view wx:if="{{result.refused}}" class="card-mod">
+      <text class="zone-label">未能批改</text>
+      <text class="refuse-text">{{result.refusal_reason}}</text>
+      <text class="empty-note">没有可引用的评分标准时不会给分 —— 凭感觉打的分没有复核价值。</text>
+    </view>
+
+    <block wx:else>
+      <!-- ① 分项分（分段渲染的第一步） -->
+      <view class="card-mod">
+        <text class="zone-label">分项评分</text>
+        <view class="total-row">
+          <text class="total-num">{{result.total}}</text>
+          <text class="total-unit">/ 100 均分</text>
+        </view>
+        <view class="dim-list">
+          <view wx:for="{{dims}}" wx:key="key" class="dim-row">
+            <text class="dim-name">{{item.name}}</text>
+            <view class="dim-track"><view class="dim-fill" style="width: {{item.percent}}%" /></view>
+            <text class="dim-val">{{item.value}}</text>
+          </view>
+        </view>
+        <text class="disclaimer">{{result.dimensions_disclaimer}}</text>
+      </view>
+
+      <!-- ② 评语 + 扣分缘由 + 建议 -->
+      <view wx:if="{{revealComments}}" class="card-mod">
+        <text class="zone-label">分项评价</text>
+        <view wx:for="{{dims}}" wx:key="key" class="comment-row">
+          <text class="comment-name">{{item.name}}</text>
+          <text class="comment-text">{{item.comment || '—'}}</text>
+        </view>
+      </view>
+
+      <view wx:if="{{revealComments && result.deductions.length}}" class="card-mod">
+        <text class="zone-label">扣分缘由</text>
+        <view wx:for="{{result.deductions}}" wx:key="*this" class="line-item">
+          <text class="dot">·</text>
+          <text class="line-text">{{item}}</text>
+        </view>
+      </view>
+
+      <view wx:if="{{revealComments && result.suggestions.length}}" class="card-mod">
+        <text class="zone-label">改进建议</text>
+        <view wx:for="{{result.suggestions}}" wx:key="*this" class="line-item">
+          <text class="dot">·</text>
+          <text class="line-text">{{item}}</text>
+        </view>
+      </view>
+
+      <!-- ③ 依据（最后展开，避免把"可追溯"变成第一眼负担） -->
+      <view wx:if="{{revealEvidence}}" class="card-mod">
+        <view class="fold-head" hover-class="press" hover-stay-time="80" bindtap="onToggleRubric">
+          <text class="zone-label">本次批改依据（{{result.rubric.length}} 条）</text>
+          <text class="fold-tap">{{rubricOpen ? '收起' : '展开'}}</text>
+        </view>
+        <block wx:if="{{rubricOpen}}">
+          <view wx:for="{{result.rubric}}" wx:key="k" class="rubric-item">
+            <text wx:if="{{item.heading_path}}" class="rubric-src">{{item.heading_path}}</text>
+            <text class="rubric-text">{{item.content}}</text>
+          </view>
+          <text wx:if="{{!result.rubric.length}}" class="empty-note">本次没有检索到可引用的评分标准。</text>
+        </block>
+        <view wx:if="{{result.citations.length}}" class="cite-block">
+          <text class="zone-label">批改引用的原文（{{result.citations.length}} 条，已通过逐字校验）</text>
+          <view wx:for="{{result.citations}}" wx:key="k" class="cite-quote">{{item.quote}}</view>
+        </view>
+      </view>
+
+      <!-- 一致性度量：N+1 次 LLM，显式让用户决定是否花这个成本 -->
+      <view wx:if="{{revealEvidence}}" class="card-mod">
+        <text class="zone-label">这份批改稳不稳</text>
+        <block wx:if="{{consistency}}">
+          <view class="consist-row">
+            <text class="consist-label">独立批改 {{consistency.n}} 次，总分标准差</text>
+            <text class="consist-val">{{consistency.total_std}}</text>
+          </view>
+          <view class="consist-row">
+            <text class="consist-label">各次均分</text>
+            <text class="consist-val">{{consistency.mean_total}}</text>
+          </view>
+          <view class="consist-row">
+            <text class="consist-label">落在 ±5 分内的比例（一致率）</text>
+            <text class="consist-val">{{consistency.agreement}}</text>
+          </view>
+          <view wx:for="{{consistDims}}" wx:key="key" class="consist-row">
+            <text class="consist-label">{{item.name}} 标准差</text>
+            <text class="consist-val">{{item.std}}</text>
+          </view>
+          <text class="empty-note">一致 ≠ 正确：它只说明同一份作答重复批改的波动有多小。</text>
+        </block>
+        <block wx:else>
+          <view class="btn-sub" hover-class="press" hover-stay-time="80" bindtap="onMeasure">再批 3 次看稳定性</view>
+          <text class="empty-note" style="display:block;margin-top:16rpx">这会额外调用 3 次模型，所以不默认执行。</text>
+        </block>
+      </view>
+    </block>
+  </block>
+
+  <!-- 免责（固定于底部） -->
+  <view class="disclaim-bar">AI 生成内容仅供参考，不承诺与官方评分一致</view>
+</view>

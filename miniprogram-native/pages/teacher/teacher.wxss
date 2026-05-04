@@ -1,0 +1,245 @@
+/* 问答老师页：沿用「纸卷 v1」令牌（app.wxss）—— 暖纸白底、单一圆角、发丝线。
+   不引入组件库，也不新造色值：新页面用外来配色会与全站割裂。 */
+
+.teacher {
+  background: var(--ink-50);
+  /* 底部固定行动条的高度 + 安全区，避免最后一条气泡被遮住 */
+  padding-bottom: calc(160rpx + env(safe-area-inset-bottom));
+}
+
+/* ---------------- 模式切换 ---------------- */
+.mode-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.mode-pill {
+  padding: 10rpx 24rpx;
+  margin-right: 12rpx;
+  border-radius: var(--r-spec);
+  border: 1rpx solid var(--ink-300);
+  background: var(--paper);
+  color: var(--ink-500);
+  font-size: 26rpx;
+}
+
+.mode-pill.on {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.mode-hint {
+  display: block;
+  font-size: 24rpx;
+  color: var(--ink-500);
+  margin-bottom: 24rpx;
+  line-height: 1.5;
+}
+
+/* ---------------- 快捷提问 ---------------- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 12rpx 24rpx;
+  margin: 0 16rpx 16rpx 0;
+  border-radius: var(--r-spec);
+  background: var(--ink-100);
+  color: var(--ink-700);
+  font-size: 26rpx;
+}
+
+/* ---------------- 对话流 ---------------- */
+.turn {
+  margin-bottom: 24rpx;
+}
+
+/* 用户提问：墨蓝描边 + 右对齐 */
+.bubble-user {
+  max-width: 80%;
+  margin-left: auto;
+  padding: 20rpx 28rpx;
+  border: 1rpx solid var(--primary);
+  border-radius: var(--r-spec);
+  background: transparent;
+  color: var(--ink-900);
+  font-size: 30rpx;
+  line-height: 1.6;
+}
+
+/* AI 回答：纸面卡片，左对齐（与用户气泡形成明确的左右分工） */
+.bubble-ai {
+  padding: 28rpx 32rpx;
+  border: 1rpx solid var(--ink-300);
+  border-radius: var(--r-spec);
+  background: var(--paper);
+  box-shadow: 0 2rpx 12rpx rgba(28, 28, 26, 0.05);
+}
+
+.bubble-err {
+  border-color: var(--danger-ink);
+}
+
+.bubble-text {
+  display: block;
+  color: var(--ink-900);
+  font-size: 30rpx;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+/* 打字光标：只做存在感，不做闪烁动画（长列表里动画会抢注意力） */
+.caret {
+  display: inline-block;
+  width: 16rpx;
+  height: 30rpx;
+  margin-top: 8rpx;
+  background: var(--primary);
+  opacity: 0.6;
+}
+
+.refused-row {
+  margin-bottom: 12rpx;
+}
+
+.refused-tag {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: var(--r-spec);
+  background: var(--warn-light);
+  color: var(--warn);
+  font-size: 22rpx;
+}
+
+/* ---------------- 引用 ---------------- */
+.cite-fold {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid var(--ink-300);
+}
+
+.cite-head {
+  font-size: 26rpx;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.cite-toggle {
+  font-size: 24rpx;
+  color: var(--ink-500);
+}
+
+.cite-body {
+  margin-top: 8rpx;
+}
+
+.cite-item {
+  padding: 16rpx 20rpx;
+  margin-bottom: 12rpx;
+  border-radius: var(--r-spec);
+  background: var(--ink-50);
+}
+
+.cite-src {
+  display: block;
+  font-size: 24rpx;
+  color: var(--primary);
+  margin-bottom: 6rpx;
+}
+
+.cite-flag {
+  display: block;
+  font-size: 22rpx;
+  color: var(--warn);
+  margin-bottom: 6rpx;
+}
+
+.cite-quote {
+  display: block;
+  font-size: 26rpx;
+  color: var(--ink-700);
+  line-height: 1.6;
+}
+
+/* ---------------- 提示条 ---------------- */
+.warn-bar {
+  margin-top: 12rpx;
+  padding: 16rpx 24rpx;
+  border-radius: var(--r-spec);
+  background: var(--warn-light);
+  color: var(--warn);
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.tool-note {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: var(--ink-400);
+}
+
+.thinking {
+  padding: 24rpx 0;
+  text-align: center;
+  font-size: 26rpx;
+  color: var(--ink-500);
+}
+
+.anchor {
+  height: 1rpx;
+}
+
+/* ---------------- 底部行动条（固定） ---------------- */
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
+  background: var(--paper);
+  border-top: 1rpx solid var(--ink-200);
+}
+
+.bar-input {
+  flex: 1;
+  height: 80rpx;
+  padding: 0 28rpx;
+  background: var(--ink-100);
+  border: none;
+  border-radius: var(--r-spec);
+  font-size: 28rpx;
+  color: var(--ink-900);
+  /* 原生 input 不指定 line-height 时占位文字会偏上（与 .field 同一处坑） */
+  line-height: 80rpx;
+}
+
+.bar-ph {
+  color: var(--ink-400);
+}
+
+.bar-send {
+  margin-left: 16rpx;
+  padding: 0 36rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  border-radius: var(--r-spec);
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.bar-send.off {
+  background: var(--ink-300);
+  color: var(--ink-50);
+}
