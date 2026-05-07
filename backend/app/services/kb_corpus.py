@@ -5,7 +5,8 @@
 | 语料 | 切分 | 为什么 |
 | --- | --- | --- |
 | **法条**（`laws/*.md`） | **按「第X条」切，一条一片** | ① 引用校验要能定位到条；② 条是法条的天然语义单元，一半的条文无法回溯 |
-| **考纲 / rubric / 其它** | 按标题层级 + 滑窗（`doc_parser.split_chunks`） | 它们没有"条"这样的强单元，按标题切更自然 |
+| **考纲**（`syllabus/*.md`） | **按"叶子标题"切，一个考点一片** | 考纲没有"条"，但**考点**是它的天然单元（`（一）职业理念 / 2.学生观`）；见 `split_syllabus` |
+| **rubric / 其它** | 按空行分段 | 规模小、结构弱，段落即单元 |
 
 **幂等**：以 `storage_path`（相对语料根目录的路径）为键 —— 已存在则先删其旧切片再重建。
 重复执行不会产生重复数据，考纲修订后重跑即可。
@@ -138,19 +139,101 @@ def _split_general(title: str, body: str) -> list[ChunkPlan]:
 
 
 #: 这两个目录下的语料**按「第X条」切**（法律与行政法规都有"条"这个强单元）；
-#: 其余目录（考纲 / rubric）走段落切分。
+#: 其余目录走各自的规则（`syllabus/` 按考点切、其它按段切）。
 ARTICLE_DIRS = ("laws/", "regulations/")
+
+#: 考纲与考试标准类语料：按**叶子标题**切（见 `split_syllabus`）。
+SYLLABUS_DIRS = ("syllabus/",)
+
+#: Markdown 标题行（捕获 `#` 个数与标题文字）。
+_HEADING_RE = re.compile(r"^(#{1,6})[ \t　]*(.+?)[ \t　]*$", re.MULTILINE)
+
+
+def split_syllabus(title: str, body: str) -> list[ChunkPlan]:
+    """考纲：按**叶子标题**切，一个考点一片。
+
+    ## 为什么不能沿用「按空行分段」
+
+    `_split_general` 会把考纲切成一行一片：考察点「学生观」下有四条要求，
+    它们会被拆成四个互不相干的片段 —— 检索时能命中某一条，但**丢了"这条要求属于哪个考点"**，
+    而考纲的语义恰恰在归属上（「以人为本」是**学生观**的要求，不是教师观的）。
+    一个考点一片，`heading_path` 才能同时给出模块与考点。
+
+    ## 「叶子标题」是什么
+
+    标题树里**后面直到同级或更高级标题之间没有更深标题**的那些 —— 也就是该分支的最末端。
+    对本案的考纲：
+
+    | 标题 | 是不是叶子 | 结果 |
+    | --- | --- | --- |
+    | `# 《综合素质》（中学）》` | 否 | 文档标题，只进 `title`，不单独成片 |
+    | `## 一、考试目标` | **是**（下面没有 `###`） | 一片 |
+    | `## 二、考试内容模块与要求` | 否（有 `###` 子节点） | 只作为 `heading_path` 的一环 |
+    | `### （一）职业理念` | 否（有 `####` 子节点） | 同上 |
+    | `#### 2.学生观` | **是** | 一片 ✅ |
+
+    这条规则**同时**正确处理了结构不一致的文档：`### （四）文化素养` 在原文里没有子标题，
+    它本身就是叶子 → 直接成一片。所以不必为每个文档手写层级假设。
+
+    ## 内容里保留标题文字（但去掉 `#`）
+
+    片正文以考点名开头（如 `2.学生观` 换行后接四条要求）—— 与法条片以 `第七条` 开头同理：
+    引用校验是子串比对，用户引「2.学生观」或引某条要求，**两种都得能定位到**。
+    `#` 是 Markdown 记号、不属于原文，故剥掉。
+    """
+    heads = [
+        (m.start(), len(m.group(1)), m.group(2)) for m in _HEADING_RE.finditer(body)
+    ]
+    plans: list[ChunkPlan] = []
+
+    for i, (start, level, text) in enumerate(heads):
+        if level == 1:
+            continue  # 文档标题：只作 title，不单独成片
+        # 叶子判定：后面直到"同级或更高级"标题之间，不能再有更深的标题
+        is_leaf = True
+        for j in range(i + 1, len(heads)):
+            if heads[j][1] <= level:
+                break
+            is_leaf = False
+            break
+        if not is_leaf:
+            continue
+
+        # 结束位置：下一个"同级或更高级"标题
+        stop = len(body)
+        for j in range(i + 1, len(heads)):
+            if heads[j][1] <= level:
+                stop = heads[j][0]
+                break
+        content = re.sub(r"^#+[ \t　]*", "", body[start:stop].strip())
+
+        # 祖先链只取"模块"层级（level >= 3）：把 `## 二、考试内容模块与要求` 也塞进
+        # heading_path 会让出处长到看不清，而它对本片几乎没有区分度 —— 每个考点都在它下面。
+        ancestors: list[str] = []
+        for j in range(i - 1, -1, -1):
+            if heads[j][1] < level and heads[j][1] >= 3:
+                ancestors.insert(0, heads[j][2])
+            if heads[j][1] <= 2:
+                break
+        path = " / ".join([title, *ancestors, text]) if ancestors else f"{title} / {text}"
+        plans.append(ChunkPlan(seq=len(plans), content=content, heading_path=path))
+
+    return plans
 
 
 def plan_file(rel_path: str, raw: str) -> list[ChunkPlan]:
     """一个 Markdown 文件 → 切片计划。
 
-    目录约定：`laws/`（法律）与 `regulations/`（行政法规）按条切；其余按段切。
+    目录约定：`laws/`（法律）与 `regulations/`（行政法规）按条切；
+    `syllabus/`（考纲与考试标准）按叶子标题（考点）切；其余按段切。
     """
     meta, body = _parse_frontmatter(raw)
     title = meta.get("law") or meta.get("short") or Path(rel_path).stem
-    if rel_path.replace("\\", "/").startswith(ARTICLE_DIRS):
+    norm = rel_path.replace("\\", "/")
+    if norm.startswith(ARTICLE_DIRS):
         return split_law_articles(title, body)
+    if norm.startswith(SYLLABUS_DIRS):
+        return split_syllabus(title, body)
     return _split_general(title, body)
 
 
