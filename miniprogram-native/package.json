@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "教资《综合素质》客观题闯关闭环小程序（微信原生，弃用 Taro）",
+  "type": "module",
+  "//": "type=module 是 node --test 能直接跑 utils/*.js 的前提（它们用 ESM 写法）。vitest 保留在 devDependencies 只为与 package-lock 保持一致——移除会让 npm ci 报package.json 与 lock 不同步；实际测试已改用 Node 内置 runner。缘由见 docs/adr/0022。",
   "scripts": {
-    "test": "vitest run"
+    "test": "node --test utils/"
   },
   "devDependencies": {
     "vitest": "^2.1.0"

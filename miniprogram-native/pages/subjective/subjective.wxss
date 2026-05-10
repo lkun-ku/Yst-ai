@@ -59,6 +59,19 @@
 .fold-tap {
   font-size: 24rpx;
   color: var(--primary);
+  padding-left: 24rpx;
+}
+
+.fold-actions {
+  display: flex;
+  align-items: center;
+}
+
+.drawn-note {
+  display: block;
+  margin-bottom: 12rpx;
+  font-size: 22rpx;
+  color: var(--ink-500);
 }
 
 /* ---------------- 输入区 ---------------- */

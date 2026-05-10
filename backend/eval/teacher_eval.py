@@ -204,7 +204,18 @@ def main(limit: int = 40) -> dict:
             "n_unanswerable": len(_UNANSWERABLE),
             "llm": mode_llm,
             "rerank": os.environ.get("RERANK_IMPL", "off"),
-            "caveat": "LLM=fake 时本表只证明链路通与判据生效，不是真实模型下答得准的证据",
+            # 警示语**按实际模式生成**。此前是硬编码的"LLM=fake 时…"，
+            # 于是真实模式下跑出来的表**标错了自己的模式** —— 一份自称 fake 的 real 表，
+            # 比没有警示更糟：它会让读者低估证据强度，也可能让人以为缺口还在。
+            "caveat": (
+                "LLM=fake 时本表只证明链路通、指标算得出、拒答判据生效，"
+                "不是真实模型下答得准的证据"
+                if str(os.environ.get("LLM_MODE", "fake")) == "fake"
+                else "本表为**真实模型**（LLM=real）下实测。"
+                "样本量见 n_answerable / n_unanswerable —— "
+                "小样本下引用通过率 / 误拒率不宜单独引用（'正确拒答率'的分母是固定的不可答集，"
+                "故该维在小样本下即完整）"
+            ),
         },
         "rows": rows,
         "samples": detail,

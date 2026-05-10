@@ -55,6 +55,8 @@ Page({
     stem: "",
     stemPreview: "",
     stemOpen: true,
+    //: 取题后的出处提示（题目 id / 模块 / 考点）—— 可追溯是产品的核心承诺之一
+    drawnFrom: "",
     answer: "",
     canSubmit: false,
     loading: false,
@@ -122,6 +124,42 @@ Page({
 
   onToggleStem() {
     this.setData({ stemOpen: !this.data.stemOpen });
+  },
+
+  /**
+   * 从官方题库抽一道主观题。
+   *
+   * 后端已排除三类题源（未审校 / 占位模板 / 他人的个人题），前端**不再重复判断** ——
+   * 过滤条件必须只有一处，两处各写一份必然分叉。
+   */
+  async onDraw() {
+    if (this.data.loading) return;
+    this.setData({ canSubmit: false });
+    try {
+      const q = await request(`/api/questions/practice?qtype=${this.data.qtype}`);
+      const stem = q.stem || "";
+      this.setData({
+        stem,
+        stemPreview: stem.length > 80 ? `${stem.slice(0, 80)}…` : stem,
+        stemOpen: true,
+        drawnFrom: `已取题 #${q.id}　${q.module}　${q.knowledge_point}`,
+        // ⚠️ 换题必须清掉上一道题的批改结果 —— 否则用户会看到**上一个题目**的四维度评分，
+        // 而且它会与当前题目一起被截图/误信。这类"陈旧结果"不报错、最难发现。
+        result: null,
+        dims: [],
+        consistency: null,
+        consistDims: [],
+        revealComments: false,
+        revealEvidence: false,
+        rubricOpen: false,
+        canSubmit: !!(stem || "").trim() && !!(this.data.answer || "").trim(),
+      });
+    } catch (e) {
+      // 404 表示"题库里暂时没有该类合格题"，后端会在 detail 里说明原因 ——
+      // 原样透传，不要替换成"网络错误"那类含糊文案。
+      toastApiError(e);
+      this.setData({ canSubmit: this._canSubmit(this.data.stem, this.data.answer) });
+    }
   },
 
   onStemInput(e) {

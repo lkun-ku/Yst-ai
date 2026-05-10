@@ -14,6 +14,7 @@ from .routers import (
     marking,
     mcp,
     mistakes,
+    questions,
     quota,
     reports,
     review,
@@ -58,3 +59,4 @@ app.include_router(chat.router, tags=["chat"])
 app.include_router(teacher.router, tags=["teacher"])
 app.include_router(marking.router, tags=["marking"])
 app.include_router(mcp.router, tags=["mcp"])
+app.include_router(questions.router, tags=["questions"])

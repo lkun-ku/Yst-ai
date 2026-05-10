@@ -1,39 +1,39 @@
 {
   "metadata": {
-    "time": "2026-06-11T03:44:14",
-    "n_questions": 25,
-    "n_answerable": 20,
+    "time": "2026-06-11T16:53:17",
+    "n_questions": 8,
+    "n_answerable": 3,
     "n_unanswerable": 5,
-    "llm": "LLM=fake（FakeLLMClient）",
+    "llm": "LLM=real（RealLLMClient）",
     "rerank": "off",
-    "caveat": "LLM=fake 时本表只证明链路通与判据生效，不是真实模型下答得准的证据"
+    "caveat": "本表为**真实模型**（LLM=real）下实测。样本量见 n_answerable / n_unanswerable —— 小样本下引用通过率 / 误拒率不宜单独引用（'正确拒答率'的分母是固定的不可答集，故该维在小样本下即完整）"
   },
   "rows": {
     "grounded": {
-      "n_answerable": 20,
+      "n_answerable": 3,
       "n_unanswerable": 5,
-      "answered": 25,
-      "cite_first_pass_rate": 1.0,
-      "false_refusal_rate": 0.0,
-      "correct_refusal_rate": 0.0,
+      "answered": 0,
+      "cite_first_pass_rate": 0.0,
+      "false_refusal_rate": 1.0,
+      "correct_refusal_rate": 1.0,
       "avg_tool_calls": 1.0
     },
     "agent": {
-      "n_answerable": 20,
+      "n_answerable": 3,
       "n_unanswerable": 5,
-      "answered": 25,
-      "cite_first_pass_rate": 1.0,
-      "false_refusal_rate": 0.0,
-      "correct_refusal_rate": 0.0,
+      "answered": 0,
+      "cite_first_pass_rate": 0.0,
+      "false_refusal_rate": 1.0,
+      "correct_refusal_rate": 1.0,
       "avg_tool_calls": 1.0
     },
     "plain": {
-      "n_answerable": 20,
+      "n_answerable": 3,
       "n_unanswerable": 5,
-      "answered": 25,
+      "answered": 0,
       "cite_first_pass_rate": 0.0,
-      "false_refusal_rate": 0.0,
-      "correct_refusal_rate": 0.0,
+      "false_refusal_rate": 1.0,
+      "correct_refusal_rate": 1.0,
       "avg_tool_calls": 0.0
     }
   },
@@ -42,110 +42,110 @@
       {
         "q": "义务教育法第一条 是怎么规定的？",
         "answerable": true,
-        "refused": false,
-        "reason": "",
-        "quote": "第一条 为了保障适龄儿童、少年接受义务教育的权利，保证义务教育的实施，提高全民族"
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
+        "quote": ""
       },
       {
         "q": "义务教育法第二条 是怎么规定的？",
         "answerable": true,
-        "refused": false,
-        "reason": "",
-        "quote": "第二十条 县级以上地方人民政府根据需要，为具有预防未成年人犯罪法规定的严重不良行"
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
+        "quote": ""
       },
       {
         "q": "义务教育法第三条 是怎么规定的？",
         "answerable": true,
-        "refused": false,
-        "reason": "",
-        "quote": "第三十条 教师应当取得国家规定的教师资格。"
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
+        "quote": ""
       },
       {
-        "q": "义务教育法第四条 是怎么规定的？",
-        "answerable": true,
-        "refused": false,
-        "reason": "",
-        "quote": "第四十四条 义务教育经费投入实行国务院和地方各级人民政府根据职责共同负担，省、自"
+        "q": "《民法典》第一千二百六十条对高空抛物是怎么规定的？",
+        "answerable": false,
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
+        "quote": ""
       },
       {
-        "q": "义务教育法第五条 是怎么规定的？",
-        "answerable": true,
-        "refused": false,
-        "reason": "",
-        "quote": "第五十五条 学校或者教师在义务教育工作中违反教育法、教师法规定的，依照教育法、教"
+        "q": "《教师法》第九十九条关于教师申诉是怎么规定的？",
+        "answerable": false,
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
+        "quote": ""
       }
     ],
     "agent": [
       {
         "q": "义务教育法第一条 是怎么规定的？",
         "answerable": true,
-        "refused": false,
-        "reason": "",
-        "quote": "第一条 为了保障适龄儿童、少年接受义务教育的权利，保证义务教育的实施，提高全民族"
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
+        "quote": ""
       },
       {
         "q": "义务教育法第二条 是怎么规定的？",
         "answerable": true,
-        "refused": false,
-        "reason": "",
-        "quote": "第二十条 县级以上地方人民政府根据需要，为具有预防未成年人犯罪法规定的严重不良行"
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
+        "quote": ""
       },
       {
         "q": "义务教育法第三条 是怎么规定的？",
         "answerable": true,
-        "refused": false,
-        "reason": "",
-        "quote": "第三十条 教师应当取得国家规定的教师资格。"
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
+        "quote": ""
       },
       {
-        "q": "义务教育法第四条 是怎么规定的？",
-        "answerable": true,
-        "refused": false,
-        "reason": "",
-        "quote": "第四十四条 义务教育经费投入实行国务院和地方各级人民政府根据职责共同负担，省、自"
+        "q": "《民法典》第一千二百六十条对高空抛物是怎么规定的？",
+        "answerable": false,
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
+        "quote": ""
       },
       {
-        "q": "义务教育法第五条 是怎么规定的？",
-        "answerable": true,
-        "refused": false,
-        "reason": "",
-        "quote": "第五十五条 学校或者教师在义务教育工作中违反教育法、教师法规定的，依照教育法、教"
+        "q": "《教师法》第九十九条关于教师申诉是怎么规定的？",
+        "answerable": false,
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
+        "quote": ""
       }
     ],
     "plain": [
       {
         "q": "义务教育法第一条 是怎么规定的？",
         "answerable": true,
-        "refused": false,
-        "reason": "",
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
         "quote": ""
       },
       {
         "q": "义务教育法第二条 是怎么规定的？",
         "answerable": true,
-        "refused": false,
-        "reason": "",
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
         "quote": ""
       },
       {
         "q": "义务教育法第三条 是怎么规定的？",
         "answerable": true,
-        "refused": false,
-        "reason": "",
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
         "quote": ""
       },
       {
-        "q": "义务教育法第四条 是怎么规定的？",
-        "answerable": true,
-        "refused": false,
-        "reason": "",
+        "q": "《民法典》第一千二百六十条对高空抛物是怎么规定的？",
+        "answerable": false,
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
         "quote": ""
       },
       {
-        "q": "义务教育法第五条 是怎么规定的？",
-        "answerable": true,
-        "refused": false,
-        "reason": "",
+        "q": "《教师法》第九十九条关于教师申诉是怎么规定的？",
+        "answerable": false,
+        "refused": true,
+        "reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
         "quote": ""
       }
     ]

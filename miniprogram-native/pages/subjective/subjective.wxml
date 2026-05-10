@@ -20,15 +20,19 @@
 
   <!-- 题目区：可折叠的材料 + 作答要求 -->
   <view class="card-mod">
-    <view class="fold-head" hover-class="press" hover-stay-time="80" bindtap="onToggleStem">
+    <view class="fold-head">
       <text class="zone-label">题目 / 材料</text>
-      <text class="fold-tap">{{stemOpen ? '收起' : '展开'}}</text>
+      <view class="fold-actions">
+        <text class="fold-tap" hover-class="press" hover-stay-time="80" bindtap="onDraw">从题库抽一道</text>
+        <text class="fold-tap" hover-class="press" hover-stay-time="80" bindtap="onToggleStem">{{stemOpen ? '收起' : '展开'}}</text>
+      </view>
     </view>
+    <text wx:if="{{drawnFrom}}" class="drawn-note">{{drawnFrom}}</text>
     <textarea
       wx:if="{{stemOpen}}"
       class="stem-input"
       value="{{stem}}"
-      placeholder="把题目或材料粘进来（含作答要求）。批改只依据它检索到的评分标准，不会用你的作答去反推标准。"
+      placeholder="粘题目，或点上面的「从题库抽一道」。批改只依据它检索到的评分标准，不会用你的作答去反推标准。"
       placeholder-class="ph"
       maxlength="2000"
       auto-height
