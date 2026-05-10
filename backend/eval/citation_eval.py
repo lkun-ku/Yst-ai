@@ -40,6 +40,7 @@ import json
 import os
 import re
 import sys
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -59,8 +60,45 @@ try:  # 兼容「脚本直接运行」与「pytest 包上下文」两种方式
 except ImportError:  # pragma: no cover
     from eval.metrics import evaluate_citation_gate  # noqa: E402
 
-#: 只取这两个目录（都有"条"这个强单元，引用边界清晰）。
-_ARTICLE_DIRS = ("laws/", "regulations/")
+@dataclass(frozen=True)
+class CorpusSpec:
+    """一类语料的基准参数。
+
+    **为什么要把语料做成参数**：闸门本身与语料无关，但**用例构造**与语料结构有关 ——
+    法条有「第X条」这个强单元，考纲有「考点」标题。第一版把法条结构写死在用例构造里，
+    于是基准只能跑法条，考纲段落上的闸门行为**没有基准级数字**（ADR-0021 登记的边界）。
+
+    两类语料共用同一套逻辑，差异只有两处：**取目录** 与 **头部标签怎么认/叫什么**
+    （法条叫「条号」、考纲叫「考点」）。类别名保持与 ADR-0014 一致（「换条号」），
+    这样历史基准仍可逐行对比。
+    """
+
+    key: str
+    name: str          # 写进基准表的人类可读名
+    dirs: tuple[str, ...]
+    head_label: str    # 头部标签的称呼，用于反例类别命名（换条号 / 换考点）
+    pair_label: str    # 「拼接两X」里的量词（法条是"条"、考纲是"段"）
+    baseline: str      # 基准表文件名（**按语料分文件** —— 同名会静默覆盖）
+
+
+CORPORA: dict[str, CorpusSpec] = {
+    "laws": CorpusSpec(
+        key="laws",
+        name="法条（laws/ + regulations/）",
+        dirs=("laws/", "regulations/"),
+        head_label="条号",
+        pair_label="条",
+        baseline="citation_baseline.md",
+    ),
+    "syllabus": CorpusSpec(
+        key="syllabus",
+        name="考纲（syllabus/）",
+        dirs=("syllabus/",),
+        head_label="考点",
+        pair_label="段",
+        baseline="citation_baseline_syllabus.md",
+    ),
+}
 #: 摘录长度：够长才能构成有效证据，也才能容纳"删中间字"这类篡改。
 EXCERPT_CHARS = 40
 #: 给校验器的切片窗口大小（含来源片）。
@@ -99,8 +137,8 @@ _FABRICATED_TEMPLATES = (
 )
 
 
-def load_law_chunks(root: str | Path | None = None) -> list[dict]:
-    """把法条 Markdown 按 `kb_corpus` 的规则切成片（**不落库**，纯内存）。
+def load_chunks(spec: CorpusSpec, root: str | Path | None = None) -> list[dict]:
+    """按语料把 Markdown 切成片（**不落库**，纯内存）。
 
     直接复用 `plan_file` 而不是另写一套切分 —— 评测必须建在**生产同一套切片**上，
     否则测的是另一个系统。
@@ -108,7 +146,7 @@ def load_law_chunks(root: str | Path | None = None) -> list[dict]:
     root_path = Path(root) if root else DEFAULT_ROOT
     chunks: list[dict] = []
     for rel, abs_path in iter_source_files(root_path):
-        if not rel.startswith(_ARTICLE_DIRS):
+        if not rel.startswith(spec.dirs):
             continue
         raw = abs_path.read_text(encoding="utf-8")
         for plan in plan_file(rel, raw):
@@ -118,6 +156,11 @@ def load_law_chunks(root: str | Path | None = None) -> list[dict]:
     for i, c in enumerate(chunks, 1):
         c["id"] = i
     return chunks
+
+
+def load_law_chunks(root: str | Path | None = None) -> list[dict]:
+    """兼容旧调用：法条语料。"""
+    return load_chunks(CORPORA["laws"], root)
 
 
 def _excerpt(content: str) -> str:
@@ -131,6 +174,28 @@ def _split_article(text: str) -> tuple[str, str]:
     if not m:
         return "", text or ""
     return m.group(1), text[m.end():]
+
+
+#: 考纲这类语料的"头部标签"最长多少字。限长是为了**不把正文首句当成标签** ——
+#: 考点名与节标题都很短（`2.学生观` / `一、考试目标`），而正文首句往往很长。
+_MAX_HEAD_CHARS = 20
+
+
+def _split_head(text: str, spec: CorpusSpec) -> tuple[str, str]:
+    """拆出「头部标签」与其余正文 —— 法条是条号，考纲是考点名。
+
+    两类语料的差异只在"标签怎么认"，而**用例构造的其余逻辑完全共用**：
+    「换标签」这个反例在两边是同一类错误（把内容挂在错误的出处下），
+    只是法条上叫「换条号」、考纲上叫「换考点」。
+    """
+    if spec.key == "laws":
+        return _split_article(text)
+    lines = (text or "").split("\n", 1)
+    head = lines[0].strip()
+    if not head or len(head) > _MAX_HEAD_CHARS:
+        return "", text or ""
+    rest = lines[1].strip() if len(lines) > 1 else ""
+    return head, rest
 
 
 def _law_of(chunk: dict) -> str:
@@ -152,7 +217,11 @@ def _absent_exact(text: str, corpus_contents: list[str]) -> bool:
     return bool(text) and not any(text in c for c in corpus_contents)
 
 
-def build_cases(chunks: list[dict], excerpt_chars: int = EXCERPT_CHARS) -> tuple[list[dict], dict]:
+def build_cases(
+    chunks: list[dict],
+    spec: CorpusSpec = CORPORA["laws"],
+    excerpt_chars: int = EXCERPT_CHARS,
+) -> tuple[list[dict], dict]:
     """构造正例 / 反例。返回 `(cases, stats)`。
 
     `stats` 记录各类别产出条数与被跳过的反例数，使"某类用例为 0"不会被误读成"该类全过"。
@@ -190,7 +259,7 @@ def build_cases(chunks: list[dict], excerpt_chars: int = EXCERPT_CHARS) -> tuple
         picked.extend(idxs[::step][:MAX_PER_DOC])
     picked.sort()
 
-    articles = [_split_article(c.get("content") or "")[0] for c in chunks]
+    articles = [_split_head(c.get("content") or "", spec)[0] for c in chunks]
 
     for i in picked:
         chunk = chunks[i]
@@ -199,7 +268,7 @@ def build_cases(chunks: list[dict], excerpt_chars: int = EXCERPT_CHARS) -> tuple
         if len(quote) < 12:
             continue
         ctx = _window(chunks, i)
-        article, rest = _split_article(quote)
+        article, rest = _split_head(quote, spec)
         if not article or not rest:
             continue
 
@@ -213,14 +282,15 @@ def build_cases(chunks: list[dict], excerpt_chars: int = EXCERPT_CHARS) -> tuple
                 ctx,
             )
         add(rest[:14] + "\n" + rest[14:], False, "改断行", ctx)
-        # 带出处前缀：把条号提到前缀里、正文里去掉（这是模型最自然的写法）
+        # 带出处前缀：把标签提到前缀里、正文里去掉（这是模型最自然的写法）
+        # `heading_path` 第一段对法条是法名、对考纲是卷名，两者都适合做 `《》` 里的出处
         add(f"《{_law_of(chunk)}》{article}：{rest}", False, "出处前缀", ctx)
 
         # ---- 反例：内容篡改（每条都要过缺席自检 + 内容确实改动） ----
         # ① 换条号：正文不动，只把条号换成别处的 —— 这是法条场景最致命的错配
         other = next((a for a in articles if a and a != article), "")
         if other:
-            add_negative(f"{other} {rest}", "换条号", ctx, original=quote)
+            add_negative(f"{other} {rest}", f"换{spec.head_label}", ctx, original=quote)
         # ② 换词：把"应当"改成"可以"（法律含义直接反转），没有则替换中段两字
         if "应当" in rest:
             add_negative(f"{article} {rest.replace('应当', '可以', 1)}", "换词", ctx, original=quote)
@@ -238,7 +308,7 @@ def build_cases(chunks: list[dict], excerpt_chars: int = EXCERPT_CHARS) -> tuple
         other_excerpt = _excerpt(other_chunk.get("content") or "")
         if len(other_excerpt) >= 20 and len(rest) >= 20:
             add_negative(
-                f"{article} {rest[:16]}{other_excerpt[-16:]}", "拼接两条", ctx, original=quote
+                f"{article} {rest[:16]}{other_excerpt[-16:]}", f"拼接两{spec.pair_label}", ctx, original=quote
             )
 
     # ⑤ 凭空编造：类型用例，全库一次即可（无原文可比，只过缺席自检）
@@ -265,9 +335,10 @@ def _verify(quote: str, chunks: list[dict]) -> bool:
     return verify_quote(quote, chunks).ok
 
 
-def main(out: str | None = None) -> dict:
-    chunks = load_law_chunks()
-    cases, stats = build_cases(chunks)
+def main(out: str | None = None, corpus: str = "laws") -> dict:
+    spec = CORPORA[corpus]
+    chunks = load_chunks(spec)
+    cases, stats = build_cases(chunks, spec)
     metrics = evaluate_citation_gate(cases, _verify)
 
     # 分层明细：哪一类正例被误杀、哪一类反例被漏放 —— 定位问题时最需要的信息
@@ -281,7 +352,7 @@ def main(out: str | None = None) -> dict:
     n_exact = sum(1 for s in statuses if s == STATUS_EXACT)
     n_norm = sum(1 for s in statuses if s == STATUS_NORMALIZED)
 
-    print(f"语料切片：{stats['n_chunks']}　用例：{metrics.n_total}"
+    print(f"语料：{spec.name}　切片 {stats['n_chunks']}　用例 {metrics.n_total}"
           f"（正例 {stats['n_positives']} / 反例 {stats['n_negatives']}）")
     if stats["skipped_negatives"]:
         print(f"⚠️ 跳过反例 {stats['skipped_negatives']} 条（未通过缺席自检）：{stats['skipped_by_kind']}")
@@ -311,6 +382,8 @@ def main(out: str | None = None) -> dict:
     result = {
         "metadata": {
             "time": datetime.now().isoformat(timespec="seconds"),
+            "corpus": spec.name,
+            "corpus_key": spec.key,
             "excerpt_chars": EXCERPT_CHARS,
             "context_window": CONTEXT_WINDOW,
             "min_quote_chars": DEFAULT_MIN_QUOTE_CHARS,
@@ -325,17 +398,18 @@ def main(out: str | None = None) -> dict:
         "by_kind": detail,
         "levels": {"exact": n_exact, "normalized": n_norm},
     }
-    _write_markdown(os.path.join(out_dir, "citation_baseline.md"), result)
-    with open(os.path.join(out_dir, "citation_baseline.json"), "w", encoding="utf-8") as f:
+    md_path = os.path.join(out_dir, spec.baseline)
+    _write_markdown(md_path, result)
+    with open(md_path.replace(".md", ".json"), "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
-    print(f"\n已写入：{os.path.join(out_dir, 'citation_baseline.md')}")
+    print(f"\n已写入：{md_path}")
     return result
 
 
 def _write_markdown(path: str, result: dict) -> None:
     meta, m, detail = result["metadata"], result["metrics"], result["by_kind"]
     lines = [
-        "# 引用闸门基准（source_quote 子串硬校验）",
+        f"# 引用闸门基准（source_quote 子串硬校验）—— {meta['corpus']}",
         "",
         f"- 生成时间：{meta['time']}　语料 {meta['n_chunks']} 片　用例 {meta['n_cases']} 条"
         f"（正例 {meta['n_positives']} / 反例 {meta['n_negatives']}）",
@@ -349,7 +423,7 @@ def _write_markdown(path: str, result: dict) -> None:
         "> **误杀率为 0 的含义有限**：本组正例是四类**人工设计的**写法扰动，",
         "> 它只证明这些容忍度被完整覆盖，**不等于**真实场景零误杀 ——",
         "> 真实模型的改写方式比这几类更多（概括、跨句合并、意译），",
-        "> 那些情形会被子串判定拦下，这正是"宁可误杀、不可漏放"的代价。",
+        "> 那些情形会被子串判定拦下，这正是“宁可误杀、不可漏放”的代价。",
         "",
         "| 指标 | 值 |",
         "| --- | --- |",
@@ -377,5 +451,11 @@ def _write_markdown(path: str, result: dict) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=None, help="结果输出目录（默认 eval/results/）")
+    ap.add_argument(
+        "--corpus",
+        default="laws",
+        choices=sorted(CORPORA),
+        help="跑哪类语料（两类结构不同，用例构造与类别名不同）",
+    )
     args = ap.parse_args()
-    main(out=args.out)
+    main(out=args.out, corpus=args.corpus)
