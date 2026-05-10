@@ -7,8 +7,14 @@
 | mode | 做什么 | 用来回答什么问题 |
 | --- | --- | --- |
 | `plain` | **不检索**直接作答 | 无据版对照：证明"有据"确实改变了什么 |
-| `grounded` | 检索一次 → 带引用作答 | 基础 RAG QA |
+| `grounded` | 检索一次 +（**条号类问题**再追加一次确定性结构化定位）→ 带引用作答 | 基础 RAG QA |
 | `agent` | 模型自主决定 检索/查条文/自检（循环） | 多跳问题：需要先定位再核对 |
+
+**`grounded` 的"确定性前置"为什么不算把工具交出去**：它由 `find_law_reference` 用正则判断
+问题里有没有「X第N条」，**不经过模型决策** —— grounded 仍然是"流程固定、模型不做工具选择"的那一档，
+与 `agent`（模型自主决定查什么）的区别完好。加这一步是因为实测发现：条号类问题在 grounded 上
+**误拒率 0.1**（2/20 可答题，样本全是「《X》第N条 是怎么规定的」），而同题在 agent 上 0.0 ——
+缺的正是这一次结构化定位。见 `tools.find_law_reference` 的 docstring。
 
 **为什么把"无据版"做成模式而不是留一个旧端点**：对照实验要控制变量 ——
 同一套提示词、同一个接缝、同一个校验，**唯一差异是有没有检索**。
@@ -45,7 +51,15 @@ from langgraph.graph import END, START, StateGraph
 from ..config import settings
 from .citation import verify_payloads
 from .prompts_teacher import parse_teacher_answer, teacher_answer_prompt
-from .tools import ANSWER, TOOLS_BY_NAME, ToolContext, decide, execute, observe
+from .tools import (
+    ANSWER,
+    TOOLS_BY_NAME,
+    ToolContext,
+    decide,
+    execute,
+    find_law_reference,
+    observe,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,12 +95,29 @@ def _emit(s: TeacherState, type_: str, text: str, detail=None) -> None:
 
 
 def _evidence_chunks(s: TeacherState) -> list[dict]:
-    """所有观察里能作为依据的切片（只有带 content 的才是依据）。"""
+    """所有观察里能作为依据的切片（只有带 content 的才是依据）。
+
+    **按 `id` 去重，保留首次出现**。同一个切片确实会被两个途径分别取到：
+    `search_kb` 检索到它、条号类问题又会被结构化定位精确命中它
+    （加了确定性前置之后这是常态，不再是罕见情况）。
+    不去重会让前端「依据 N 处」虚高 —— 那是**用户直接看到的数字**，虚一个都算不准。
+
+    保留首次出现是够用的：出现重复本身就意味着它被检索到了（带 `keyword_score`），
+    判定 `_sufficient` 时走检索侧那套本来也会通过；而真正的误拒场景
+    （检索没召回、只有结构化定位命中）**没有重复**，那时留下的正是"无 keyword_score"的那一份。
+    """
     out: list[dict] = []
+    seen: set = set()
     for ob in s.get("observations") or []:
         for it in ob.get("items") or []:
-            if isinstance(it, dict) and it.get("content"):
-                out.append(it)
+            if not (isinstance(it, dict) and it.get("content")):
+                continue
+            key = it.get("id")
+            if key is not None:
+                if key in seen:
+                    continue
+                seen.add(key)
+            out.append(it)
     return out
 
 
@@ -110,7 +141,23 @@ def _n_plan(s: TeacherState) -> dict:
     if mode == "grounded":
         res = _run_tool(s, FALLBACK_TOOL, {"query": s["question"]})
         _emit(s, "retrieve", f"检索完成（{'成功' if res.get('ok') else '失败'}）")
-        return {"observations": [observe(FALLBACK_TOOL, res)], "calls": 1}
+        obs = [observe(FALLBACK_TOOL, res)]
+        calls = 1
+        # 确定性前置：问题里出现「X第N条」就直接走结构化定位（不经过模型决策）。
+        # 只靠 search_kb 时，条号类问题会召回一堆没回答它的材料 → 模型**正确地**判
+        # insufficient → 误拒。实测：grounded 误拒率 0.1、agent（可调 lookup_law）0.0。
+        ref = find_law_reference(s["question"])
+        if ref:
+            res2 = _run_tool(s, "lookup_law", ref)
+            if res2.get("items"):
+                obs.append(observe("lookup_law", res2))
+                calls += 1
+                _emit(s, "tool", f"结构化定位 {ref['law']}{ref['article']}")
+            else:
+                # 库里没有该条号：**别静默吞掉**。它不改变判定（无证据、不引入误答），
+                # 但排查时要能看见"这一步跑过了、只是没命中"。
+                _emit(s, "observation", f"lookup_law 未命中 {ref['law']}{ref['article']}")
+        return {"observations": obs, "calls": calls}
     _emit(s, "plan", "Agent 模式：由模型决定查什么")
     return {"observations": [], "calls": 0}
 

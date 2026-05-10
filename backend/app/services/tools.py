@@ -39,6 +39,7 @@ OpenAI 兼容接口的原生 `tools=[...]` 更省一次解析，但有两个现�
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -173,6 +174,47 @@ def _search_kb(query: str, k: int = 6, ctx: ToolContext = None) -> dict:
             for c in chunks
         ),
     }
+
+
+#: 问题里的「X第N条」——含可选的 `《》`、允许中间有空白。
+#: 法名要求以「法」或「条例」结尾：这挡掉了大量误识别（如「教师法律」不会匹配），
+#: 而库里 6 部语料全部以这两个字收尾。
+_LAW_REF_RE = re.compile(
+    r"《?([\u4e00-\u9fa5]{2,20}?(?:法|条例))》?\s*第\s*([〇零一二三四五六七八九十百0-9]{1,8})\s*条"
+)
+
+#: 正式全称的前缀。库里语料的法名是简称（`义务教育法`），而用户很可能写全称 ——
+#: 不剥掉前缀会让 `LIKE %中华人民共和国义务教育法%` 匹配不到 `义务教育法 / 第十五条`。
+_OFFICIAL_PREFIXES = ("中华人民共和国",)
+
+
+def find_law_reference(question: str) -> dict | None:
+    """从问题里识别「法名 + 条号」，返回 `lookup_law` 的参数；识别不到返回 `None`。
+
+    ## 为什么这件事要用正则做**确定性**识别，而不是交给模型判断
+
+    「《X》第N条」是**结构化查询**，不是相似度问题 —— 第 5、6 两项反复验证了同一个结构事实：
+    **法名与条号只出现在 `heading_path` 里，正文没有**，所以向量与 BM25 都做不到可靠
+    （`lookup_law` 的模块 docstring 里记了这条）。
+
+    交给模型自己决定"要不要查条文"，等于把一次确定性定位变成一次碰运气。实测后果很具体：
+    `grounded`（只有 `search_kb`）在**条号类问题**上误拒 —— 真实模型下误拒率 **0.1**，
+    且那 2 条误拒样本**都是**「《X》第N条 是怎么规定的」；同一类问题在 `agent`
+    （可调 `lookup_law`）上误拒率 **0.0**。所以这里补的是 grounded 缺的那一步，
+    **而不是**把 grounded 变成 agent（那会毁掉"无工具 vs 有工具"这个对照维度）。
+
+    识别到但库里没有该条号时无副作用：`lookup_law` 精确复核全灭会**如实返回空**，
+    既不产生证据也不改变拒答判定 —— 即本函数是**纯增强，不会引入新的误答**。
+    """
+    m = _LAW_REF_RE.search(question or "")
+    if not m:
+        return None
+    law = m.group(1)
+    for prefix in _OFFICIAL_PREFIXES:
+        if law.startswith(prefix) and len(law) > len(prefix) + 1:
+            law = law[len(prefix):]
+            break
+    return {"law": law, "article": f"第{m.group(2)}条"}
 
 
 def _lookup_law(law: str = "", article: str = "", ctx: ToolContext = None) -> dict:
