@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "time": "2026-06-11T18:25:10",
+    "time": "2026-06-11T19:20:59",
     "n_questions": 25,
     "n_answerable": 20,
     "n_unanswerable": 5,
@@ -12,11 +12,11 @@
     "grounded": {
       "n_answerable": 20,
       "n_unanswerable": 5,
-      "answered": 18,
+      "answered": 20,
       "cite_first_pass_rate": 1.0,
-      "false_refusal_rate": 0.1,
+      "false_refusal_rate": 0.0,
       "correct_refusal_rate": 1.0,
-      "avg_tool_calls": 1.0
+      "avg_tool_calls": 1.8
     },
     "agent": {
       "n_answerable": 20,
@@ -25,7 +25,7 @@
       "cite_first_pass_rate": 1.0,
       "false_refusal_rate": 0.0,
       "correct_refusal_rate": 1.0,
-      "avg_tool_calls": 1.4
+      "avg_tool_calls": 1.2
     },
     "plain": {
       "n_answerable": 20,
@@ -44,7 +44,7 @@
         "answerable": true,
         "refused": false,
         "reason": "",
-        "quote": "第一条 为了保障适龄儿童、少年接受义务教育的权利，保证义务教育的实施，提高全民族"
+        "quote": "为了保障适龄儿童、少年接受义务教育的权利，保证义务教育的实施，提高全民族素质"
       },
       {
         "q": "义务教育法第二条 是怎么规定的？",
@@ -65,7 +65,7 @@
         "answerable": true,
         "refused": false,
         "reason": "",
-        "quote": "凡具有中华人民共和国国籍的适龄儿童、少年，不分性别、民族、种族、家庭财产状况、宗"
+        "quote": "凡具有中华人民共和国国籍的适龄儿童、少年"
       },
       {
         "q": "义务教育法第五条 是怎么规定的？",
@@ -73,20 +73,6 @@
         "refused": false,
         "reason": "",
         "quote": "各级人民政府及其有关部门应当履行本法规定的各项职责，保障适龄儿童、少年接受义务教"
-      },
-      {
-        "q": "义务教育法第十五条 是怎么规定的？",
-        "answerable": true,
-        "refused": true,
-        "reason": "材料不足以支撑结论（模型判定 insufficient）",
-        "quote": ""
-      },
-      {
-        "q": "义务教育法第十八条 是怎么规定的？",
-        "answerable": true,
-        "refused": true,
-        "reason": "材料不足以支撑结论（模型判定 insufficient）",
-        "quote": ""
       }
     ],
     "agent": [
@@ -95,7 +81,7 @@
         "answerable": true,
         "refused": false,
         "reason": "",
-        "quote": "为了保障适龄儿童、少年接受义务教育的权利，保证义务教育的实施，提高全民族素质"
+        "quote": "第一条 为了保障适龄儿童、少年接受义务教育的权利，保证义务教育的实施，提高全民族"
       },
       {
         "q": "义务教育法第二条 是怎么规定的？",
@@ -109,7 +95,7 @@
         "answerable": true,
         "refused": false,
         "reason": "",
-        "quote": "第三条 义务教育必须贯彻国家的教育方针，实施素质教育，提高教育质量"
+        "quote": "义务教育必须贯彻国家的教育方针，实施素质教育，提高教育质量"
       },
       {
         "q": "义务教育法第四条 是怎么规定的？",
