@@ -31,7 +31,10 @@ backend/eval/eval_kb.db
 backend/eval/eval_kb.db-journal
 # 基准脚本的**后台运行日志**（一次性产物，2026-06-11）：跑长基准要放后台，
 # 日志就落在 results/ 里。只删一次文件不够 —— 跑一次就会重新生成，故写进忽略规则。
-backend/eval/results/.t_run.*
+# 用通配而不是逐个名字：先按 `.t_run.*` 忽略，第二天换成 `.g3_run.*` 就漏了 ——
+# 「每加一个脚本就要记得改 .gitignore」这种事一定会忘。基准产物一律是正名的
+# `.md`/`.json`，点文件在该目录下只可能是临时日志。
+backend/eval/results/.*
 
 # 上 GitHub 前清理（#40）：IDE 数据 / 旧版目录 / 含密钥的本地脚本
 .codebuddy/

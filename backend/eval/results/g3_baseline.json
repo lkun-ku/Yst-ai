@@ -1,0 +1,18 @@
+{
+  "metrics": {
+    "n_questions": 30,
+    "n_valid": 30,
+    "agree_rate": 1.0,
+    "matches_rate": 1.0,
+    "blocked_rate": 0.0,
+    "invalid_rate": 0.0
+  },
+  "blocked_samples": [],
+  "metadata": {
+    "time": "2026-06-11T19:26:33",
+    "llm": "real",
+    "votes": 3,
+    "dataset": "官方题样本.json",
+    "caveat": "本表为**真实模型**（LLM=real）下实测；matches_rate 低无法区分'题错'与'模型错'，需人工看被拦样本"
+  }
+}
