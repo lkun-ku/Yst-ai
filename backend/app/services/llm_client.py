@@ -173,6 +173,42 @@ class FakeLLMClient(LLMClient):
         return ""  # 兜底：空输出，上层按「无产出」降级
 
 
+class LLMApiError(RuntimeError):
+    """供应商返回非 2xx。**消息里带响应体** —— 见 `_describe_http_error`。"""
+
+    def __init__(self, message: str, code: int | None = None, body: str = "") -> None:
+        super().__init__(message)
+        self.code = code
+        self.body = body
+
+    @property
+    def retryable(self) -> bool:
+        """429（限流）与 5xx 值得重试；**其余 4xx 是已经说清楚了的拒绝**。
+
+        实测代价：账户欠费时供应商回 400（`Arrearage`），而原来的重试逻辑把它当"瞬时失败"
+        —— 主模型退避 2s+4s、再切备用通道重试 2 次。**这些等待不可能改变结果**，
+        每次调用白花约 6 秒，在整个基准跑里累积成分钟级空转。分类之后明确拒绝直接跳出。
+        """
+        return self.code is None or self.code == 429 or self.code >= 500
+
+
+def _describe_http_error(e) -> str:
+    """把 `urllib` 的 HTTP 错误整理成**能自己说明原因**的一句话。
+
+    为什么值得单独写：`HTTPError` 的 `str()` 只有 `HTTP Error 400: Bad Request` ——
+    **响应体被丢掉了**，而供应商的 4xx 通常正是在响应体里说清原因
+    （欠费 `Arrearage` / 模型名不存在 / 额度超限 / 参数非法）。
+    实测代价：一次「账户欠费」被读成「请求写错了」，白查一轮。
+    """
+    body = ""
+    try:
+        if e.fp is not None:
+            body = e.read().decode("utf-8", "replace")[:400]
+    except Exception:  # noqa: BLE001 — 读不出来就算了；不能因为"想看清错误"而抛出新错误
+        body = ""
+    return f"HTTP {e.code} {e.reason}：{body or '(响应体为空)'}"
+
+
 class RealLLMClient(LLMClient):
     """OpenAI 兼容 Chat Completions（真实供应商接线，LLM_MODE=real 启用）。"""
 
@@ -186,6 +222,8 @@ class RealLLMClient(LLMClient):
             and settings.llm_fallback_model
             else None
         )
+        #: 本进程内是否已放弃备用通道（它明确拒绝之后就没必要再试，见 LLMApiError.retryable）
+        self._fallback_off = False
 
     def generate(self, req: GenerationRequest) -> GenerationResult:
         if req.kind == "variant":
@@ -318,26 +356,41 @@ class RealLLMClient(LLMClient):
             return None
 
     def _chat(self, prompt: str, timeout: int = 30) -> str | None:
-        """#36 主模型瞬时失败重试（退避 2s/4s ×2）；耗尽后切备用供应商（若配置）。"""
+        """#36 主模型瞬时失败重试（退避 2s/4s ×2）；耗尽后切备用供应商（若配置）。
+
+        **只重试值得重试的**：`LLMApiError.retryable` 为假时立即跳出 ——
+        欠费 / 鉴权失败 / 参数非法这类拒绝，等 2 秒再问一遍得到的是同一个拒绝。
+        """
         last_err: Exception | None = None
         for attempt in range(3):
             try:
                 return self._do_chat(prompt, timeout=timeout)
             except Exception as e:  # noqa: BLE001 — 重试耗尽后才降级
                 last_err = e
+                if isinstance(e, LLMApiError) and not e.retryable:
+                    print(f"[llm] 主模型明确拒绝（{e.code}），不重试：{e}")
+                    break
                 if attempt < 2:
                     time.sleep(2 ** (attempt + 1))  # 2s / 4s
         print(f"[llm] 主模型重试耗尽: {type(last_err).__name__}: {last_err}")
-        if self.fallback:
+        if self.fallback and not self._fallback_off:
             base, key, model = self.fallback
             for attempt in range(2):
                 try:
                     print(f"[llm] 切换备用模型 {model}（第 {attempt + 1} 次）")
                     return self._do_chat(prompt, timeout=timeout, base=base, key=key, model=model)
+                except LLMApiError as e:
+                    last_err = e
+                    if not e.retryable:
+                        # 备用通道明确拒绝 → **本进程内不再试它**。否则后续每次调用
+                        # 都要白等 2 次重试 + 2 秒退避（实测：备用欠费时每个调用都如此）。
+                        self._fallback_off = True
+                        print(f"[llm] 备用通道被拒绝（{e.code}），本进程内不再使用：{e}")
+                        break
                 except Exception as e:  # noqa: BLE001
                     last_err = e
-                    if attempt < 1:
-                        time.sleep(2)
+                if attempt < 1:
+                    time.sleep(2)
         print(f"[llm] 全部通道失败: {type(last_err).__name__}: {last_err}")
         return None
 
@@ -372,8 +425,13 @@ class RealLLMClient(LLMClient):
                 "Authorization": f"Bearer {use_key}",
             },
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            # 转成带**响应体**的错误再抛：否则上游只能看到 "HTTP Error 400: Bad Request"，
+            # 而"欠费 / 模型名错 / 额度超限"这些真正的原因都在响应体里（见 _describe_http_error）
+            raise LLMApiError(_describe_http_error(e), code=e.code) from e
         return data["choices"][0]["message"]["content"]
 
     def ask(self, prompt: str, timeout: int = 30) -> str | None:
