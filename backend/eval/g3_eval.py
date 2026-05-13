@@ -79,6 +79,8 @@ class G3Metrics:
     n_agree: int = 0
     n_matches: int = 0
     n_blocked: int = 0
+    #: N1 负样本（答案键被改错）中被拦下的题数 —— 由**同一批盲答回放**得到，零额外调用
+    n_neg_blocked: int = 0
 
     @property
     def agree_rate(self) -> float:
@@ -94,6 +96,16 @@ class G3Metrics:
         return round(self.n_blocked / self.n_valid, 4) if self.n_valid else 0.0
 
     @property
+    def neg_block_rate(self) -> float:
+        """N1 负样本的**拦截率**（应接近 1.0）。它与 `blocked_rate` 是成对的：
+
+        - `blocked_rate` 低 = 不误杀好题（闸门**安全**）；
+        - `neg_block_rate` 高 = 拦得住坏题（闸门**有效**）。
+        只报其中一个都会得出片面结论。
+        """
+        return round(self.n_neg_blocked / self.n_valid, 4) if self.n_valid else 0.0
+
+    @property
     def invalid_rate(self) -> float:
         return round((self.n_questions - self.n_valid) / self.n_questions, 4) if self.n_questions else 0.0
 
@@ -104,8 +116,38 @@ class G3Metrics:
             "agree_rate": self.agree_rate,
             "matches_rate": self.matches_rate,
             "blocked_rate": self.blocked_rate,
+            "neg_block_rate": self.neg_block_rate,
             "invalid_rate": self.invalid_rate,
         }
+
+
+def _corrupt_key(payload: dict) -> list[str]:
+    """把答案键改成一个**错误选项** → N1 负样本。
+
+    真值不依赖任何主观判断：题目的正确选项没动，只是**答案键被改错了**，
+    所以"这道题该被拦"是确定的。找不到可用的错误选项时返回 `[]`（该题不计入负样本）。
+    """
+    keys = [str(o.get("key") or "").strip().upper() for o in (payload.get("options") or [])]
+    right = {str(k).strip().upper() for k in (payload.get("answer") or [])}
+    for k in keys:
+        if k and k not in right:
+            return [k]
+    return []
+
+
+def _neg_blocked(payload: dict, votes: tuple) -> bool:
+    """用**同一批盲答**回放 N1 负样本，判定闸门是否会拦（与 `apply_uniqueness_gate` 同条件）。
+
+    为什么回放是成立的：G3 的判定只依赖「盲答结果」与「题目自带答案」两者，
+    与"模型是怎么答出这个结果的"无关。于是同一次盲答能同时回答两件事 ——
+    对原答案键是**误杀**吗，对改错的答案键**拦得住**吗。这样不必再造一批题、再花一遍额度。
+    """
+    bad = _corrupt_key(payload)
+    if not bad:
+        return False
+    agree = len(set(votes)) == 1
+    matches = tuple(votes[0]) == tuple(sorted(k.upper() for k in bad))
+    return not (agree and matches)
 
 
 def _collect(items: list[dict], client) -> tuple[G3Metrics, list[dict]]:
@@ -125,14 +167,18 @@ def _collect(items: list[dict], client) -> tuple[G3Metrics, list[dict]]:
             m.n_matches += 1
         if not (result.agree and result.matches):
             m.n_blocked += 1
-            blocked_samples.append({
-                "id": it.get("id"),
-                "stem": (it.get("stem") or "")[:70],
-                "expect": list(it.get("answer") or []),
-                "votes": [list(v) for v in result.votes],
-                "agree": result.agree,
-                "matches": result.matches,
-            })
+        # N1 负样本：**零额外调用**，用同一批盲答回放（见 _neg_blocked）
+        if _neg_blocked(it, result.votes):
+            m.n_neg_blocked += 1
+        blocked_samples.append({
+            "id": it.get("id"),
+            "stem": (it.get("stem") or "")[:70],
+            "expect": list(it.get("answer") or []),
+            "votes": [list(v) for v in result.votes],
+            "agree": result.agree,
+            "matches": result.matches,
+            "neg_blocked": _neg_blocked(it, result.votes),
+        })
     return m, blocked_samples
 
 
@@ -153,15 +199,32 @@ def _write_markdown(path: pathlib.Path, result: dict) -> None:
         "| --- | --- | --- |",
         f"| agree_rate（N 次盲答一致） | {m['agree_rate']} | 低 → 答案确实有歧义，或模型不稳 |",
         f"| matches_rate（与自带答案相符） | {m['matches_rate']} | 低 → 题目答案错**或**模型答错，二者无法只凭它区分 |",
-        f"| **blocked_rate（误杀率）** | **{m['blocked_rate']}** | 这就是「该不该默认关闭」的判据 |",
+        f"| **blocked_rate（误杀率）** | **{m['blocked_rate']}** | 低 = 闸门**安全**（不把好题拦掉） |",
+        f"| **neg_block_rate（N1 负样本拦截率）** | **{m.get('neg_block_rate')}** | 高 = 闸门**有效**（拦得住改错的答案键） |",
         f"| invalid_rate（投票全无效） | {m['invalid_rate']} | 高 → 接口在抖，本表不可信 |",
+        "",
+        "> ⚠️ **前两行必须成对看**：`blocked_rate` 低只说明不误杀，`neg_block_rate` 高才说明拦得住。",
+        "> 只报一个都会得出片面结论 —— 一个读成「闸门无害」，一个读成「闸门有用」。",
+        "",
+        "## N1 负样本：它证明了什么、没证明什么",
+        "",
+        "N1 把**答案键**改成一个错误选项，再用**同一批盲答回放**判定（零额外调用，见 `_neg_blocked`）。",
+        "真值确定：题目的正确选项没动，只是键被改错了 —— 所以「该被拦」不含主观判断。",
+        "",
+        "⚠️ **它证明的是「能发现答案键与题意不符」，不是「能发现题干本身有歧义」。**",
+        "后者是 G3 更值钱的那一半（题干有歧义时，答案键就算对，题目也不合格），",
+        "需要**人工/半自动构造的歧义题**才能测 —— 本数据集不含，属未决（`改造计划.md` §5 第 12 项）。",
         "",
         "## 被拦截的题（含盲答结果）",
         "",
         "> `matches_rate` 低既可能是题错、也可能是模型错 —— **只有这些样本能区分**。",
+        "> 全部题（含未被拦的）的逐题投票都记在同名 `.json` 里：只留被拦的等于把证据丢了。",
         "",
     ]
-    samples = result.get("blocked_samples") or []
+    samples = [
+        s for s in (result.get("blocked_samples") or [])
+        if not (s.get("agree") and s.get("matches"))
+    ]
     if not samples:
         lines.append("- （无）")
     for s in samples:
@@ -214,7 +277,8 @@ def main(limit: int = 30) -> dict:
     row = result["metrics"]
     print(
         f"    agree {row['agree_rate']} | matches {row['matches_rate']} | "
-        f"**误杀 {row['blocked_rate']}** | 无效 {row['invalid_rate']}"
+        f"**误杀 {row['blocked_rate']}** | **N1 拦截 {row['neg_block_rate']}** | "
+        f"无效 {row['invalid_rate']}"
     )
     print(f"\n已写入：{md}")
     return result
