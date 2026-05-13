@@ -270,6 +270,13 @@ def main(limit: int = 30) -> dict:
     }
     _OUT_DIR.mkdir(parents=True, exist_ok=True)
     md = _OUT_DIR / "g3_baseline.md"
+    # ⚠️ **不许用 fake 覆盖真实基准**。文件名就是基准表的身份 —— 混着写会让
+    # "这是真实数字吗"变成一个必须翻 metadata 才能回答的问题，而"看一眼文件名就下结论"
+    # 是人的默认行为。这条守卫是**踩出来的**：一次 fake 冒烟（--limit 8）把 30 题的 real
+    # 基准覆盖成了 8 题的 fake 表，而它在文件名上与真基准毫无区别。
+    if mode_llm == "fake" and md.exists() and "LLM=real" in md.read_text(encoding="utf-8"):
+        md = _OUT_DIR / "g3_fake.md"
+        print("    已有真实基准，本次 fake 结果改写到 g3_fake.md（不覆盖真基准）")
     _write_markdown(md, result)
     (md.with_suffix(".json")).write_text(
         json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
