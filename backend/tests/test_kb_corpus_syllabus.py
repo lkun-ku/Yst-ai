@@ -105,13 +105,52 @@ def test_按目录分发到考纲规则():
 
 # ---------------- 真实语料 ----------------
 
+#: 科目一全学段三卷考纲（101/201/301）。
+#: ⚠️ 与 `考试标准（试行）` **不是同一份文件**：三卷考纲按学段分卷（每卷一份），
+#: 考试标准一份覆盖四个学段（幼/小/初中/高中）。两者都放 `syllabus/`（同走考点切片），
+#: 所以这里改成**按名列出**而不是数个数 —— 数个数会在新增任何同类语料时误红，
+#: 而"多一份 / 少一份"这件事本身仍然要被断言守住（见下一条）。
+_EXAM_SYLLABI = ("综合素质-101-幼儿园.md", "综合素质-201-小学.md", "综合素质-301-中学.md")
+
+
 def test_三卷考纲都在且能切出片():
-    files = sorted(SYLLABUS_DIR.glob("*.md"))
-    assert len(files) == 3, "科目一全学段三卷考纲缺一不可"
-    for f in files:
-        plans = plan_file(f"syllabus/{f.name}", f.read_text(encoding="utf-8"))
+    for name in _EXAM_SYLLABI:
+        f = SYLLABUS_DIR / name
+        assert f.exists(), f"科目一全学段三卷考纲缺一不可：{name}"
+        plans = plan_file(f"syllabus/{name}", f.read_text(encoding="utf-8"))
         # 18 = 考试目标(1) + 五大模块下的考点(14) + 试卷结构(1) + 题型示例(3) - 1 处容器
-        assert len(plans) == 18, f"{f.name} 片数变化：{len(plans)}"
+        assert len(plans) == 18, f"{name} 片数变化：{len(plans)}"
+
+
+def test_考纲目录的内容符合预期():
+    """目录里多一个文件就多一份检索语料，少一个就是语料缺失 —— **两件都要拦住**，
+    所以断言精确集合（新增同类语料时必须**有意识**地改这里，而不是让它悄悄通过）。"""
+    expected = set(_EXAM_SYLLABI) | {"考试标准-试行.md"}
+    assert {f.name for f in SYLLABUS_DIR.glob("*.md")} == expected
+
+
+def test_考试标准的一级指标被还原成词():
+    """`考试标准（试行）` 的一级指标在官方原文里是**竖排单字**（`职`/`业`/`道`/`德`/`与`…各占一行），
+    且与「换行续写的正文」形态完全相同。这条断言守住 `scripts/convert_exam_standard.py`
+    的还原结果：拼错或漏字都会在这里红 —— 而这是官方国家标准，丢一个字等于改了标准。
+    """
+    f = SYLLABUS_DIR / "考试标准-试行.md"
+    plans = plan_file(f"syllabus/{f.name}", f.read_text(encoding="utf-8"))
+    joined = "\n".join(p.heading_path for p in plans)
+    for expect in (
+        "幼儿园教师 · 1. 职业道德与基本素养",
+        "幼儿园教师 · 3. 保教知识与能力",
+        "小学教师 · 1. 职业道德与素养",
+        "小学教师 · 3. 教学知识与能力",
+        "初中教师 · 2. 教育知识与应用",
+        "高中教师 · 3. 教学知识与能力",
+    ):
+        assert expect in joined, f"一级指标名没还原对：{expect}"
+    # 一级名称只剩单字（还原失败）会留下这种痕迹，顺手把它也钉住
+    assert " · 养" not in joined and " · 业" not in joined
+    # **学段必须在路径里**：否则幼儿园与小学的同名考点（都是 `1.1 职业理念`）路径完全相同，
+    # 检索时不可区分 —— 而两份的内容并不一样。这条是踩出来的（第一版把学段放进了被丢掉的容器层）。
+    assert "幼儿园教师 · 1. 职业道德与基本素养 / 1.1 职业理念" in joined
 
 
 def test_考纲片含官方试卷结构比例():
