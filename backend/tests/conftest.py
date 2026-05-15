@@ -1,7 +1,19 @@
 import os
+import uuid
+
+#: **文件名按运行唯一**（进程号 + 随机后缀）。
+#:
+#: 这里原本是固定的 `.test_tmp.db`，它会造成**间歇性的唯一约束失败**：
+#: 上一次运行若没退干净（中断、被杀，或被工具当成"长驻服务"留在后台），
+#: 或两个 pytest 并发运行，两者就会**共用同一个 SQLite 文件** ——
+#: 一个在 `drop_all`/`create_all`，另一个正在插数据，于是撞 `candidates.id/unionid`。
+#: 本仓真实踩过：**同一条命令三次跑出 12 红 / 全绿 / 3 红**，而代码一行没改。
+#:
+#: 文件名唯一之后，"上次没清干净"从「会污染下一次」降级成「只占几 KB 的垃圾文件」。
+_DB_FILE = f".test_tmp_{os.getpid()}_{uuid.uuid4().hex[:6]}.db"
 
 # 必须在导入 app 之前设定，确保测试使用独立 SQLite 文件库。
-os.environ["DATABASE_URL"] = "sqlite:///./.test_tmp.db"
+os.environ["DATABASE_URL"] = f"sqlite:///./{_DB_FILE}"
 os.environ["AUTO_MIGRATE"] = "true"
 # 精排默认关闭：真实模型是 266MB 的本地下载，让单测依赖它有两重代价 ——
 # 慢，且在一台没下过权重的机器上行为不同。需要验证重排链路的用例显式设
@@ -19,15 +31,27 @@ from app.db import Base, SessionLocal, engine, init_db
 
 @pytest.fixture(scope="session", autouse=True)
 def _reset_db():
-    """会话级重置：每次测试运行使用干净库，避免跨运行数据累积导致唯一约束冲突。"""
+    """会话级重置：本次运行使用一个**全新的**库文件，跑完就删。
+
+    ⚠️ 落盘的库**不是**本次运行的（见 `_DB_FILE`）就一律不当自己的 ——
+    删别人的库等于删一个可能正在使用的文件（Windows 上还会因句柄占用而报错）。
+    顺手清掉本目录下的**陈旧**临时库：它们是历史中断运行留下的垃圾，
+    不清会一直堆着。清理是**尽力而为**：删不掉（被别的进程占着）就跳过，
+    绝不因此让整个测试会话失败 —— 那正是"清理比被测对象更脆弱"的经典错误。
+    """
+    import glob
     import app.models  # noqa: F401  确保元数据含全部表
 
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
     engine.dispose()
-    if os.path.exists(".test_tmp.db"):
-        os.remove(".test_tmp.db")
+    for path in [f"./{_DB_FILE}", *glob.glob("./.test_tmp_*.db")]:
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except OSError:
+            pass  # 被别的进程占着 → 留给下一次清理
 
 
 @pytest.fixture

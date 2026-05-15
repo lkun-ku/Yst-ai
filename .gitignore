@@ -4,8 +4,10 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
-backend/.test_tmp.db
-backend/.test_tmp.db-journal
+# 测试临时库：**名字按运行唯一**（见 tests/conftest.py 的 _DB_FILE），
+# 所以这里必须用通配 —— 写死一个名字只会忽略掉其中一次运行的文件。
+backend/.test_tmp*.db
+backend/.test_tmp*.db-journal
 backend/dev.db
 backend/uploads/
 
