@@ -8,6 +8,13 @@ venv/
 # 所以这里必须用通配 —— 写死一个名字只会忽略掉其中一次运行的文件。
 backend/.test_tmp*.db
 backend/.test_tmp*.db-journal
+
+# 评测脚本各自的库（eval_kb.db / marking_eval.db / …）：
+# 它们都是**本地重算的中间产物**，不是证据（证据是 results/ 下的 .md/.json）。
+# 用通配而不是逐个列名 —— 本会话已经因为"写死名字"漏过两次
+# （`.t_run.*` → `.g3_run.*`、`.test_tmp.db` → 按运行唯一），第三次不该再犯。
+backend/eval/*.db
+backend/eval/*.db-journal
 backend/dev.db
 backend/uploads/
 

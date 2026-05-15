@@ -1,0 +1,48 @@
+{
+  "metrics": {
+    "n_items": 2,
+    "n_valid": 2,
+    "n_dim_pairs": 8,
+    "dim_std_le_0_5_rate": 0.5,
+    "max_dim_std": 8.0,
+    "mean_dim_std": 1.75,
+    "min_agreement": 1.0,
+    "max_total_std": 2.85
+  },
+  "items": [
+    {
+      "id": "syn-material-1",
+      "n": 2,
+      "per_dim_std": {
+        "relevance": 1.0,
+        "evidence": 0.0,
+        "structure": 8.0,
+        "language": 2.5
+      },
+      "total_std": 2.85,
+      "mean_total": 85.3,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-short-1",
+      "n": 2,
+      "per_dim_std": {
+        "relevance": 0.5,
+        "evidence": 1.0,
+        "structure": 0.5,
+        "language": 0.5
+      },
+      "total_std": 0.35,
+      "mean_total": 92.8,
+      "agreement": 1.0
+    }
+  ],
+  "metadata": {
+    "time": "2026-06-11T21:46:30",
+    "llm": "real",
+    "votes": 3,
+    "rubric": "official 语料 · embed=False（关键词通道）",
+    "dataset": "主观题样本.json",
+    "caveat": "样本为**合成**且仅 2 题 —— 证明链路与指标，不足以代表普遍稳定性；四维度是产品自定口径，与官方评分一致性是两件事"
+  }
+}
