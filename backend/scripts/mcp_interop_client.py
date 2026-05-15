@@ -32,6 +32,8 @@ import asyncio
 import json
 
 from mcp.client.client import Client
+from mcp.client.session import ClientSession
+from mcp.client.streamable_http import streamable_http_client
 
 
 def _text_of(result) -> str:
@@ -99,12 +101,48 @@ async def run(url: str) -> int:
     return 0
 
 
+async def run_low_level(url: str) -> int:
+    """**低层路径**：`streamable_http_client` + `ClientSession`，绕开高层 `Client`。
+
+    为什么要单独走一遍：高层 `Client(url)` 在本环境报 `MCPError: Not Found`，
+    且**一个 HTTP 请求都没发出**（服务端访问日志为证）。换低层是为了把两件事分开判定 ——
+    到底是**本服务的协议实现**有问题，还是 **SDK 高层 Client 的那条 URL 分支**有问题。
+    两者混在一个失败里就没法往下查。
+
+    这里手动走**现代握手** `server/discover`，不走 `initialize` —— 后者在本服务上
+    按规范返回 `-32601`（那是旧版客户端的**时代探测信号**，不是缺陷），
+    走它只会得到一个"预期内的失败"，证明不了任何东西。
+    """
+    print(f"低层路径连接 {url}", flush=True)
+    async with streamable_http_client(url) as (read, write):
+        async with ClientSession(read, write) as session:
+            raw = await session.send_discover("2026-03-30")
+            print(f"  server/discover → {type(raw).__name__}", flush=True)
+            listed = await session.list_tools()
+            names = sorted(t.name for t in listed.tools)
+            print(f"  tools/list      → {names}")
+            if not names:
+                return 1
+            got = await session.call_tool("lookup_law", {"law": "教师法", "article": "第七条"})
+            text = _text_of(got)
+            print(f"  lookup_law      → {len(text)} 字，含「第七条」= {'第七条' in text}")
+            if "第七条" not in text:
+                return 1
+    print("✅ 低层路径通过：官方客户端能对本服务完成现代握手、列工具、调工具")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://127.0.0.1:8123/mcp")
+    ap.add_argument(
+        "--low-level",
+        action="store_true",
+        help="走 streamable_http_client + ClientSession（绕开高层 Client，用于分离故障面）",
+    )
     args = ap.parse_args()
     try:
-        return asyncio.run(run(args.url))
+        return asyncio.run(run_low_level(args.url) if args.low_level else run(args.url))
     except Exception as e:  # noqa: BLE001 — 互操作失败必须**如实报出来**，不吞
         # 把**整条异常链**打出来：`MCPError: Not Found` 单看会误导 ——
         # 它可能是 HTTP 层的 4xx 被传输层映射过来的（没有 JSON-RPC 体时就是这么映射的），
