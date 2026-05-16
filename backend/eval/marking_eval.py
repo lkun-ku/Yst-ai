@@ -74,8 +74,15 @@ from app.services.scope import NAMESPACE_OFFICIAL, Scope  # noqa: E402
 _DATASET = pathlib.Path(__file__).resolve().parent / "datasets" / "批改一致性" / "主观题样本.json"
 _OUT_DIR = pathlib.Path(__file__).resolve().parent / "results"
 
-#: 计划里写明的产品承诺：各维度评分标准差 ≤ 0.5
-PROMISED_MAX_STD = 0.5
+#: 计划 §6 的产品承诺：**各维度评分标准差 ≤ 0.5（5 分制）**。
+#:
+#: ⚠️ 这里必须换到**百分制**：`marking.marking_prompt` 明确要求「四个维度的**百分制**分数」，
+#: 而承诺写的 0.5 是 5 分制下的 —— 直接比就是**拿 5 分制的尺子量百分制的数**，
+#: 第一次跑必然"全部超标"（实测就是这么发现的）。按比例换算（0.5 ÷ 5 = 10%），
+#: 百分制下的等价阈值是 **10.0**。这是**把量纲写对，不是把承诺放宽** —— 相对严格度不变。
+PROMISED_MAX_STD = 10.0
+#: 承诺原文的 5 分制阈值，保留用于在报告里写明换算过程
+PROMISED_MAX_STD_5 = 0.5
 
 
 def _metrics(rows: list[dict]) -> dict:
@@ -105,7 +112,9 @@ def _write_markdown(path: pathlib.Path, result: dict) -> None:
         f"- 模型：LLM={meta['llm']}　依据检索：{meta['rubric']}",
         f"- 数据：`eval/datasets/批改一致性/主观题样本.json`（**合成**样本，非真题原文）",
         "",
-        f"> **判据**：计划第 9 项的产出证据是「各维度评分标准差 ≤ **{PROMISED_MAX_STD}**」。",
+        f"> **判据**：计划 §6 的承诺原文是「各维度评分标准差 ≤ {PROMISED_MAX_STD_5}（**5 分制**）」，",
+        f"> 而本实现的维度是**百分制** —— 按比例换算（{PROMISED_MAX_STD_5} ÷ 5 = 10%），",
+        f"> 百分制下的等价阈值是 **{PROMISED_MAX_STD}**。下表用换算后的口径判定。",
         f"> 下面 `dim_std_le_0_5_rate` 就是它的达成率 —— **低于 1.0 即未达承诺，不许只报平均值**。",
         "",
         "| 指标 | 值 | 读法 |",
@@ -198,8 +207,16 @@ def main(limit: int = 0) -> dict:
     }
     _OUT_DIR.mkdir(parents=True, exist_ok=True)
     md = _OUT_DIR / "marking_baseline.md"
+    # ⚠️ **一次失败的运行不该抹掉证据**。接口全挂时 `n_valid == 0`，写出来的是一张
+    # 「0 有效 · 全 0」的表 —— 而它在文件名上与真基准**毫无区别**。
+    # 这条是真踩过的：口径对齐后重跑，主通道正好挂了，把上一轮取满 3 遍的真实基准
+    # 覆盖成了全 0 表，靠 git 才恢复。
+    # 与下面那条 fake 守卫同理：**基准表的槽位不能被无效产物占用**。
+    if metrics["n_valid"] == 0:
+        md = _OUT_DIR / "marking_failed.md"
+        print("    ⚠️ 本次没有一次有效批改（接口故障？）→ 写到 marking_failed.md，不覆盖基准")
     # 与 g3_eval 同一条守卫：**不许用 fake 覆盖真实基准**（文件名就是产物的身份）
-    if mode_llm == "fake" and md.exists() and "LLM=real" in md.read_text(encoding="utf-8"):
+    elif mode_llm == "fake" and md.exists() and "LLM=real" in md.read_text(encoding="utf-8"):
         md = _OUT_DIR / "marking_fake.md"
         print("    已有真实基准，本次 fake 结果改写到 marking_fake.md（不覆盖真基准）")
     _write_markdown(md, result)
