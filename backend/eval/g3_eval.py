@@ -150,6 +150,31 @@ def _neg_blocked(payload: dict, votes: tuple) -> bool:
     return not (agree and matches)
 
 
+def _duplicate_correct_option(payload: dict) -> tuple[dict, str]:
+    """N2 负样本：把一个**错误选项**的文本换成**正确选项**的文本 → 两个选项一模一样。
+
+    真值确定：单选题里出现两个**完全相同且都正确**的选项，**答案不唯一** —— 该被 G3 拦。
+
+    ⚠️ **N2 不能像 N1 那样回放算**：N1 只改答案键、选项没变，所以同一批盲答直接可用；
+    N2 改的是**选项**，那批票就不再对应这道题了 —— 必须**重新盲答**（多花一轮调用）。
+
+    ⚠️ 还有一条边界（写清楚，免得把结论说过头）：**「两个选项文本相同」是人工构造的歧义，
+    不是真实试卷里那种"两个不同措辞的选项都说得通"**。所以它测的是 G3 对**结构性歧义**
+    （答案不唯一）敏不敏感，**不是**"G3 能发现所有歧义题"。
+    """
+    opts = list(payload.get("options") or [])
+    right = {str(k).strip().upper() for k in (payload.get("answer") or [])}
+    src = next((o for o in opts if str(o.get("key") or "").strip().upper() in right), None)
+    if not src:
+        return payload, "无正确答案选项"
+    target = next((o for o in opts if str(o.get("key") or "").strip().upper() not in right), None)
+    if not target:
+        return payload, "无可改的错误选项"
+    text = src.get("text")
+    new_opts = [{**o, "text": text} if o is target else o for o in opts]
+    return {**payload, "options": new_opts}, f"把选项 {target.get('key')} 的文本改成与 {src.get('key')} 相同"
+
+
 def _collect(items: list[dict], client) -> tuple[G3Metrics, list[dict]]:
     m = G3Metrics(n_questions=len(items))
     blocked_samples: list[dict] = []
@@ -186,7 +211,7 @@ def _write_markdown(path: pathlib.Path, result: dict) -> None:
     m = result["metrics"]
     meta = result["metadata"]
     lines = [
-        "# G3 唯一性投票基准（真实模型下的**误杀率**）",
+        f"# G3 唯一性投票基准（{meta.get('framing') or '真实模型下的**误杀率**'}）",
         "",
         f"- 生成时间：{meta['time']}　题数 {m['n_questions']}（有效 {m['n_valid']}）",
         f"- 模型：LLM={meta['llm']}　每次投票数：{meta['votes']}",
@@ -236,7 +261,12 @@ def _write_markdown(path: pathlib.Path, result: dict) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def main(limit: int = 30) -> dict:
+def main(limit: int = 30, n2: bool = False) -> dict:
+    """`n2=True` 跑 N2 负样本（选项歧义）。
+
+    ⚠️ **它的读法与基准表相反**：这里 `blocked_rate` **高才是对的**（那些题本该被拦），
+    不能拿它去套「误杀率」的标题 —— 所以写成独立的证据文件，报告里也单独说明。
+    """
     from datetime import datetime
 
     if not _DATASET.exists():
@@ -245,6 +275,14 @@ def main(limit: int = 30) -> dict:
     items = (data.get("items") or [])[:limit]
     if not items:
         raise SystemExit("评测集为空")
+
+    if n2:
+        mutated: list[dict] = []
+        for it in items:
+            m, why = _duplicate_correct_option(it)
+            mutated.append(m)
+            print(f"    N2 改造 {it.get('id')}：{why}", flush=True)
+        items = mutated
 
     client = get_llm_client()
     mode_llm = "fake" if type(client).__name__ == "FakeLLMClient" else "real"
@@ -259,6 +297,13 @@ def main(limit: int = 30) -> dict:
             "llm": mode_llm,
             "votes": settings.gate_g3_votes,
             "dataset": str(_DATASET.name),
+            # N2 的读法与基准表**相反**：那些题本来就该被拦，所以拦截率高才是对的。
+            # 写进 metadata 让报告自己声明，而不是靠读的人记得"这次跑的是哪个模式"。
+            "framing": (
+                "N2 负样本 · 选项歧义 —— **拦截率高才是对的**（与误杀率表读法相反）"
+                if n2
+                else ""
+            ),
             "caveat": (
                 "数据是**已审校的官方题**，故 blocked_rate 是**误杀率**而非拦截战绩；"
                 "LLM=fake 时本表只证明链路通、判据算得出，不是真实模型下的误杀率"
@@ -270,13 +315,17 @@ def main(limit: int = 30) -> dict:
     }
     _OUT_DIR.mkdir(parents=True, exist_ok=True)
     md = _OUT_DIR / "g3_baseline.md"
+    # N2 走**独立的证据文件**：在它上面「被拦」是本该发生的事，套用「误杀率」的标题会让人读反
+    if n2:
+        md = _OUT_DIR / "g3_n2_baseline.md"
     # ⚠️ **不许用 fake 覆盖真实基准**。文件名就是基准表的身份 —— 混着写会让
     # "这是真实数字吗"变成一个必须翻 metadata 才能回答的问题，而"看一眼文件名就下结论"
     # 是人的默认行为。这条守卫是**踩出来的**：一次 fake 冒烟（--limit 8）把 30 题的 real
     # 基准覆盖成了 8 题的 fake 表，而它在文件名上与真基准毫无区别。
     if mode_llm == "fake" and md.exists() and "LLM=real" in md.read_text(encoding="utf-8"):
-        md = _OUT_DIR / "g3_fake.md"
-        print("    已有真实基准，本次 fake 结果改写到 g3_fake.md（不覆盖真基准）")
+        # 按目标文件的名字派生（N2 也适用），而不是写死 g3_fake.md
+        md = md.with_name(f"{md.stem}_fake.md")
+        print(f"    已有真实基准，本次 fake 结果改写到 {md.name}（不覆盖真基准）")
     _write_markdown(md, result)
     (md.with_suffix(".json")).write_text(
         json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -294,5 +343,11 @@ def main(limit: int = 30) -> dict:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=30, help="用多少道题（默认 30）")
+    ap.add_argument(
+        "--n2",
+        action="store_true",
+        help="跑 N2 负样本（把错误选项的文本改成与正确选项相同 → 答案不唯一）。"
+        "注意其 blocked_rate 高才是对的，读法与基准表相反",
+    )
     args = ap.parse_args()
-    main(limit=args.limit)
+    main(limit=args.limit, n2=args.n2)
