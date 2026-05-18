@@ -68,7 +68,13 @@ async def run(url: str) -> int:
             if expect not in tools:
                 failures.append(f"工具清单缺少 {expect}")
         if "search_kb" in tools:
-            props = list((tools["search_kb"].inputSchema or {}).get("properties") or {})
+            # ⚠️ 官方 SDK 的模型字段名是 **snake_case**（`input_schema`）而不是 MCP 线上的
+            # camelCase（`inputSchema`）—— pydantic 模型内部用 Python 命名。第一版我按线上
+            # 名字读，直接 `AttributeError` 把后半段（call_tool）也一起中断了。
+            schema = getattr(tools["search_kb"], "input_schema", None) or getattr(
+                tools["search_kb"], "inputSchema", None
+            )
+            props = list((schema or {}).get("properties") or {})
             print(f"  search_kb 的入参  = {props}")
             if not props:
                 failures.append("search_kb 的 inputSchema 是空的（清单没从 tools.TOOLS 带出来）")
@@ -83,13 +89,22 @@ async def run(url: str) -> int:
         except Exception as e:  # noqa: BLE001 — 互操作测试要把失败**如实报出来**，不吞
             failures.append(f"call_tool 抛异常：{type(e).__name__}: {e}")
 
-        # 4) 未知工具必须是错误，不能是"空结果"（那会把故障伪装成"查不到"）
+        # 4) 未知工具必须被**标记为错误**，不能当成一次正常的空结果（那会把故障伪装成「查不到」）
+        #
+        # ⚠️ 第一版我断言的是「SDK 会抛异常」—— **这是错的**：规范里 `isError=true` 就是"错误"，
+        # 而它是一个**正常返回**，SDK 不会抛。按"抛异常"断言会把一个**符合规范**的服务判成失败 ——
+        # **断言写错比不写更危险**。
         try:
             bad = await client.call_tool("no_such_tool", {})
-            print(f"  未知工具          没有抛错，返回：{json.dumps(_text_of(bad), ensure_ascii=False)[:80]}")
-            failures.append("未知工具没有报错 —— 故障会被伪装成「查不到」")
-        except Exception as e:  # noqa: BLE001
-            print(f"  未知工具          按预期报错：{type(e).__name__}")
+            flag = getattr(bad, "is_error", None)
+            if flag is None:
+                flag = getattr(bad, "isError", None)
+            text = _text_of(bad)
+            print(f"  未知工具          isError={flag} · {text[:60]}")
+            if not flag:
+                failures.append("未知工具既没抛错也没有 isError —— 故障会被伪装成「查不到」")
+        except Exception as e:  # noqa: BLE001 — 以异常形式报错也算"报错"，可接受
+            print(f"  未知工具          以异常形式报错：{type(e).__name__}")
 
     print()
     if failures:
