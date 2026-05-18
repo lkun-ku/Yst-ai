@@ -103,7 +103,20 @@ def _error(msg_id: Any, code: int, message: str, data: dict | None = None) -> di
 
 
 def _ok(msg_id: Any, result: dict) -> dict:
-    return {"jsonrpc": "2.0", "id": msg_id, "result": result}
+    """成功响应。**统一在这里给每个 result 盖 `serverInfo`**。
+
+    规范把 `io.modelcontextprotocol/serverInfo` 定位为 **result 的 `_meta` 键**，
+    并说服务端 SHOULD 在**每个** result 上都盖（`mcp_types/_types.py` 的
+    `SERVER_INFO_META_KEY` 注释：Reserved result `_meta` key，SDK-managed）。
+
+    ⚠️ 这里原先把它放在 **result 顶层** —— 这个错**是互操作测试抓出来的**：
+    官方 SDK 去 `_meta` 里找，于是 `server_info` 读成 `None`。
+    我自己那 21 个协议级用例抓不到它，因为它们断言的是**我读规范的理解**；
+    换了别人的实现来读，位置错了立刻现形 —— 这就是互操作测试不可替代的地方。
+    """
+    meta = dict(result.get("_meta") or {})
+    meta.setdefault(META_SERVER_INFO, {"name": SERVER_NAME, "version": SERVER_VERSION})
+    return {"jsonrpc": "2.0", "id": msg_id, "result": {**result, "_meta": meta}}
 
 
 def _meta_of(msg: dict) -> dict:
@@ -147,7 +160,7 @@ def _discover(msg: dict) -> dict:
             "resultType": "complete",
             "supportedVersions": list(SUPPORTED_VERSIONS),
             "capabilities": {"tools": {}},
-            META_SERVER_INFO: {"name": SERVER_NAME, "version": SERVER_VERSION},
+            # serverInfo 由 `_ok` 统一放进 `_meta`（不在这里写顶层 —— 那是互操作测试抓出的错）
             "instructions": (
                 "教资备考知识库（只读）。可用工具：search_kb（宽召回）、"
                 "lookup_law（按法名+条号精确取条文，问题里出现具体条款号时优先用它）、"

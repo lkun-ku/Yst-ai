@@ -153,7 +153,12 @@ def test_server_discover_的形状(ctx):
     assert out["resultType"] == "complete"
     assert out["supportedVersions"] == [PROTOCOL_VERSION]
     assert "tools" in out["capabilities"]
-    assert out["io.modelcontextprotocol/serverInfo"]["name"] == SERVER_NAME
+    # ⚠️ serverInfo 在 **result 的 `_meta`** 里，不在顶层。
+    # 这条原先断言的是顶层 —— 那是**错的**，而且**我自己写的测试抓不到我自己的错**：
+    # 它只复述了我读规范的理解。真正抓住它的是官方 SDK 来读的那一刻
+    # （`client.server_info` 读成 `None`）。这就是互操作测试不可替代的原因。
+    assert out["_meta"]["io.modelcontextprotocol/serverInfo"]["name"] == SERVER_NAME
+    assert "io.modelcontextprotocol/serverInfo" not in out
     assert out["cacheScope"] == "public" and out["ttlMs"] > 0
 
 
@@ -192,8 +197,12 @@ def test_tools_call_正常路径(ctx):
     assert "教师享有下列权利" in out["content"][0]["text"]
 
 
-def test_ping_回空结果(ctx):
-    assert handle_message(_msg("ping"), ctx)["result"] == {}
+def test_ping_回结果里没有业务字段(ctx):
+    """`ping` 回一个**不含业务字段**的结果。断言的是「没有业务字段」而不是「等于空字典」——
+    因为 `_ok` 会给每个 result 统一盖 `_meta.serverInfo`（规范：SHOULD 在每个 result 上都盖）。"""
+    out = handle_message(_msg("ping"), ctx)["result"]
+    assert set(out) == {"_meta"}
+    assert "io.modelcontextprotocol/serverInfo" in out["_meta"]
 
 
 # ---------------- 权限边界（最关键的一条）----------------

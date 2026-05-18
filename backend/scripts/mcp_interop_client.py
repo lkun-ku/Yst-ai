@@ -59,6 +59,12 @@ async def run(url: str) -> int:
         print(f"  server_info      = {getattr(info, 'name', None)} / {getattr(info, 'version', None)}")
         if not client.protocol_version:
             failures.append("没有协商出版本")
+        if info is None:
+            # 第一版就是在这里读成 None 的：我把 serverInfo 放在了 result 顶层，
+            # 而规范/SDK 都要求它在 result 的 `_meta` 里。**这条断言就是为它加的**。
+            failures.append(
+                "server_info 读不到 —— serverInfo 必须在 result 的 `_meta` 里（不是顶层）"
+            )
 
         # 2) 工具清单
         listed = await client.list_tools()
