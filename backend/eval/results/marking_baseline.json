@@ -1,44 +1,109 @@
 {
   "metrics": {
-    "n_items": 2,
-    "n_valid": 2,
-    "n_dim_pairs": 8,
-    "dim_std_le_0_5_rate": 0.125,
-    "max_dim_std": 4.19,
-    "mean_dim_std": 2.2,
-    "min_agreement": 1.0,
-    "max_total_std": 2.25
+    "n_items": 7,
+    "n_valid": 7,
+    "n_dim_pairs": 28,
+    "dim_std_le_0_5_rate": 1.0,
+    "max_dim_std": 9.09,
+    "mean_dim_std": 3.27,
+    "min_agreement": 0.3333,
+    "max_total_std": 5.99
   },
   "items": [
     {
       "id": "syn-material-1",
       "n": 3,
       "per_dim_std": {
-        "relevance": 2.49,
-        "evidence": 4.19,
-        "structure": 0.0,
-        "language": 1.89
+        "relevance": 4.11,
+        "evidence": 5.73,
+        "structure": 3.74,
+        "language": 4.32
       },
-      "total_std": 1.84,
-      "mean_total": 87.6,
-      "agreement": 1.0
+      "total_std": 4.37,
+      "mean_total": 87.3,
+      "agreement": 0.3333
     },
     {
       "id": "syn-short-1",
-      "n": 2,
+      "n": 3,
       "per_dim_std": {
-        "relevance": 1.5,
-        "evidence": 3.0,
-        "structure": 1.5,
-        "language": 3.0
+        "relevance": 0.0,
+        "evidence": 5.66,
+        "structure": 1.89,
+        "language": 0.94
       },
-      "total_std": 2.25,
-      "mean_total": 90.8,
+      "total_std": 2.12,
+      "mean_total": 98.5,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-material-2",
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 2.62,
+        "evidence": 6.6,
+        "structure": 0.94,
+        "language": 0.82
+      },
+      "total_std": 1.94,
+      "mean_total": 82.4,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-writing-1",
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 9.09,
+        "evidence": 3.4,
+        "structure": 8.16,
+        "language": 8.22
+      },
+      "total_std": 5.99,
+      "mean_total": 52.3,
+      "agreement": 0.6667
+    },
+    {
+      "id": "syn-short-2",
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 2.16,
+        "evidence": 3.4,
+        "structure": 3.4,
+        "language": 2.49
+      },
+      "total_std": 2.81,
+      "mean_total": 93.9,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-analysis-1",
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 0.0,
+        "evidence": 1.89,
+        "structure": 0.82,
+        "language": 1.25
+      },
+      "total_std": 0.94,
+      "mean_total": 90.9,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-design-1",
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 1.63,
+        "evidence": 4.9,
+        "structure": 1.25,
+        "language": 2.16
+      },
+      "total_std": 2.45,
+      "mean_total": 86.3,
       "agreement": 1.0
     }
   ],
   "metadata": {
-    "time": "2026-06-11T21:50:29",
+    "time": "2026-06-12T00:16:46",
     "llm": "real",
     "votes": 3,
     "rubric": "official 语料 · embed=False（关键词通道）",
