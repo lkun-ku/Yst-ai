@@ -1,0 +1,83 @@
+{
+  "metrics": {
+    "n_items": 8,
+    "n_valid": 8,
+    "agree_rate": 0.75,
+    "agree_false_rate": 0.25,
+    "matches_rate": 0.875,
+    "blocked_rate": 0.375
+  },
+  "items": [
+    {
+      "id": 982,
+      "rewrite": "把选项 C 改写成同样成立的说法",
+      "n": 3,
+      "agree": true,
+      "matches": true,
+      "passed": true
+    },
+    {
+      "id": 983,
+      "rewrite": "把选项 B 改写成同样成立的说法",
+      "n": 3,
+      "agree": true,
+      "matches": true,
+      "passed": true
+    },
+    {
+      "id": 984,
+      "rewrite": "把选项 B 改写成同样成立的说法",
+      "n": 3,
+      "agree": true,
+      "matches": true,
+      "passed": true
+    },
+    {
+      "id": 985,
+      "rewrite": "把选项 A 改写成同样成立的说法",
+      "n": 3,
+      "agree": false,
+      "matches": true,
+      "passed": false
+    },
+    {
+      "id": 986,
+      "rewrite": "把选项 B 改写成同样成立的说法",
+      "n": 3,
+      "agree": false,
+      "matches": true,
+      "passed": false
+    },
+    {
+      "id": 987,
+      "rewrite": "把选项 B 改写成同样成立的说法",
+      "n": 3,
+      "agree": true,
+      "matches": true,
+      "passed": true
+    },
+    {
+      "id": 988,
+      "rewrite": "把选项 C 改写成同样成立的说法",
+      "n": 3,
+      "agree": true,
+      "matches": true,
+      "passed": true
+    },
+    {
+      "id": 989,
+      "rewrite": "把选项 B 改写成同样成立的说法",
+      "n": 3,
+      "agree": true,
+      "matches": false,
+      "passed": false
+    }
+  ],
+  "metadata": {
+    "time": "2026-06-11T23:27:09",
+    "llm": "real",
+    "votes": 3,
+    "source": "官方题样本.json",
+    "caveat": "改写由**模型**完成，「它也成立」这个真值是模型判断而非人判 —— 有循环论证风险；改写原文已落盘供人工复核。样本非真实试卷歧义题，结论不可外推"
+  }
+}
