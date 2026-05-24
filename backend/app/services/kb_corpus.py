@@ -29,7 +29,12 @@ from pathlib import Path
 
 from ..config import settings
 from ..models import Document, DocumentChunk
-from ..services.embedding import embed_one, encode_vector
+from ..services.embedding import (
+    EMBED_FAKE,
+    EMBED_REAL,
+    encode_vector,
+    strict_embed,
+)
 
 #: 语料根目录（相对 backend/）。settings 优先，缺省回落到仓库内的 data/official。
 DEFAULT_ROOT = Path(__file__).resolve().parents[2] / "data" / "official"
@@ -243,11 +248,32 @@ def iter_source_files(root: Path):
         yield path.relative_to(root).as_posix(), path
 
 
+def _corpus_chunk_fields(content: str, *, embed: bool, is_pg: bool) -> tuple[object, str, str]:
+    """一片的 `(写入列的值, embed_status, 失败原因)`。
+
+    官方语料用 **`strict_embed`** 而**不是** `embed_one`：前者失败会**显式报错**，
+    后者会静默退回 64 维哈希词袋并把这批片全标成 `'ok'` ——
+    那样"检索有向量"是假的，而且没人会发现（见 `embedding.strict_embed` 的 docstring）。
+    """
+    if not embed:
+        return None, "pending", ""
+    vec, source, reason = strict_embed(content)
+    if source in (EMBED_REAL, EMBED_FAKE):
+        stored = vec if is_pg else encode_vector(vec)
+        # 离线 fake 也如实标出来：统计里必须看得见"这批不是真向量"
+        return stored, ("ok" if source == EMBED_REAL else "fake"), ""
+    return None, "failed", reason
+
+
 def ingest_official_corpus(db, root: str | Path | None = None, embed: bool = True) -> dict:
-    """幂等灌入官方语料。返回 `{docs, chunks, skipped_empty}`。
+    """幂等灌入官方语料。返回 `{docs, chunks, skipped_empty, embed_*}`。
 
     `embed=False` 时不算向量（仅建切片），用于快速验证切分规则 ——
     SQLAlchemy 侧 `embed_status` 记为 `pending`，后续可批量重算。
+
+    **`embed_*` 四项是向量化结果的显式台账**（`ok` / `fake` / `failed` / `pending`）：
+    官方语料一旦出现 `failed`，必须**看得见**（会打印告警），不能像从前那样
+    被伪向量伪造成 `ok`（详见 `_corpus_chunk_fields` 与 `embedding.strict_embed`）。
     """
     root_path = Path(root) if root else Path(settings.official_kb_dir or DEFAULT_ROOT)
     if not root_path.is_absolute():
@@ -256,8 +282,18 @@ def ingest_official_corpus(db, root: str | Path | None = None, embed: bool = Tru
     if not root_path.exists():
         return {"docs": 0, "chunks": 0, "skipped_empty": 0, "error": f"语料目录不存在：{root_path}"}
 
-    stats = {"docs": 0, "chunks": 0, "skipped_empty": 0}
+    stats = {
+        "docs": 0,
+        "chunks": 0,
+        "skipped_empty": 0,
+        # 向量化的显式台账：从前一律是 'ok'，欠费时也在假装 'ok'（见 _corpus_chunk_fields）
+        "embed_ok": 0,
+        "embed_fake": 0,
+        "embed_failed": 0,
+        "embed_pending": 0,
+    }
     is_pg = db.get_bind().dialect.name == "postgresql"
+    first_failure = ""
 
     for rel_path, abs_path in iter_source_files(root_path):
         raw = abs_path.read_text(encoding="utf-8")
@@ -294,7 +330,10 @@ def ingest_official_corpus(db, root: str | Path | None = None, embed: bool = Tru
         db.flush()  # 拿到 doc.id
 
         for plan in plans:
-            raw_vec = embed_one(plan.content) if embed else None
+            stored, status, reason = _corpus_chunk_fields(plan.content, embed=embed, is_pg=is_pg)
+            stats["embed_" + status] += 1
+            if status == "failed" and not first_failure:
+                first_failure = reason  # 只留第一条：足够定位，否则日志被同一原因刷屏
             db.add(
                 DocumentChunk(
                     document_id=doc.id,
@@ -302,14 +341,26 @@ def ingest_official_corpus(db, root: str | Path | None = None, embed: bool = Tru
                     content=plan.content,
                     heading_path=plan.heading_path,
                     char_count=len(plan.content),
-                    embedding=raw_vec if is_pg else encode_vector(raw_vec),
-                    embed_status="ok" if raw_vec else "pending",
+                    embedding=stored,
+                    embed_status=status,
                 )
             )
         stats["docs"] += 1
         stats["chunks"] += len(plans)
 
     db.commit()
+
+    if stats["embed_failed"]:
+        print(
+            f"[kb_corpus] ⚠️ {stats['embed_failed']} 片未能向量化（embed_status='failed'）："
+            f"官方语料缺向量，检索会降级到关键词通道 —— 请检查 embedding 供应商。"
+            f"原因：{first_failure}"
+        )
+    if stats["embed_fake"]:
+        print(
+            f"[kb_corpus] ⚠️ {stats['embed_fake']} 片用的是伪向量（fake 模式）："
+            f"仅供离线开发与测试，不可用于生产检索。"
+        )
     return stats
 
 

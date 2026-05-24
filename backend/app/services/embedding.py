@@ -107,6 +107,75 @@ def embed_one(text: str) -> list[float]:
     return _fake_embed(text)
 
 
+# ---------------- 严格向量化（官方语料灌入专用） ----------------
+
+#: 向量来源取值。`strict_embed` 用它把"刻意离线"与"真的失败了"区分开。
+EMBED_REAL = "real"
+EMBED_FAKE = "fake"       # 刻意用 fake 模式：离线开发 / 测试
+EMBED_FAILED = "failed"   # 配的是 real 却没拿到 → 必须显式失败，不许伪装成成功
+
+
+def declared_dim() -> int | None:
+    """`document_chunks.embedding` 列**声明**的维度（仅 PG 的 `VECTOR(N)` 有）。
+
+    SQLite / dev 是 `LargeBinary`（没有维度概念）→ 返回 `None`，那条路径本就不做向量检索。
+    对着列声明取值而**不是硬编码 1024**：将来把模型换成 3072 维，这条校验跟着迁移走，不会失守。
+    """
+    from ..models import DocumentChunk  # 延迟导入：避免与 models 的循环依赖
+
+    col_type = DocumentChunk.__table__.c.embedding.type
+    return getattr(col_type, "dim", None)
+
+
+def strict_embed(text: str) -> tuple[list[float] | None, str, str]:
+    """**不许静默降级**的向量化 —— 官方语料灌入专用。返回 `(向量, 来源, 原因)`。
+
+    ## 为什么不能复用 `embed_one`
+
+    `embed_one` 在 real 失败时 `except Exception: pass` 后退回 64 维伪向量 ——
+    这对**用户上传**是对的（几篇讲义，绝不因供应商抖动而阻塞）。
+    但同一行为对**官方语料灌入**是危险的，实测（2026-06-12）：
+
+        embedding 供应商（百炼）账户欠费 → HTTP 400
+        → embed_one 吞掉异常，返回 64 维哈希词袋
+        → 118（乃至全部 516）片被标成 embed_status='ok'
+        → 检索看起来"有向量"，实际与关键词无异，且**没有任何告警**
+
+    唯一把它顶出来的是 PG 那句难懂的 `expected 1024 dimensions, not 64`
+    —— 而**在 SQLite / dev 上它会静默通过**。这是"假装成功的失败"，比报错更危险。
+
+    所以这里把两件事明确分开：
+    - **刻意**用 fake 模式（`embedding_mode != "real"`，离线开发 / 测试）→ 来源 `fake`，
+      调用方应落 `embed_status='fake'`，让它在统计里**看得见**；
+    - 配的是 real 但**调用失败 / 维度不符** → 来源 `failed` 且向量为 `None`。
+      宁可让这批切片没有向量（检索按既有三级降级到关键词，且明写着 failed），
+      也不让"看起来成功了"的假向量进库。
+    """
+    real = (
+        settings.embedding_mode == "real"
+        and bool(settings.embedding_api_base)
+        and bool(settings.embedding_api_key)
+    )
+    if not real:
+        return _fake_embed(text), EMBED_FAKE, ""
+
+    try:
+        v = _real_embed(text)
+    except Exception as e:  # noqa: BLE001 — 失败**必须被看见**，理由见 docstring
+        return None, EMBED_FAILED, f"{type(e).__name__}: {str(e)[:200]}"
+    if not v:
+        return None, EMBED_FAILED, "real 模式未返回向量"
+
+    dim = declared_dim()
+    if dim is not None and len(v) != dim:
+        return (
+            None,
+            EMBED_FAILED,
+            f"embedding 维度不符：模型返回 {len(v)} 维，列声明 VECTOR({dim})",
+        )
+    return v, EMBED_REAL, ""
+
+
 def wait_embed_ready(
     db,
     *,
