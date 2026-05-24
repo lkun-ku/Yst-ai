@@ -1,30 +1,37 @@
 {
-  "101": {
-    "title": "101-《综合素质》（幼儿园）笔试大纲",
-    "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/101.doc"
-  },
-  "201": {
-    "title": "201-《综合素质》（小学）笔试大纲",
-    "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/201.doc"
-  },
-  "301": {
-    "title": "301-《综合素质》（中学）笔试大纲",
-    "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/301.doc"
-  },
-  "102": {
-    "title": "102-《保教知识与能力》（幼儿园）笔试大纲",
-    "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/102.doc"
-  },
-  "202": {
-    "title": "202-《教育教学知识与能力》（小学）笔试大纲",
-    "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/202.doc"
-  },
-  "302": {
-    "title": "302-《教育知识与能力》（中学）笔试大纲",
-    "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/302.doc"
-  },
-  "303": {
-    "title": "303-《语文学科知识与教学能力》（初级中学）笔试大纲",
-    "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/303.doc"
-  }
+  "101": { "title": "101-《综合素质》（幼儿园）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/101.doc" },
+  "102": { "title": "102-《保教知识与能力》（幼儿园）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/102.doc" },
+  "201": { "title": "201-《综合素质》（小学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/201.doc" },
+  "202": { "title": "202-《教育教学知识与能力》（小学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/202.doc" },
+  "301": { "title": "301-《综合素质》（中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/301.doc" },
+  "302": { "title": "302-《教育知识与能力》（中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/302.doc" },
+  "303": { "title": "303-《语文学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/303.doc" },
+  "304": { "title": "304-《数学学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/304.doc" },
+  "305": { "title": "305-《英语学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/305.doc" },
+  "306": { "title": "306-《物理学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/306.doc" },
+  "307": { "title": "307-《化学学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/307.doc" },
+  "308": { "title": "308-《生物学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/308.doc" },
+  "309": { "title": "309-《道德与法治学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/309.doc" },
+  "310": { "title": "310-《历史学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/310.doc" },
+  "311": { "title": "311-《地理学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/311.doc" },
+  "312": { "title": "312-《音乐学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/312.doc" },
+  "313": { "title": "313-《体育与健康学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/313.doc" },
+  "314": { "title": "314-《美术学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/314.doc" },
+  "315": { "title": "315-《信息技术学科知识与教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/315.doc" },
+  "316": { "title": "316-《历史与社会学科知识及教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/316.doc" },
+  "317": { "title": "317-《科学学科知识及教学能力》（初级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/317.doc" },
+  "403": { "title": "403-《语文学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/403.doc" },
+  "404": { "title": "404-《数学学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/404.doc" },
+  "405": { "title": "405-《英语学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/405.doc" },
+  "406": { "title": "406-《物理学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/406.doc" },
+  "407": { "title": "407-《化学学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/407.doc" },
+  "408": { "title": "408-《生物学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/408.doc" },
+  "409": { "title": "409-《思想品德学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/409.doc" },
+  "410": { "title": "410-《历史学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/410.doc" },
+  "411": { "title": "411-《地理学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/411.doc" },
+  "412": { "title": "412-《音乐学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/412.doc" },
+  "413": { "title": "413-《体育与健康学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/413.doc" },
+  "414": { "title": "414-《美术学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/414.doc" },
+  "415": { "title": "415-《信息技术学科知识与教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/415.doc" },
+  "418": { "title": "418-《通用技术学科知识及教学能力》（高级中学）笔试大纲", "url": "https://ntce.neea.edu.cn/res/Home/report/15071099/418.doc" }
 }
