@@ -10,6 +10,10 @@
 发现它的方式只是"我恰好又跑了一次脚本"。这类问题若在交付时才暴露，
 表现就是"评测跑不起来"，比一个功能缺陷更难解释。
 
+⚠️ **同一个错后来又犯了两次**（`g3_eval.py`、`g3_ambiguity.py` 各一次，都是提示词/报告
+文案里的半角引号）。三次里有两次是"写的时候没想到这条守卫"，所以它值得被放在更显眼的位置：
+**新建或改完任何入口脚本，先跑这条守卫**（它现在同时覆盖 `eval/` 与 `scripts/`）。
+
 守卫用 `compile()` 而不是 `import`：这些脚本在导入时会执行 `sys.path` 注入与第三方依赖
 （如 `onnxruntime`）的加载，import 会带来不必要的副作用与依赖；`compile()` 只做语法检查，
 代价近零、且正是这类错误所在的那一层。
@@ -18,17 +22,23 @@ import pathlib
 
 import pytest
 
-EVAL_DIR = pathlib.Path(__file__).resolve().parents[1] / "eval"
+#: 覆盖两个"入口脚本"目录。它们的共同点是**没有任何测试 import 它们** ——
+#: 语法错会让 pytest 全绿、而脚本一跑就崩。`scripts/` 与 `eval/` 同样危险，故一并纳入
+#: （`scripts/doc_to_md.py` 就是后加的、原先不在守卫覆盖内）。
+_SCRIPT_DIRS = {
+    name: pathlib.Path(__file__).resolve().parents[1] / name for name in ("eval", "scripts")
+}
 
 
 def _scripts() -> list[pathlib.Path]:
-    return sorted(EVAL_DIR.glob("*.py"))
+    return sorted(p for d in _SCRIPT_DIRS.values() for p in d.glob("*.py"))
 
 
-def test_评测脚本目录非空():
+def test_脚本目录非空():
     """守卫本身也要有守卫：目录找不到时不能让用例静默通过。"""
-    assert EVAL_DIR.is_dir(), f"找不到评测目录：{EVAL_DIR}"
-    assert len(_scripts()) >= 3, f"评测脚本数异常：{[p.name for p in _scripts()]}"
+    for name, d in _SCRIPT_DIRS.items():
+        assert d.is_dir(), f"找不到{name}目录：{d}"
+    assert len(_scripts()) >= 3, f"脚本数异常：{[p.name for p in _scripts()]}"
 
 
 @pytest.mark.parametrize("path", _scripts(), ids=lambda p: p.name)
