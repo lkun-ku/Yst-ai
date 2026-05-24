@@ -1,43 +1,63 @@
 {
   "metrics": {
-    "n_items": 7,
-    "n_valid": 7,
-    "n_dim_pairs": 28,
-    "dim_std_ok_rate": 0.8929,
-    "max_dim_std": 11.44,
-    "mean_dim_std": 2.81,
-    "min_margin": -1.55,
+    "n_rows": 21,
+    "n_valid": 21,
+    "n_dim_pairs": 84,
+    "dim_std_ok_rate": 0.9286,
+    "max_dim_std": 13.59,
+    "mean_dim_std": 3.22,
+    "min_margin": -5.59,
     "min_agreement": 0.3333,
-    "max_total_std": 6.64,
+    "max_total_std": 10.25,
     "by_type": {
       "material": {
-        "n": 2,
-        "worst_std": 3.4,
-        "ok": true,
-        "min_agreement": 1.0
-      },
-      "short": {
-        "n": 2,
-        "worst_std": 5.25,
-        "ok": true,
-        "min_agreement": 1.0
-      },
-      "writing": {
-        "n": 1,
-        "worst_std": 11.44,
-        "ok": false,
+        "n_samples": 24,
+        "max_std": 13.59,
+        "mean_std": 3.24,
+        "p90_std": 9.43,
+        "current_tolerance": 8.0,
+        "recommended": 10.0,
+        "meets_promise": false,
         "min_agreement": 0.3333
       },
-      "analysis": {
-        "n": 1,
-        "worst_std": 4.55,
-        "ok": false,
+      "writing": {
+        "n_samples": 12,
+        "max_std": 13.37,
+        "mean_std": 7.64,
+        "p90_std": 10.84,
+        "current_tolerance": 10.0,
+        "recommended": 10.0,
+        "meets_promise": false,
+        "min_agreement": 0.3333
+      },
+      "short": {
+        "n_samples": 24,
+        "max_std": 6.6,
+        "mean_std": 1.83,
+        "p90_std": 3.3,
+        "current_tolerance": 7.0,
+        "recommended": 7.6,
+        "meets_promise": true,
         "min_agreement": 1.0
       },
       "design": {
-        "n": 1,
-        "worst_std": 4.71,
-        "ok": true,
+        "n_samples": 12,
+        "max_std": 6.18,
+        "mean_std": 3.31,
+        "p90_std": 5.31,
+        "current_tolerance": 6.0,
+        "recommended": 7.18,
+        "meets_promise": true,
+        "min_agreement": 0.6667
+      },
+      "analysis": {
+        "n_samples": 12,
+        "max_std": 2.49,
+        "mean_std": 1.45,
+        "p90_std": 2.49,
+        "current_tolerance": 3.0,
+        "recommended": 3.49,
+        "meets_promise": true,
         "min_agreement": 1.0
       }
     }
@@ -46,115 +66,347 @@
     {
       "id": "syn-material-1",
       "qtype": "material",
+      "repeat": 1,
       "tolerance": 8.0,
       "n": 3,
       "per_dim_std": {
-        "relevance": 1.63,
-        "evidence": 0.94,
+        "relevance": 0.0,
+        "evidence": 2.83,
         "structure": 0.94,
-        "language": 1.89
+        "language": 0.94
       },
-      "total_std": 0.47,
-      "mean_total": 87.2,
+      "total_std": 0.85,
+      "mean_total": 88.2,
       "agreement": 1.0
     },
     {
       "id": "syn-short-1",
       "qtype": "short",
+      "repeat": 1,
       "tolerance": 7.0,
-      "n": 2,
+      "n": 3,
       "per_dim_std": {
-        "relevance": 1.0,
-        "evidence": 2.0,
-        "structure": 0.0,
-        "language": 1.0
+        "relevance": 0.47,
+        "evidence": 2.62,
+        "structure": 0.47,
+        "language": 0.94
       },
-      "total_std": 1.0,
-      "mean_total": 94.2,
+      "total_std": 0.94,
+      "mean_total": 92.2,
       "agreement": 1.0
     },
     {
       "id": "syn-material-2",
       "qtype": "material",
+      "repeat": 1,
       "tolerance": 8.0,
       "n": 3,
       "per_dim_std": {
-        "relevance": 2.49,
-        "evidence": 3.4,
-        "structure": 1.89,
+        "relevance": 0.0,
+        "evidence": 4.71,
+        "structure": 1.63,
         "language": 0.94
       },
-      "total_std": 1.31,
-      "mean_total": 83.3,
+      "total_std": 1.7,
+      "mean_total": 84.5,
       "agreement": 1.0
     },
     {
       "id": "syn-writing-1",
       "qtype": "writing",
+      "repeat": 1,
       "tolerance": 10.0,
       "n": 3,
       "per_dim_std": {
-        "relevance": 0.94,
-        "evidence": 11.44,
-        "structure": 8.99,
-        "language": 8.5
+        "relevance": 2.83,
+        "evidence": 8.22,
+        "structure": 7.04,
+        "language": 2.05
       },
-      "total_std": 6.64,
-      "mean_total": 65.0,
+      "total_std": 4.96,
+      "mean_total": 65.4,
       "agreement": 0.3333
     },
     {
       "id": "syn-short-2",
       "qtype": "short",
+      "repeat": 1,
       "tolerance": 7.0,
       "n": 3,
       "per_dim_std": {
         "relevance": 0.0,
-        "evidence": 5.25,
-        "structure": 0.82,
+        "evidence": 0.94,
+        "structure": 0.47,
         "language": 0.47
       },
-      "total_std": 1.26,
-      "mean_total": 92.8,
+      "total_std": 0.29,
+      "mean_total": 95.1,
       "agreement": 1.0
     },
     {
       "id": "syn-analysis-1",
       "qtype": "analysis",
+      "repeat": 1,
       "tolerance": 3.0,
       "n": 3,
       "per_dim_std": {
-        "relevance": 2.83,
-        "evidence": 3.74,
-        "structure": 4.55,
-        "language": 2.49
+        "relevance": 2.49,
+        "evidence": 1.41,
+        "structure": 1.63,
+        "language": 0.94
       },
-      "total_std": 3.27,
-      "mean_total": 91.1,
+      "total_std": 1.26,
+      "mean_total": 89.8,
       "agreement": 1.0
     },
     {
       "id": "syn-design-1",
       "qtype": "design",
+      "repeat": 1,
       "tolerance": 6.0,
       "n": 3,
       "per_dim_std": {
-        "relevance": 2.49,
+        "relevance": 1.89,
         "evidence": 4.71,
-        "structure": 1.63,
-        "language": 1.63
+        "structure": 2.45,
+        "language": 6.18
       },
-      "total_std": 2.49,
-      "mean_total": 87.3,
+      "total_std": 3.71,
+      "mean_total": 86.0,
+      "agreement": 0.6667
+    },
+    {
+      "id": "syn-material-1",
+      "qtype": "material",
+      "repeat": 2,
+      "tolerance": 8.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 0.94,
+        "evidence": 1.89,
+        "structure": 0.94,
+        "language": 0.94
+      },
+      "total_std": 0.82,
+      "mean_total": 87.5,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-short-1",
+      "qtype": "short",
+      "repeat": 2,
+      "tolerance": 7.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 2.36,
+        "evidence": 2.94,
+        "structure": 0.47,
+        "language": 0.47
+      },
+      "total_std": 1.22,
+      "mean_total": 95.0,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-material-2",
+      "qtype": "material",
+      "repeat": 2,
+      "tolerance": 8.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 6.85,
+        "evidence": 9.43,
+        "structure": 1.89,
+        "language": 3.27
+      },
+      "total_std": 5.07,
+      "mean_total": 79.9,
+      "agreement": 0.6667
+    },
+    {
+      "id": "syn-writing-1",
+      "qtype": "writing",
+      "repeat": 2,
+      "tolerance": 10.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 8.5,
+        "evidence": 10.84,
+        "structure": 13.37,
+        "language": 9.88
+      },
+      "total_std": 10.25,
+      "mean_total": 58.2,
+      "agreement": 0.3333
+    },
+    {
+      "id": "syn-short-2",
+      "qtype": "short",
+      "repeat": 2,
+      "tolerance": 7.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 2.05,
+        "evidence": 1.41,
+        "structure": 1.41,
+        "language": 0.47
+      },
+      "total_std": 1.11,
+      "mean_total": 93.3,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-analysis-1",
+      "qtype": "analysis",
+      "repeat": 2,
+      "tolerance": 3.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 0.47,
+        "evidence": 0.47,
+        "structure": 1.25,
+        "language": 2.05
+      },
+      "total_std": 0.88,
+      "mean_total": 92.0,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-design-1",
+      "qtype": "design",
+      "repeat": 2,
+      "tolerance": 6.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 1.63,
+        "evidence": 4.99,
+        "structure": 5.31,
+        "language": 2.87
+      },
+      "total_std": 3.52,
+      "mean_total": 84.2,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-material-1",
+      "qtype": "material",
+      "repeat": 3,
+      "tolerance": 8.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 1.89,
+        "evidence": 2.49,
+        "structure": 4.99,
+        "language": 0.94
+      },
+      "total_std": 2.55,
+      "mean_total": 86.0,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-short-1",
+      "qtype": "short",
+      "repeat": 3,
+      "tolerance": 7.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 1.63,
+        "evidence": 6.6,
+        "structure": 2.16,
+        "language": 2.16
+      },
+      "total_std": 3.03,
+      "mean_total": 95.9,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-material-2",
+      "qtype": "material",
+      "repeat": 3,
+      "tolerance": 8.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 13.59,
+        "evidence": 12.25,
+        "structure": 1.63,
+        "language": 1.89
+      },
+      "total_std": 6.94,
+      "mean_total": 80.5,
+      "agreement": 0.3333
+    },
+    {
+      "id": "syn-writing-1",
+      "qtype": "writing",
+      "repeat": 3,
+      "tolerance": 10.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 7.26,
+        "evidence": 4.08,
+        "structure": 8.16,
+        "language": 9.43
+      },
+      "total_std": 2.03,
+      "mean_total": 51.7,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-short-2",
+      "qtype": "short",
+      "repeat": 3,
+      "tolerance": 7.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 1.89,
+        "evidence": 4.9,
+        "structure": 3.3,
+        "language": 3.27
+      },
+      "total_std": 3.28,
+      "mean_total": 93.3,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-analysis-1",
+      "qtype": "analysis",
+      "repeat": 3,
+      "tolerance": 3.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 2.49,
+        "evidence": 1.25,
+        "structure": 0.94,
+        "language": 2.05
+      },
+      "total_std": 1.41,
+      "mean_total": 91.2,
+      "agreement": 1.0
+    },
+    {
+      "id": "syn-design-1",
+      "qtype": "design",
+      "repeat": 3,
+      "tolerance": 6.0,
+      "n": 3,
+      "per_dim_std": {
+        "relevance": 3.4,
+        "evidence": 2.83,
+        "structure": 0.82,
+        "language": 2.62
+      },
+      "total_std": 1.97,
+      "mean_total": 85.7,
       "agreement": 1.0
     }
   ],
   "metadata": {
-    "time": "2026-06-12T02:57:25",
+    "time": "2026-06-12T03:57:32",
     "llm": "real",
     "votes": 3,
+    "repeat": 3,
     "rubric": "official 语料 · embed=False（关键词通道）",
     "dataset": "主观题样本.json",
-    "caveat": "样本为**合成**且题数很少 —— 证明链路与指标，不足以代表普遍稳定性；四维度是产品自定口径，与官方评分一致性是两件事"
+    "caveat": "样本为**合成**且题数很少 —— 证明链路与指标，不足以代表普遍稳定性；本表量重复性而非准确性（后者需人工标分）"
   }
 }
