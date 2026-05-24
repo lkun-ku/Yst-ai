@@ -11,6 +11,7 @@ import pytest
 from eval.g3_ambiguity import (
     build_variant,
     clean_paraphrase,
+    drop_qualifier,
     mechanical_paraphrase,
     pick_wrong_option,
 )
@@ -27,6 +28,10 @@ _PAYLOAD = {
     ],
     "answer": ["A"],
 }
+
+
+#: N4 用：题干里带限定词（真实试卷里"主要/根本/最"这类限定被省略是最常见的歧义来源）。
+_PAYLOAD_LIMITED = {**_PAYLOAD, "stem": "该校的做法主要违背了素质教育中（ ）"}
 
 
 def test_只顶替错误选项_正确答案保持原样():
@@ -88,3 +93,27 @@ def test_机械改写只替换一处_避免改过头():
 @pytest.mark.parametrize("text", ["", "   ", None])
 def test_空输入不抛异常(text):
     assert mechanical_paraphrase(text or "") == ""
+
+
+# ---------------- N4：题干缺限定 ----------------
+
+def test_去掉限定词_题干变了而答案键与选项未动():
+    """N4 改的是**题干**，不是选项也不是答案键 —— 否则就变成了 N1/N3 而不是 N4。"""
+    v, word = drop_qualifier(_PAYLOAD_LIMITED)
+    assert word == "主要"
+    assert "主要" not in v["stem"] and "违背" in v["stem"]
+    assert v["options"] == _PAYLOAD_LIMITED["options"]
+    assert v["answer"] == _PAYLOAD_LIMITED["answer"]
+
+
+def test_没有限定词可去时返回None而不是原样返回():
+    """原样返回等于没造 —— 会把原题当负样本，真值就错了。"""
+    plain = {**_PAYLOAD_LIMITED, "stem": "该校的做法违背了素质教育的要求"}
+    v, word = drop_qualifier(plain)
+    assert v is None and word == ""
+
+
+def test_优先去掉更长的限定词():
+    """先去「最主要」而不是「最」—— 否则题干会留下「主要」这个残余限定。"""
+    v, word = drop_qualifier({**_PAYLOAD_LIMITED, "stem": "该校的做法最主要违背了（ ）"})
+    assert word == "最主要" and "最主要" not in v["stem"]

@@ -157,6 +157,35 @@ def build_variant(payload: dict, paraphrase: str) -> dict | None:
     return {**payload, "options": new_opts}
 
 
+#: 题干里承担限定作用的词。去掉它们，多个选项往往就都说得通了 ——
+#: 这正是真实试卷里更常见的缺陷形态（题干缺限定），与"同义改写"互补。
+_QUALIFIERS = ("主要", "根本", "最主要", "首要", "核心", "直接", "关键", "最")
+
+
+def drop_qualifier(payload: dict) -> tuple[dict | None, str]:
+    """N4 负样本：去掉题干里的**限定词** → 返回 `(变体, 被去掉的词)`。
+
+    ## 与 N3（同义改写）的分工
+
+    - N3 造的是「两个选项都说得通」（**选项侧**歧义），措辞不同但等价；
+    - N4 造的是「题干失去了限定，于是多个选项都成立」（**题干侧**歧义）。
+
+    真题里的歧义更常是后者，所以只用 N3 测闸门会偏向"措辞型"缺陷、覆盖不到"限定缺失型"。
+
+    ⚠️ **真值是构造推定，必须人工复核**：去掉「主要」之后是否真的多个选项都成立，
+    取决于题目本身 —— 程序无法判定。所以本函数**返回被去掉的词**，供报告逐条列出；
+    复核不成立的那几条要从战绩里剔除（与 N3 同一条纪律）。
+    """
+    stem = payload.get("stem") or ""
+    # ⚠️ **必须按长度降序**：`最主要` 里含有 `主要`，若先匹配到 `主要`，
+    # 去掉后题干会残留一个 `最` —— 限定没去干净，这条样本就废了（这个 bug 是被单测抓出来的）。
+    # 排序放在这里而不是依赖元组书写顺序：加词的人不该还得记得"长的必须写在前面"。
+    for q in sorted(_QUALIFIERS, key=len, reverse=True):
+        if q in stem:
+            return {**payload, "stem": stem.replace(q, "", 1)}, q
+    return None, ""
+
+
 def paraphrase_option(client, payload: dict) -> tuple[str, str]:
     """返回 `(改写文本, 来源)`；改造不出来时返回 `("", 原因)`。"""
     right = {str(k).strip().upper() for k in (payload.get("answer") or [])}
