@@ -240,6 +240,62 @@ def parse_thinking(text: str) -> list[str]:
     return parts[:6]  # 限句数，避免刷屏
 
 
+def per_option_prompt(stem: str, options, qtype: str) -> str:
+    """**逐选项判定**提示词（G3' 用）。与 `blind_answer_prompt` 的差别全在**要求 1**。
+
+    旧判据问「选哪个」—— 模型被迫选一个，于是「被舍弃的那个同样正确」这件事
+    **根本不会出现在结果里**（实测：20 道歧义题只拦下 15%，见 `eval/g3_ambiguity.py`）。
+    这里改问「每个选项对不对」，并显式要求**不要因为已有选项成立就判其它不成立** ——
+    于是"并列正确"会直接表现为**同时有多个选项被判成立**。
+
+    **绝不能把答案放进来**（与盲答同理）：看着答案评"对不对"，对答案本身的歧义不敏感。
+    """
+    opts = json.dumps(options, ensure_ascii=False) if options is not None else "[]"
+    return (
+        "请逐项判断下面这道题的**每个选项**是否成立。\n"
+        f"题干：{stem}\n选项：{opts}\n"
+        "要求：\n"
+        "1. 对每个选项**独立**判断：把它单独作为本题的答案，是否成立；\n"
+        "   **不要**因为已经有一个选项成立，就判其它选项不成立 —— "
+        "本题**可能**有多个成立的选项，这正是本次判定要查的事；\n"
+        "2. 只看该选项自身与题意，不受其它选项判定结果的影响；\n"
+        f"3. 题型：{qtype}。\n"
+        '只输出 JSON：{"verdicts": {"A": true, "B": false, ...}} —— '
+        "键为选项字母，值为该选项是否成立。\n"
+        "【逐选项判定】"
+    )
+
+
+def parse_per_option(text: str) -> dict[str, bool]:
+    """解析逐选项判定 → `{选项键: 是否成立}`；无法解析返回空 dict（该次投票无效）。
+
+    容错：模型可能给「是/否」「true/false」甚至 1/0 —— 都接受，避免把"格式不合规"
+    当成"判定不成立"（那会让一道好题被判成坏题）。
+    """
+    d = _extract_json(text)
+    raw = d.get("verdicts")
+    if not isinstance(raw, dict):
+        return {}
+    yes = {"true", "是", "正确", "成立", "对", "y", "yes", "1"}
+    no = {"false", "否", "错误", "不成立", "错", "n", "no", "0"}
+    out: dict[str, bool] = {}
+    for k, v in raw.items():
+        key = str(k).strip().upper()
+        if not key:
+            continue
+        if isinstance(v, bool):
+            out[key] = v
+        elif isinstance(v, (int, float)):
+            out[key] = bool(v)
+        elif isinstance(v, str):
+            s = v.strip().lower()
+            if s in yes:
+                out[key] = True
+            elif s in no:
+                out[key] = False
+    return out
+
+
 def parse_blind_answer(text: str) -> list[str]:
     """解析盲答结果。无法解析返回空列表（调用方按"这次投票无效"处理）。
 

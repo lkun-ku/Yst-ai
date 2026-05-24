@@ -201,12 +201,44 @@ def test_G3_非选择题型直接放行(monkeypatch):
 
 
 def test_G3_命中拦截并写清原因(monkeypatch):
+    """**旧判据**（盲答「选哪个」）路径 —— 显式关掉 `gate_g3_per_option`。
+
+    为什么必须显式：默认已切到逐选项判定（`gate_g3_per_option=True`，依据成对评测）。
+    若本用例依赖默认值，它测的就不再是它名字里写的那条判据 —— 而"用例名与实际被测路径
+    不一致"正是最难发现的一类失效。两条判据各有一条显式用例。
+    """
     monkeypatch.setattr(settings, "gate_g3_enabled", True)
+    monkeypatch.setattr(settings, "gate_g3_per_option", False)
     payloads = [{"stem": "有歧义的题", "options": [], "answer": ["A"], "type": "single"}]
     kept, blocked = apply_uniqueness_gate(_StubVoter([["A"], ["B"], ["C"]]), payloads)
     assert not kept and len(blocked) == 1
     assert blocked[0]["_gate"] == "G3"
     assert any("歧义" in x for x in blocked[0]["_problems"])
+
+
+def test_G3_逐选项判定时_并列正确必须被拦(monkeypatch):
+    """**新判据**路径：`gate_g3_per_option=True`。
+
+    钉住的是它存在的理由 —— **两个选项都被判成立时不能放行**。旧判据在这里会
+    "一致地选中某一个"从而通过，这正是它在真实歧义题上只拦下 15% 的原因
+    （`eval/g3_ambiguity.py`）；新判据的拦截率是 0.95（`eval/results/g3_per_option.md`）。
+
+    注意判定本身是**完全稳定**的（三次都判 A、B 成立）—— 稳定的判定照样要拦，
+    因为问题不在"模型拿不准"，而在"确实有第二个正确答案"。
+    """
+    monkeypatch.setattr(settings, "gate_g3_enabled", True)
+    monkeypatch.setattr(settings, "gate_g3_per_option", True)
+
+    class _VerdictClient:
+        def ask(self, prompt, timeout=30):
+            return '{"verdicts": {"A": true, "B": true, "C": false, "D": false}}'
+
+    payloads = [{"stem": "有歧义的题", "options": [], "answer": ["A"], "type": "single"}]
+    kept, blocked = apply_uniqueness_gate(_VerdictClient(), payloads)
+    assert not kept and len(blocked) == 1
+    assert blocked[0]["_gate"] == "G3"
+    joined = "".join(blocked[0]["_problems"])
+    assert "并列" in joined or "多于" in joined
 
 
 def test_G3_替身能走通成功分支(monkeypatch):

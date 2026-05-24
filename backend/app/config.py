@@ -138,6 +138,15 @@ class Settings:
     # 也要与题目自带答案相符。只在"高价值题"（如官方语料出的题）上开。
     gate_g3_enabled: bool = os.getenv("GATE_G3_ENABLED", "false").lower() == "true"
     gate_g3_votes: int = int(os.getenv("GATE_G3_VOTES", "3"))
+    # G3' 逐选项判定（**与 G3 同成本**，见 `quality_gates.vote_per_option`）：
+    # 判据从「选哪个」换成「每个选项对不对」。旧判据在真实歧义题上只拦下 15%
+    # —— 因为它问"选哪个"时模型被迫选一个，"被舍弃的那个同样正确"不会出现在结果里。
+    # **默认启用**（2026-06-12，理由见 `eval/results/g3_per_option.md` 的成对评测）：
+    #   官方好题误杀率 0.0 → 0.0（安全性未变差）；
+    #   歧义题拦截率 0.15 → 0.95（有效性大幅提升）；
+    #   成本与旧判据**持平**。三条同时成立，旧判据被严格支配，故默认走新判据。
+    # 仍保留开关：任一条件反转（如换了模型后误杀率上升）要能立刻退回 `vote_uniqueness`。
+    gate_g3_per_option: bool = os.getenv("GATE_G3_PER_OPTION", "true").lower() == "true"
 
     # ---------- 问答老师 Agent（见 services/teacher_agent.py） ----------
     # 工具循环硬上限。**必须有**：模型可能反复查同一个东西，

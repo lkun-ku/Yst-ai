@@ -159,6 +159,8 @@ class FakeLLMClient(LLMClient):
             return _fake_marking(prompt)
         if "【盲答投票】" in prompt:
             return _fake_blind_answer(prompt)
+        if "【逐选项判定】" in prompt:
+            return _fake_per_option(prompt)
         if "【工具决策】" in prompt:
             return _fake_tool_decision(prompt)
         if "【答疑作答】" in prompt:
@@ -576,6 +578,18 @@ def _fake_blind_answer(prompt: str) -> str:
     pairs = re.findall(r'"key"\s*:\s*"([A-Z])"\s*,\s*"text"\s*:\s*"([^"]*)"', prompt)
     good = [k for k, text in pairs if "正确表述" in text]
     return json.dumps({"answer": good or ["A"]}, ensure_ascii=False)
+
+
+def _fake_per_option(prompt: str) -> str:
+    """确定性逐项判定：文本含「正确表述」的选项判成立，其余判不成立。
+
+    与 `_fake_blind_answer` **同一套字面约定** —— 替身必须能走通**成功分支**
+    （判对的正好是答案键），否则"开着这道闸门会怎样"在离线环境里无从验证。
+    约定一致还有个好处：fake 下 G3 与 G3' 的结论应当相同，可直接互相对照。
+    """
+    pairs = re.findall(r'"key"\s*:\s*"([A-Z])"\s*,\s*"text"\s*:\s*"([^"]*)"', prompt)
+    verdicts = {k: ("正确表述" in text) for k, text in pairs}
+    return json.dumps({"verdicts": verdicts}, ensure_ascii=False)
 
 
 def _fake_doc_questions(module: str, qtype: str, count: int, quote: str | None = None) -> list[dict]:

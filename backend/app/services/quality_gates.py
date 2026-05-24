@@ -221,6 +221,109 @@ def vote_uniqueness(client, payload: dict, n: int | None = None) -> VoteResult:
     return VoteResult(tuple(votes), agree, matches, len(votes))
 
 
+@dataclass(frozen=True)
+class OptionVerdict:
+    """G3' 逐选项判定的结果。
+
+    与 `VoteResult` 的对应关系：`stable` ≈ `agree`（多次判定是否一致），
+    `matches` 同义（判定结果与自带答案是否相符）；多出来的是 **`judged`** ——
+    **被判成立的选项集合**，正是它把"并列正确"从不可见变成可见。
+    """
+
+    votes: tuple[tuple[str, ...], ...]  # 每次投票判「成立」的选项键集合（已归一化排序）
+    judged: tuple[str, ...]             # 多数表决后成立的选项
+    stable: bool
+    matches: bool
+    n: int
+
+    @property
+    def n_judged(self) -> int:
+        """被判成立的选项个数 —— **> 答案键个数即存在并列正确答案**。"""
+        return len(self.judged)
+
+    @property
+    def passed(self) -> bool:
+        return self.n > 0 and self.stable and self.matches
+
+    def as_dict(self) -> dict:
+        return {
+            "n": self.n,
+            "stable": self.stable,
+            "matches": self.matches,
+            "judged": list(self.judged),
+            "n_judged": self.n_judged,
+            "passed": self.passed,
+        }
+
+
+def judge_options_once(client, payload: dict) -> tuple[str, ...] | None:
+    """逐选项判定一次 → 返回**成立的选项键集合**。
+
+    `None` = 这次判定无效（模型不可用 / 解析不出任何一项），调用方按"投票无效"丢弃；
+    **空元组** = 模型认为没有一个选项成立 —— 那是有效判定，只是与答案不符。
+    两者必须分开：混同会把"接口抖了一下"变成"这道题不合格"。
+    """
+    from .prompts_kb import parse_per_option, per_option_prompt
+
+    text = client.ask(
+        per_option_prompt(
+            payload.get("stem"), payload.get("options"), str(payload.get("type") or "single")
+        )
+    )
+    if not text:
+        return None
+    verdicts = parse_per_option(text)
+    if not verdicts:
+        return None
+    keys = [k for k, ok in verdicts.items() if ok]
+    return _normalize_keys(keys)
+
+
+def vote_per_option(client, payload: dict, n: int | None = None) -> OptionVerdict:
+    """**G3'**：对每个选项独立判是否成立，投 `n` 次。
+
+    ## 为什么要有它 —— 旧判据缺的那一步
+
+    旧判据 `vote_uniqueness` 问的是「**选哪个**」，模型被迫选一个，
+    于是「被舍弃的那个也同样正确」这件事**根本不会出现在投票结果里**。
+    实测（`eval/g3_ambiguity.py`，2026-06-12）：20 道"两个选项都说得通"的歧义题，
+    旧判据**只拦下 15%**，17 条被放行。
+
+    这里改问「**每个选项对不对**」，并明确要求"不要因为已有选项成立就判其它不成立" ——
+    于是并列正确会直接表现为**同时有多个选项被判成立**（`judged` 长度 > 答案键长度）。
+
+    ## 成本与旧判据**持平**
+
+    每次调用里**一次性**给出所有选项的是/否，而不是"每个选项一次调用" ——
+    否则成本是 `选项数 × 投票数`（4×3=12 次/题，旧判据的 4 倍），贵到不可能上线。
+
+    ## 无效判定的处理
+
+    与旧判据同原则：**全部无效 → 视为"无法判定"而非"未通过"**，
+    否则一次接口抖动就会把好题判成坏题。
+    """
+    times = n if n is not None else settings.gate_g3_votes
+    votes: list[tuple[str, ...]] = []
+    for _ in range(max(1, times)):
+        v = judge_options_once(client, payload)
+        if v is not None:
+            votes.append(v)
+    if not votes:
+        return OptionVerdict((), (), False, False, 0)
+
+    # 多数表决：某选项在**过半**投票里被判成立 → 判它成立。
+    # 用多数而不是"全部"：单次判定被措辞扰动一下就全盘推翻，会让闸门过于敏感。
+    need = len(votes) // 2 + 1
+    counts: dict[str, int] = {}
+    for v in votes:
+        for k in v:
+            counts[k] = counts.get(k, 0) + 1
+    judged = tuple(sorted(k for k, c in counts.items() if c >= need))
+    stable = len(set(votes)) == 1
+    matches = judged == _normalize_keys(payload.get("answer"))
+    return OptionVerdict(tuple(votes), judged, stable, matches, len(votes))
+
+
 def apply_uniqueness_gate(client, payloads: list[dict], emit=None) -> tuple[list[dict], list[dict]]:
     """G3 闸门：答案不唯一的题拦截。**N 倍成本，默认关闭。**
 
@@ -235,6 +338,29 @@ def apply_uniqueness_gate(client, payloads: list[dict], emit=None) -> tuple[list
     for p in items:
         if str(p.get("type") or "single").strip().lower() not in _CHOICE_TYPES:
             kept.append(p)
+            continue
+        if settings.gate_g3_per_option:
+            v = vote_per_option(client, p)
+            if v.n == 0:
+                # 同原则：无法判定 → 放行（把接口抖动当成题不合格会让欠产飙升）
+                kept.append(p)
+                continue
+            if v.passed:
+                kept.append(p)
+                continue
+            reasons = []
+            if not v.stable:
+                reasons.append(f"多次逐项判定不一致（{[list(x) for x in v.votes]}）")
+            if not v.matches:
+                expect = list(_normalize_keys(p.get("answer")))
+                if v.n_judged > len(expect):
+                    reasons.append(
+                        f"被判成立的选项多于答案键（判定 {list(v.judged)} vs 答案 {expect}）："
+                        f"存在并列正确答案"
+                    )
+                else:
+                    reasons.append(f"逐项判定与自带答案不符（判定 {list(v.judged)} vs 答案 {expect}）")
+            blocked.append({**p, "_gate": "G3", "_problems": reasons, "_votes": v.as_dict()})
             continue
         result = vote_uniqueness(client, p)
         if result.n == 0:
