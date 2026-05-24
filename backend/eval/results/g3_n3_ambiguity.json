@@ -1,0 +1,542 @@
+{
+  "metrics": {
+    "n_total": 20,
+    "n_built": 20,
+    "n_skipped": 0,
+    "build_rate": 1.0,
+    "n_valid": 20,
+    "blocked_rate": 0.15,
+    "disagree_rate": 0.05,
+    "mismatch_rate": 0.15
+  },
+  "samples": [
+    {
+      "id": 982,
+      "stem": "某中学为提高高考上线率，高三阶段停开音乐、美术、体育课，把课时全部分配给语文、数学、英语等高考科目。该校的做法主要违背了素质教育中（　）。",
+      "expect": [
+        "B"
+      ],
+      "votes": [
+        [
+          "B"
+        ],
+        [
+          "B"
+        ],
+        [
+          "B"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "促进学生全面发展的要求",
+      "paraphrase": "推动学生各方面共同发展的要求",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 983,
+      "stem": "李老师改变以往一讲到底的做法，先让学生围绕问题自主阅读、小组讨论，再根据学生的讨论情况进行点拨和提升，课堂的大部分时间由学生活动。李老师的做",
+      "expect": [
+        "C"
+      ],
+      "votes": [
+        [
+          "C"
+        ],
+        [
+          "C"
+        ],
+        [
+          "C"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "教学从以教育者为中心转向以学习者为中心",
+      "paraphrase": "教学重心由教师讲授转向学生主动学习",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 984,
+      "stem": "某小学认为实施素质教育就是减少考试、多搞活动，于是大量文艺汇演、参观活动占用教学时间，国家课程计划中的学科教学被随意压缩。该校对素质教育的认",
+      "expect": [
+        "A"
+      ],
+      "votes": [
+        [
+          "A"
+        ],
+        [
+          "A"
+        ],
+        [
+          "A"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "把素质教育等同于减少考试、多搞活动，忽视课堂教学在实施素质教育中的主渠道作用",
+      "paraphrase": "将素质教育与少考试、多办活动混为一谈，未重视课堂教学在实施素质教育中的主渠道作用。",
+      "source": "llm",
+      "replaced": "B"
+    },
+    {
+      "id": 985,
+      "stem": "课堂上，学生小宇提出一个与本节课内容有关但超出教材范围的问题。陈老师说：“你问的这些考试不考，先把课本上的知识点背熟再说。”陈老师的做法主要",
+      "expect": [
+        "B"
+      ],
+      "votes": [
+        [
+          "B"
+        ],
+        [
+          "B"
+        ],
+        [
+          "B"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "教师应成为学生学习的促进者",
+      "paraphrase": "教师应当扮演推动学生学习的作用者角色",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 986,
+      "stem": "从“教书匠”转变为“教育教学的研究者”，是新课改背景下教师观的重要内容。下列行为中最能体现这一转变的是（ ）。",
+      "expect": [
+        "C"
+      ],
+      "votes": [
+        [
+          "A"
+        ],
+        [
+          "A"
+        ],
+        [
+          "A"
+        ]
+      ],
+      "agree": true,
+      "matches": false,
+      "passed": false,
+      "signal": "选了另一个",
+      "original": "张老师发现学生作文素材陈旧，开展微型课题研究并改进写作教学",
+      "paraphrase": "张老师针对学生作文素材老套的问题，以微型课题为抓手展开研究，并据此调整写作教学",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 987,
+      "stem": "新入职的刘老师最担心“学生喜不喜欢我”“同事和领导怎么评价我”，常因课堂纪律问题怀疑自己是否适合当老师。按照教师专业发展阶段理论，刘老师目前",
+      "expect": [
+        "A"
+      ],
+      "votes": [
+        [
+          "A"
+        ],
+        [
+          "A"
+        ],
+        [
+          "A"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "关注生存阶段",
+      "paraphrase": "处于职业存续关切阶段的教师",
+      "source": "llm",
+      "replaced": "B"
+    },
+    {
+      "id": 988,
+      "stem": "数学单元测验后，小明连续两次不及格。王老师把试卷递给他时说：“我看你天生就不是学数学的料，再怎么努力也没用。”王老师的做法主要违背了下列哪一",
+      "expect": [
+        "B"
+      ],
+      "votes": [
+        [
+          "B"
+        ],
+        [
+          "B"
+        ],
+        [
+          "B"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "学生是发展的人，具有巨大的发展潜能，应被看作处于发展过程中的人",
+      "paraphrase": "学生是成长中的人，蕴藏着极大的发展可能，应被视为正在发展中的人。",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 989,
+      "stem": "批改作文时，李老师读到小华写的一句“假如我有一双翅膀，我要飞到太阳上去看看”，认为这不符合科学常识，便要求小华划掉重写，改为“我要飞到天安门",
+      "expect": [
+        "C"
+      ],
+      "votes": [
+        [
+          "C"
+        ],
+        [
+          "C"
+        ],
+        [
+          "C"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "学生是独特的人，学生与成人之间存在巨大的差异",
+      "paraphrase": "学生是独一无二的个体，他们和成年人之间差异很大",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 990,
+      "stem": "语文课上，张老师讲完一段课文后问：“你觉得作者当时的心情是怎样的？”小刚回答“我觉得他很愤怒”，与教参上的“忧伤”不一致。张老师当即说：“不",
+      "expect": [
+        "D"
+      ],
+      "votes": [
+        [
+          "D"
+        ],
+        [
+          "D"
+        ],
+        [
+          "D"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "学生是具有独立意义的人，是学习的主体，教师不能把自己的理解强加给学生",
+      "paraphrase": "学生是独立于教师意志的个体，在学习中处于主体地位，教师不得将个人理解硬塞给他们",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 991,
+      "stem": "某小学规定，学生必须在语文、数学、英语、音乐、美术、体育等所有科目上达到优秀等级，才能参评“三好学生”。校长解释说：“素质教育就是全面发展，",
+      "expect": [
+        "C"
+      ],
+      "votes": [
+        [
+          "C"
+        ],
+        [
+          "C"
+        ],
+        [
+          "C"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "素质教育促进学生全面发展，但全面发展不等于各方面平均发展、样样优秀",
+      "paraphrase": "素质教育推动学生全面发展，然而全面发展并不等同于每个方面齐头并进、样样拔尖。",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 992,
+      "stem": "某中学在推进素质教育时，把优秀教师和优质课时集中用于组建两个“尖子班”，其余班级按原计划上课。校长解释说：“素质教育也要树立典型、以点带面。",
+      "expect": [
+        "A"
+      ],
+      "votes": [
+        [
+          "A"
+        ],
+        [
+          "A"
+        ],
+        [
+          "A"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "素质教育是面向全体学生的教育",
+      "paraphrase": "素质教育以所有学生为实施对象。",
+      "source": "llm",
+      "replaced": "B"
+    },
+    {
+      "id": 993,
+      "stem": "某物理教师在讲“浮力”一课时，没有直接给出阿基米德原理，而是让学生自己设计实验、尝试用不同材料探究，鼓励学生提出与课本不同的解释，并动手制作",
+      "expect": [
+        "D"
+      ],
+      "votes": [
+        [
+          "D"
+        ],
+        [
+          "D"
+        ],
+        [
+          "D"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "以培养创新精神和实践能力为重点",
+      "paraphrase": "将创新精神与实践能力的培养置于突出地位",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 994,
+      "stem": "数学课上，李老师讲解完一道例题后，没有马上公布标准答案，而是让学生先说说自己的解题思路，再比较不同解法的优劣，最后共同归纳出一般方法。李老师",
+      "expect": [
+        "C"
+      ],
+      "votes": [
+        [
+          "C"
+        ],
+        [
+          "C"
+        ],
+        [
+          "C"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "教学从重结论轻过程转向重结论的同时更重过程",
+      "paraphrase": "教学由偏重结果、轻视过程，转为在重视结果之外，更加重视过程。",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 995,
+      "stem": "新课改强调教学是师生交往、积极互动、共同发展的过程。下列教师的做法中，最能体现这一要求的是（ ）。",
+      "expect": [
+        "B"
+      ],
+      "votes": [
+        [
+          "A"
+        ],
+        [
+          "A"
+        ],
+        [
+          "A"
+        ]
+      ],
+      "agree": true,
+      "matches": false,
+      "passed": false,
+      "signal": "选了另一个",
+      "original": "教师根据学生的回答和疑问及时调整教学，并和学生一起探讨解决问题的思路",
+      "paraphrase": "教师针对学生的作答与困惑随时对教学作出调整，并同学生一道探求解决问题的思路。",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 996,
+      "stem": "语文课上，学生围绕“作者为什么反复写雨”提出了几种不同理解，张老师临时调整原定教学安排，组织学生分组辩论并补充背景资料，最后形成新的解读。张",
+      "expect": [
+        "A"
+      ],
+      "votes": [
+        [
+          "A"
+        ],
+        [
+          "A"
+        ],
+        [
+          "A"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "教学是课程创生与开发的过程",
+      "paraphrase": "教学就是创生和开发课程的过程",
+      "source": "llm",
+      "replaced": "B"
+    },
+    {
+      "id": 997,
+      "stem": "有教师认为：“全面发展就是要求学生门门功课优秀、样样活动拔尖，哪一方面落后就说明发展不全面。”这种理解的主要问题是（　）",
+      "expect": [
+        "C"
+      ],
+      "votes": [
+        [
+          "C"
+        ],
+        [
+          "C"
+        ],
+        [
+          "C"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "将全面发展等同于平均发展，抹杀了学生的个性差异",
+      "paraphrase": "把全面发展理解为平均发展，取消了学生在个性上的差异",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 998,
+      "stem": "某中学规定，期中考试前两周暂停体育课、音乐课和班级值日，全部改上语文、数学、英语。该校的做法（　）",
+      "expect": [
+        "B"
+      ],
+      "votes": [
+        [
+          "B"
+        ],
+        [
+          "B"
+        ],
+        [
+          "B"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "违背了全面发展教育的要求，割裂了各育之间相互促进的关系",
+      "paraphrase": "破坏了德智体美劳诸育的协调统一，忽视了它们之间本应相互配合的关联",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 999,
+      "stem": "马克思主义认为，实现人的全面发展的唯一途径是（　）",
+      "expect": [
+        "D"
+      ],
+      "votes": [
+        [
+          "D"
+        ],
+        [
+          "D"
+        ],
+        [
+          "D"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "教育与生产劳动相结合",
+      "paraphrase": "把教育和生产劳动结合起来",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 1000,
+      "stem": "某小学在开展素质教育时，要求所有学生必须参加相同的社团活动，并认为“既然要全面发展，就不能让学生自己选择，否则会偏科”。该校做法主要违背了素",
+      "expect": [
+        "B"
+      ],
+      "votes": [
+        [
+          "B"
+        ],
+        [
+          "B"
+        ],
+        [
+          "B"
+        ]
+      ],
+      "agree": true,
+      "matches": true,
+      "passed": true,
+      "signal": "—",
+      "original": "促进学生个性发展",
+      "paraphrase": "为学生个性成长提供推动力",
+      "source": "llm",
+      "replaced": "A"
+    },
+    {
+      "id": 1001,
+      "stem": "班主任李老师发现小王文化课成绩一般，但对机器人组装特别感兴趣。李老师在保证其完成基本学习任务的前提下，允许他利用课余时间参加机器人社团，并推",
+      "expect": [
+        "A"
+      ],
+      "votes": [
+        [
+          "B"
+        ],
+        [
+          "A"
+        ],
+        [
+          "A"
+        ]
+      ],
+      "agree": false,
+      "matches": false,
+      "passed": false,
+      "signal": "摇摆",
+      "original": "体现了促进学生个性发展的理念",
+      "paraphrase": "注重学生个性特长的培养与发展",
+      "source": "llm",
+      "replaced": "B"
+    }
+  ],
+  "metadata": {
+    "time": "2026-06-12T01:48:14",
+    "llm": "real",
+    "votes": 3,
+    "dataset": "官方题样本.json",
+    "paraphrase_source": "llm",
+    "framing": "N3 负样本 · 真实歧义 —— **拦截率高才是对的**（与误杀率表读法相反）"
+  }
+}
