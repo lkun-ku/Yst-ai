@@ -161,6 +161,8 @@ class FakeLLMClient(LLMClient):
             return _fake_blind_answer(prompt)
         if "【逐选项判定】" in prompt:
             return _fake_per_option(prompt)
+        if "【采分点判定】" in prompt:
+            return _fake_point_judge(prompt)
         if "【工具决策】" in prompt:
             return _fake_tool_decision(prompt)
         if "【答疑作答】" in prompt:
@@ -590,6 +592,17 @@ def _fake_per_option(prompt: str) -> str:
     pairs = re.findall(r'"key"\s*:\s*"([A-Z])"\s*,\s*"text"\s*:\s*"([^"]*)"', prompt)
     verdicts = {k: ("正确表述" in text) for k, text in pairs}
     return json.dumps({"verdicts": verdicts}, ensure_ascii=False)
+
+
+def _fake_point_judge(prompt: str) -> str:
+    """确定性采分点判定：**全部算命中**。
+
+    与 `_fake_blind_answer` / `_fake_per_option` 同一条约定 —— 替身必须能走通**成功分支**，
+    否则"按采分点给分"这条链路在离线环境里无从验证（会恒为 0 分，所有用例都红）。
+    """
+    pts = re.findall(r"^\s*(\d+)\.\s*(.+)$", prompt, re.MULTILINE)
+    hits = [{"point": int(i), "hit": True, "evidence": "（替身）覆盖该点"} for i, _ in pts]
+    return json.dumps({"hits": hits}, ensure_ascii=False)
 
 
 def _fake_doc_questions(module: str, qtype: str, count: int, quote: str | None = None) -> list[dict]:

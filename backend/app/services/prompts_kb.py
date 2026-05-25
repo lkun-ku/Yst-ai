@@ -296,6 +296,65 @@ def parse_per_option(text: str) -> dict[str, bool]:
     return out
 
 
+def point_judge_prompt(points: list[str], answer: str) -> str:
+    """**采分点判定**提示词（简答题按点给分用）。
+
+    ## 判定用「语义」而不是字面（产品口径，见 §6）
+
+    考生用自己的话表达了同一意思即算**覆盖**；只砸中关键词但意思不对、或与该点无关，
+    都不算。这正是"按点给分"与"字符串匹配"的分界 —— 用字面匹配会把大量换了个说法的
+    正确作答判成 0 分。
+
+    ## 为什么一次调用判全部采分点
+
+    成本：逐点各一次调用是 `点数 × 1` 次（简答常见 5 点 → 5 倍开销）。
+    这里一次性给出全部采分点，**开销与单次批改相同**，而判定质量不受影响
+    （每点独立判断，点之间不互相干扰 —— 提示词里明确写了）。
+    """
+    pts = "\n".join(f"{i}. {p}" for i, p in enumerate(points, 1))
+    return (
+        "请判断考生作答**覆盖**了下面哪些采分点。\n\n"
+        f"【采分点】\n{pts}\n\n"
+        f"【考生作答】\n{answer}\n\n"
+        "判定要求：\n"
+        "1. 按**语义**判断，不要求字面一致：考生用自己的话表达了同一意思，即算覆盖；\n"
+        "2. 只出现关键词但意思不对、或与该点无关、或答得相反，都算**未覆盖**；\n"
+        "3. 每个采分点**独立**判断，不受其它点判定结果影响；\n"
+        "4. evidence 填考生作答中对应那句话（未覆盖则留空字符串）。\n"
+        '只输出 JSON：{"hits": [{"point": 1, "hit": true, "evidence": "..."}]}\n'
+        "【采分点判定】"
+    )
+
+
+def parse_point_judge(text: str) -> dict[int, tuple[bool, str]]:
+    """解析采分点判定 → `{点序号: (是否覆盖, 依据)}`；无法解析返回空 dict。
+
+    容错：`hit` 可能是 true/"是"/"correct"；`point` 可能是 "1" 或 1。
+    """
+    d = _extract_json(text)
+    raw = d.get("hits")
+    if not isinstance(raw, list):
+        return {}
+    yes = {"true", "是", "覆盖", "命中", "对", "yes", "y", "1"}
+    out: dict[int, tuple[bool, str]] = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            idx = int(str(item.get("point")).strip())
+        except (TypeError, ValueError):
+            continue
+        v = item.get("hit")
+        if isinstance(v, bool):
+            hit = v
+        elif isinstance(v, str):
+            hit = v.strip().lower() in yes
+        else:
+            continue
+        out[idx] = (hit, str(item.get("evidence") or "").strip())
+    return out
+
+
 def parse_blind_answer(text: str) -> list[str]:
     """解析盲答结果。无法解析返回空列表（调用方按"这次投票无效"处理）。
 

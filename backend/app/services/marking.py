@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import statistics
 from dataclasses import dataclass, field
 
@@ -105,6 +106,127 @@ def std_tolerance(qtype: str) -> float:
     return STD_TOLERANCE_BY_TYPE.get(
         str(qtype or "").strip().lower(), STD_TOLERANCE_BY_TYPE["default"]
     )
+
+
+# ---------------- 判分口径（产品明确指定，2026-06-13） ----------------
+#
+# 两类题型两套口径，**不能混用**：
+#
+# | 题型 | 口径 | 为什么不那样做 |
+# | --- | --- | --- |
+# | 选择题 | **严格匹配，不对就是判错**（多选题也要求完全一致，不给部分分） | 客观题没有"部分正确"的语义；给半分会让分数不可解释 |
+# | 简答题 | **按采分点给分**，命中判定用**语义**相似，不用字面 | 用字面匹配会把大量换个说法的正确作答判成 0 分 |
+#
+# 选择题的口径与 G3 的 `matches`（`_normalize_keys` 后的集合相等）**是同一把尺子** ——
+# 刻意复用同一个归一化函数：否则会出现"质检闸门认为答对了、判分却说错了"这种自相矛盾。
+
+
+def score_choice(selected, correct, max_score: float) -> float:
+    """选择题判分：完全一致得满分，否则 0（**不设部分分**）。"""
+    from .quality_gates import _normalize_keys  # 与 G3 共用同一归一化，保证口径一致
+
+    if _normalize_keys(selected) == _normalize_keys(correct):
+        return float(max_score)
+    return 0.0
+
+
+@dataclass(frozen=True)
+class PointHit:
+    """一个采分点的判定结果。"""
+
+    point: str
+    hit: bool
+    evidence: str = ""  # 考生作答里对应的话（供人工核对 —— 语义判定必须有据可查）
+
+
+@dataclass(frozen=True)
+class PointwiseResult:
+    """简答题「按采分点给分」的结果。
+
+    ⚠️ `scored=False` 表示**判定无效**（模型不可用 / 解析失败），**不是 0 分**。
+    这两件事必须分开：把"接口抖了一下"记成 0 分，会让学生的分数凭空调低，
+    而且事后无法分辨。调用方应重试或显式告知"这次没判成"。
+    """
+
+    points: tuple[PointHit, ...]
+    max_score: float
+    per_point: float
+    scored: bool
+
+    @property
+    def n_hits(self) -> int:
+        return sum(1 for p in self.points if p.hit)
+
+    @property
+    def score(self) -> float:
+        """命中点数 × 每点分值（保留 1 位）。未判成时返回 0，但**必须看 `scored`**。"""
+        if not self.scored:
+            return 0.0
+        return round(self.per_point * self.n_hits, 1)
+
+    def as_dict(self) -> dict:
+        return {
+            "scored": self.scored,
+            "n_points": len(self.points),
+            "n_hits": self.n_hits,
+            "max_score": self.max_score,
+            "per_point": self.per_point,
+            "score": self.score,
+            "points": [
+                {"point": p.point, "hit": p.hit, "evidence": p.evidence} for p in self.points
+            ],
+        }
+
+
+#: 采分点切分的候选边界：换行、中文序号、分号、以及 `1.` / `（1）` 这类编号。
+_POINT_SPLIT_RE = re.compile(r"\r?\n|(?=[①②③④⑤⑥⑦⑧⑨⑩])|；|;|(?<=。)(?=[^\s])")
+
+
+def split_reference_points(text: str, *, min_len: int = 4) -> list[str]:
+    """把参考答案切成采分点（**启发式**）。
+
+    切分依据：换行 / ①②③ / 分号 / 句号后接非空白。再去掉残余的编号前缀、
+    丢弃过短碎片（< `min_len`，多为噪声）并去重。
+
+    ⚠️ 参考答案的排版千差万别，**切分结果需人工核对** —— 切多切少都会直接影响给分。
+    宁可多切出几个短点让人删，也不要合并成一个长点让人拆。
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in _POINT_SPLIT_RE.split(text or ""):
+        seg = (raw or "").strip().strip("　 ")
+        # 去掉残余编号：①②③、1.、1、）、（1）
+        seg = re.sub(r"^[①②③④⑤⑥⑦⑧⑨⑩\s]*", "", seg)
+        seg = re.sub(r"^[（(]?\d+[)）.、．]?\s*", "", seg)
+        seg = seg.strip()
+        if len(seg) < min_len or seg in seen:
+            continue
+        seen.add(seg)
+        out.append(seg)
+    return out
+
+
+def score_by_points(client, points, answer: str, max_score: float) -> PointwiseResult:
+    """简答题判分：**按采分点给分**，命中判定用语义（一次调用判全部点，开销与单次批改相同）。
+
+    无采分点时视为无法判分（`scored=False`）—— **不要**用"没有采分点"去推出"0 分"。
+    """
+    from .prompts_kb import parse_point_judge, point_judge_prompt
+
+    pts = [str(p).strip() for p in (points or []) if str(p).strip()]
+    if not pts:
+        return PointwiseResult((), max_score, 0.0, False)
+
+    text = client.ask(point_judge_prompt(pts, answer))
+    verdict = parse_point_judge(text or "")
+    if not verdict:
+        return PointwiseResult((), max_score, 0.0, False)
+
+    hits = tuple(
+        PointHit(point=p, hit=verdict.get(i, (False, ""))[0], evidence=verdict.get(i, (False, ""))[1])
+        for i, p in enumerate(pts, 1)
+    )
+    return PointwiseResult(hits, float(max_score), round(float(max_score) / len(pts), 4), True)
 
 
 @dataclass(frozen=True)

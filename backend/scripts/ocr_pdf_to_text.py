@@ -46,8 +46,19 @@ def _get_ocr():
     return _OCR
 
 
-def ocr_pdf(pdf: Path, out_txt: Path, *, pages: int | None = None, dpi: int = 200) -> dict:
-    """OCR 一份 PDF → 文本文件。返回统计（页数 / 字符数 / 耗时）。"""
+def _existing_pages(path: Path) -> int:
+    """已 OCR 的页数（按 `===== page N =====` 标记数）。文件不存在或读不了都算 0。"""
+    try:
+        if not path.exists():
+            return 0
+        return path.read_text(encoding="utf-8", errors="ignore").count("===== page ")
+    except OSError:
+        return 0
+
+
+def ocr_pdf(pdf: Path, out_txt: Path, *, pages: int | None = None, dpi: int = 200,
+            force: bool = False) -> dict:
+    """OCR 一份 PDF → 文本文件（**逐页落盘**）。返回统计（页数 / 字符数 / 耗时）。"""
     import fitz
 
     doc = fitz.open(pdf)
@@ -58,27 +69,37 @@ def ocr_pdf(pdf: Path, out_txt: Path, *, pages: int | None = None, dpi: int = 20
     # （第一版把 mkdir 放在循环之后，于是每一份都会在第一步就失败 —— 踩过。）
     out_txt.parent.mkdir(parents=True, exist_ok=True)
 
-    chunks: list[str] = []
+    # **逐页落盘 + 按页数续跑**（第一版把整本攒在内存、最后一次性 write ——
+    # 那样"可续跑"是假的：275 页要跑约 70 分钟，在第 270 页崩掉就全白跑。
+    # 现在每页写完即 flush，中断后重跑会从已有的页数接着来。）
+    already = 0 if force else _existing_pages(out_txt)
+    if already >= limit:
+        return {"pdf": pdf.name, "pages": already, "total_pages": total, "chars": 0,
+                "seconds": 0.0, "resumed_from": already, "skipped": True}
+
     t0 = time.time()
     chars = 0
-    for i in range(limit):
-        pix = doc[i].get_pixmap(dpi=dpi)
-        tmp = out_txt.with_suffix(f".p{i}.png")
-        pix.save(tmp)
-        try:
-            res, _ = ocr(str(tmp))
-        finally:
-            tmp.unlink(missing_ok=True)  # 中间图不落地留存，省空间也少一份版权副本
-        text = "".join(x[1] for x in (res or []))
-        chars += len(text)
-        chunks.append(f"===== page {i + 1} =====\n{text}")
-        if (i + 1) % 5 == 0 or i + 1 == limit:
-            print(f"    {pdf.name} [{i + 1}/{limit}] 累计 {chars} 字 {time.time() - t0:.0f}s", flush=True)
+    mode = "a" if already else "w"
+    with out_txt.open(mode, encoding="utf-8") as fh:
+        if already:
+            print(f"    {pdf.name} 续跑：已有 {already} 页，从第 {already + 1} 页继续", flush=True)
+        for i in range(already, limit):
+            pix = doc[i].get_pixmap(dpi=dpi)
+            tmp = out_txt.with_suffix(f".p{i}.png")
+            pix.save(tmp)
+            try:
+                res, _ = ocr(str(tmp))
+            finally:
+                tmp.unlink(missing_ok=True)  # 中间图不落地留存，省空间也少一份版权副本
+            text = "".join(x[1] for x in (res or []))
+            chars += len(text)
+            fh.write(f"===== page {i + 1} =====\n{text}\n\n")
+            fh.flush()  # ← 每页落盘，崩溃/断电只损失当前这一页
+            if (i + 1) % 5 == 0 or i + 1 == limit:
+                print(f"    {pdf.name} [{i + 1}/{limit}] 累计 {chars} 字 {time.time() - t0:.0f}s", flush=True)
 
-    out_txt.parent.mkdir(parents=True, exist_ok=True)
-    out_txt.write_text("\n\n".join(chunks) + "\n", encoding="utf-8")
     return {"pdf": pdf.name, "pages": limit, "total_pages": total, "chars": chars,
-            "seconds": round(time.time() - t0, 1)}
+            "seconds": round(time.time() - t0, 1), "resumed_from": already}
 
 
 def main(argv: list[str]) -> int:
@@ -99,14 +120,18 @@ def main(argv: list[str]) -> int:
     done = skipped = 0
     for pdf in pdfs:
         target = out_dir / f"{pdf.stem}.txt"
-        if target.exists() and not args.force:
-            print(f"  ↷ 跳过（已存在）{target.name}")
-            skipped += 1
-            continue
+        # ⚠️ **不再"文件存在就跳过"** —— 那会把"续跑"变成"不跑"：
+        # 跑到一半中断时文件是存在的，跳过就永远补不齐后半本。
+        # 是否已完成由 `ocr_pdf` 按**页数**判断（并自行从断点接着写）。
         try:
-            st = ocr_pdf(pdf, target, pages=args.pages, dpi=args.dpi)
+            st = ocr_pdf(pdf, target, pages=args.pages, dpi=args.dpi, force=args.force)
+            if st.get("skipped"):
+                print(f"  ↷ 已完成 {st['pages']} 页，跳过 {target.name}")
+                skipped += 1
+                continue
+            resumed = f"（续跑，自第 {st['resumed_from'] + 1} 页）" if st.get("resumed_from") else ""
             print(f"  ✓ {st['pdf']} → {target.name}　{st['pages']}/{st['total_pages']} 页"
-                  f"　{st['chars']} 字　{st['seconds']}s")
+                  f"　{st['chars']} 字　{st['seconds']}s{resumed}")
             done += 1
         except Exception as e:  # noqa: BLE001 — 单份失败不该中断整批
             print(f"  ✗ {pdf.name} 失败：{type(e).__name__}: {str(e)[:120]}")
