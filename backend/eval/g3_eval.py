@@ -261,7 +261,7 @@ def _write_markdown(path: pathlib.Path, result: dict) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def main(limit: int = 30, n2: bool = False) -> dict:
+def main(limit: int = 30, n2: bool = False, dataset: str | None = None) -> dict:
     """`n2=True` 跑 N2 负样本（选项歧义）。
 
     ⚠️ **它的读法与基准表相反**：这里 `blocked_rate` **高才是对的**（那些题本该被拦），
@@ -271,7 +271,8 @@ def main(limit: int = 30, n2: bool = False) -> dict:
 
     if not _DATASET.exists():
         raise SystemExit(f"评测集不存在：{_DATASET}\n（见本文件 docstring 的导出命令）")
-    data = json.loads(_DATASET.read_text(encoding="utf-8"))
+    ds = pathlib.Path(dataset) if dataset else _DATASET
+    data = json.loads(ds.read_text(encoding="utf-8"))
     items = (data.get("items") or [])[:limit]
     if not items:
         raise SystemExit("评测集为空")
@@ -315,6 +316,12 @@ def main(limit: int = 30, n2: bool = False) -> dict:
     }
     _OUT_DIR.mkdir(parents=True, exist_ok=True)
     md = _OUT_DIR / "g3_baseline.md"
+    # ⚠️ **换数据集时必须换文件名**。既有守卫只挡"fake 覆盖 real"；但一次**真实**运行
+    # 若换了数据集，同样会把别的基准的槽位占掉 —— 那份证据就再也回不来了。
+    # 所以：只要不是默认评测集，就写到自己的名字里去。
+    if ds.name != _DATASET.name:
+        md = _OUT_DIR / f"g3_{pathlib.Path(ds.stem).name}_baseline.md"
+        print(f"    数据集不同（{ds.name}）→ 结果写到 {md.name}，不占用默认基准槽位")
     # N2 走**独立的证据文件**：在它上面「被拦」是本该发生的事，套用「误杀率」的标题会让人读反
     if n2:
         md = _OUT_DIR / "g3_n2_baseline.md"
@@ -344,10 +351,15 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=30, help="用多少道题（默认 30）")
     ap.add_argument(
+        "--dataset",
+        default=None,
+        help=f"评测集路径（默认 {_DATASET.name}）。可指向 OCR 结构化出的真题集",
+    )
+    ap.add_argument(
         "--n2",
         action="store_true",
         help="跑 N2 负样本（把错误选项的文本改成与正确选项相同 → 答案不唯一）。"
         "注意其 blocked_rate 高才是对的，读法与基准表相反",
     )
     args = ap.parse_args()
-    main(limit=args.limit, n2=args.n2)
+    main(limit=args.limit, n2=args.n2, dataset=args.dataset)
