@@ -18,6 +18,7 @@ from scripts.parse_choice_ocr import (  # noqa: E402
     build_dataset,
     parse_answer_sheet,
     parse_questions,
+    parse_trap_hints,
     split_exams,
 )
 
@@ -143,6 +144,27 @@ def test_合并成功并带上权威级别():
     it = d["items"][0]
     assert it["answer"] == ["B"] and it["year"] == 2025 and it["id"] == "2025上-1"
     assert d["authority"] == "半官方"
+
+
+def test_抽取教辅标注的易错项():
+    """「易错选项提醒：A」是机构自己承认的易混点 —— 天然就是歧义候选（不待我们构造）。"""
+    body = (
+        "1.正确答案是：B解析：……。西米学府团队易错选项提醒：A"
+        "2.正确答案是：C解析：……。西米学府团队易错选项提醒：D"
+    )
+    assert parse_trap_hints(body) == {1: "A", 2: "D"}
+
+
+def test_易错项等于正确答案时不采信():
+    """OCR 错字或原书标错都可能造成这种自相矛盾 —— 宁可丢掉这个候选。"""
+    body = "1.正确答案是：B解析：……易错选项提醒：B"
+    assert parse_trap_hints(body) == {1: "B"}  # 抽取层如实给出
+    d = build_dataset(
+        "2025年上半年&真题《综合素质》\n===== page 1 =====\n1．题干足够长的一句话在这。（）A.甲B.乙C.丙D.丁",
+        "2025年上半年&真题《综合素质》\n答案速查表序号1答案B\n1.正确答案是：B解析：……易错选项提醒：B",
+    )
+    assert d["items"][0]["trap"] is None  # 合并层判定不采信
+    assert d["stats"]["n_with_trap"] == 0
 
 
 def test_没有答案的题目被丢弃而不是硬凑():

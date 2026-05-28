@@ -172,6 +172,34 @@ def _restore_numbers(digits: str) -> list[int] | None:
     return _walk(0, None, [])
 
 
+#: 答案正文里每题的形态：`1.正确答案是：B … 西米学府团队易错选项提醒：A`
+_CORRECT_RE = re.compile(r"(\d{1,2})[．.]\s*正确答案是[：: ]*([ABCD])")
+_TRAP_RE = re.compile(r"易错选项提醒[：: ]*([ABCD])")
+
+
+def parse_trap_hints(body: str) -> dict[int, str]:
+    """答案正文里每题的「易错选项提醒」→ `{题号: 易错选项}`。
+
+    ## 为什么值得单独抽出来
+
+    那是教辅**明确指出的"最容易选错的那个选项"** —— 两个选项都说得通，才会有人选错。
+    它天然就是**歧义候选**，而且比我们自己去构造（§5 第 12 项里 N4 那条路失败了）
+    更接近真实考题：这是**机构自己承认**的易混点，不是我们猜的。
+
+    ⚠️ **"易错"不等于"两个都对"** —— 它可能只是"干扰项设计得巧妙"。
+    是否构成真歧义，仍需人工或模型裁定。**本函数只负责把候选挑出来，不下结论。**
+    """
+    out: dict[int, str] = {}
+    for m in _CORRECT_RE.finditer(body or ""):
+        start = m.end()
+        nxt = _CORRECT_RE.search(body, start)
+        seg = body[start : nxt.start() if nxt else len(body)]
+        t = _TRAP_RE.search(seg)
+        if t:
+            out.setdefault(int(m.group(1)), t.group(1))
+    return out
+
+
 def build_dataset(q_text: str, a_text: str, *, stage: str = "中学", subject: str = "综合素质") -> dict:
     """题面 + 答案 → 评测集 dict（含统计与丢弃原因）。"""
     exams_q = split_exams(q_text)
@@ -180,6 +208,7 @@ def build_dataset(q_text: str, a_text: str, *, stage: str = "中学", subject: s
         "n_exams_q": len(exams_q),
         "n_exams_a": len(exams_a),
         "n_items": 0,
+        "n_with_trap": 0,  # 带有「易错选项提醒」的题数 = 歧义候选数
         "dropped": {"exam_misaligned": 0, "no_answer": 0, "bad_question": 0},
         "per_exam": [],
     }
@@ -197,6 +226,7 @@ def build_dataset(q_text: str, a_text: str, *, stage: str = "中学", subject: s
             continue
         qs = parse_questions(eq["body"])
         ans = parse_answer_sheet(ea["body"])
+        traps = parse_trap_hints(ea["body"])
         kept = 0
         for no, q in sorted(qs.items()):
             a = ans.get(no)
@@ -206,6 +236,12 @@ def build_dataset(q_text: str, a_text: str, *, stage: str = "中学", subject: s
             if a not in _KEYS:
                 stats["dropped"]["bad_question"] += 1
                 continue
+            # 易错项若是正确答案本身，说明 OCR 或原书标错 —— 不采信
+            trap = traps.get(no)
+            if trap is not None and trap == a:
+                trap = None
+            if trap is not None:
+                stats["n_with_trap"] += 1
             items.append({
                 "id": f"{eq['year']}{eq['half']}-{no}",
                 "type": "single",
@@ -217,6 +253,7 @@ def build_dataset(q_text: str, a_text: str, *, stage: str = "中学", subject: s
                 "stem": q["stem"],
                 "options": q["options"],
                 "answer": [a],
+                "trap": trap,  # 教辅标注的易错项 = 歧义候选（**是否真歧义待裁定**）
                 "source_page": q.get("page"),
             })
             kept += 1
