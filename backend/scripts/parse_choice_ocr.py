@@ -42,6 +42,11 @@ _QNO_RE = re.compile(r"(\d{1,2})[．.、]")
 #: 选项标记：`A.` / `B、`。用它切出 A/B/C/D 四段。
 _OPT_RE = re.compile(r"[ABCD][.．、]")
 
+#: **依赖图/表**的题干（OCR 拿不到图）。这类题在纯文本形态下**根本不可答** ——
+#: 若把它们留在评测集里，模型答错会被记成"闸门的误杀"，那是对 G3 的错判。
+#: 实测：被拦的 6 道里就有 1 道是含图题（剪纸画辨民族服饰）。
+_IMAGE_HINT_RE = re.compile(r"图(?!书馆)|如图|下图|剪纸画|漫画|照片|图片|所示|表中的|图形")
+
 _KEYS = ("A", "B", "C", "D")
 
 
@@ -104,6 +109,8 @@ def _split_options(seg: str) -> dict | None:
             return None  # 标记顺序不是 A/B/C/D → 不信任
     if len(stem) < 10:
         return None
+    if _IMAGE_HINT_RE.search(stem):
+        return None  # 依赖图/表 → 纯文本下不可答，剔除（否则会被误记成闸门误杀）
     if any(not o["text"] for o in options):
         return None
     return {"stem": stem, "options": options}

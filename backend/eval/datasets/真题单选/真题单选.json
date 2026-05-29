@@ -9,25 +9,25 @@
   "stats": {
     "n_exams_q": 22,
     "n_exams_a": 22,
-    "n_items": 264,
-    "n_with_trap": 180,
+    "n_items": 254,
+    "n_with_trap": 174,
     "dropped": {
       "exam_misaligned": 0,
-      "no_answer": 127,
+      "no_answer": 110,
       "bad_question": 0
     },
     "per_exam": [
       {
         "year": 2025,
         "half": "上",
-        "n_questions": 16,
+        "n_questions": 15,
         "n_answers": 24,
-        "kept": 13
+        "kept": 12
       },
       {
         "year": 2024,
         "half": "下",
-        "n_questions": 17,
+        "n_questions": 16,
         "n_answers": 16,
         "kept": 10
       },
@@ -48,35 +48,35 @@
       {
         "year": 2023,
         "half": "上",
-        "n_questions": 17,
+        "n_questions": 15,
         "n_answers": 24,
         "kept": 13
       },
       {
         "year": 2022,
         "half": "下",
-        "n_questions": 18,
+        "n_questions": 15,
         "n_answers": 24,
-        "kept": 15
+        "kept": 13
       },
       {
         "year": 2022,
         "half": "上",
-        "n_questions": 19,
+        "n_questions": 16,
         "n_answers": 24,
-        "kept": 15
+        "kept": 14
       },
       {
         "year": 2021,
         "half": "下",
-        "n_questions": 19,
+        "n_questions": 18,
         "n_answers": 8,
-        "kept": 7
+        "kept": 6
       },
       {
         "year": 2021,
         "half": "上",
-        "n_questions": 19,
+        "n_questions": 18,
         "n_answers": 16,
         "kept": 13
       },
@@ -90,23 +90,23 @@
       {
         "year": 2019,
         "half": "下",
-        "n_questions": 20,
+        "n_questions": 19,
         "n_answers": 16,
         "kept": 15
       },
       {
         "year": 2019,
         "half": "上",
-        "n_questions": 12,
+        "n_questions": 10,
         "n_answers": 24,
-        "kept": 9
+        "kept": 8
       },
       {
         "year": 2018,
         "half": "下",
-        "n_questions": 20,
+        "n_questions": 18,
         "n_answers": 8,
-        "kept": 7
+        "kept": 6
       },
       {
         "year": 2018,
@@ -125,51 +125,51 @@
       {
         "year": 2017,
         "half": "上",
-        "n_questions": 22,
+        "n_questions": 21,
         "n_answers": 8,
         "kept": 7
       },
       {
         "year": 2016,
         "half": "下",
-        "n_questions": 18,
+        "n_questions": 16,
         "n_answers": 8,
         "kept": 5
       },
       {
         "year": 2016,
         "half": "上",
-        "n_questions": 21,
+        "n_questions": 20,
         "n_answers": 24,
         "kept": 17
       },
       {
         "year": 2015,
         "half": "下",
-        "n_questions": 18,
+        "n_questions": 17,
         "n_answers": 24,
         "kept": 13
       },
       {
         "year": 2015,
         "half": "上",
-        "n_questions": 21,
+        "n_questions": 19,
         "n_answers": 16,
-        "kept": 15
+        "kept": 14
       },
       {
         "year": 2014,
         "half": "下",
-        "n_questions": 17,
+        "n_questions": 16,
         "n_answers": 24,
-        "kept": 14
+        "kept": 13
       },
       {
         "year": 2014,
         "half": "上",
-        "n_questions": 17,
+        "n_questions": 15,
         "n_answers": 16,
-        "kept": 14
+        "kept": 13
       }
     ]
   },
@@ -403,39 +403,6 @@
         "B"
       ],
       "trap": "C",
-      "source_page": 4
-    },
-    {
-      "id": "2025上-18",
-      "type": "single",
-      "year": 2025,
-      "half": "上",
-      "stage": "中学",
-      "subject": "综合素质",
-      "no": 18,
-      "stem": "下图为法国物理学家傅科于1851年发明的科学仪器傅科摆的示意图。它由一根长细钢丝和悬挂在其末端的重球构成，摆的下方安放着方向盘。这一科学仪器的作用是（)。图1",
-      "options": [
-        {
-          "key": "A",
-          "text": "显示潮汐的变化"
-        },
-        {
-          "key": "B",
-          "text": "解释摆的等时性"
-        },
-        {
-          "key": "C",
-          "text": "证实地球自转"
-        },
-        {
-          "key": "D",
-          "text": "测量引力常数公众号西米学府团队原创整理第3页／共105页公众号西米学府团队原创整理"
-        }
-      ],
-      "answer": [
-        "C"
-      ],
-      "trap": "B",
       "source_page": 4
     },
     {
@@ -2155,39 +2122,6 @@
       "source_page": 25
     },
     {
-      "id": "2022下-8",
-      "type": "single",
-      "year": 2022,
-      "half": "下",
-      "stage": "中学",
-      "subject": "综合素质",
-      "no": 8,
-      "stem": "为改善办学条件，某中学要求所有在校师生按比例集资捐款，用于购买图书资料及其他教学设备。对于该校的行为，应由教育行政部门对直接负责的主管人员和其他直接责任人员给予（）。",
-      "options": [
-        {
-          "key": "A",
-          "text": "民事制裁"
-        },
-        {
-          "key": "B",
-          "text": "行政处罚"
-        },
-        {
-          "key": "C",
-          "text": "刑事处罚"
-        },
-        {
-          "key": "D",
-          "text": "行政处分"
-        }
-      ],
-      "answer": [
-        "D"
-      ],
-      "trap": "B",
-      "source_page": 28
-    },
-    {
       "id": "2022下-9",
       "type": "single",
       "year": 2022,
@@ -2416,39 +2350,6 @@
         "B"
       ],
       "trap": "C",
-      "source_page": 29
-    },
-    {
-      "id": "2022下-17",
-      "type": "single",
-      "year": 2022,
-      "half": "下",
-      "stage": "中学",
-      "subject": "综合素质",
-      "no": 17,
-      "stem": "图片上是古代士大夫的一种投掷游戏，同时也是一种礼仪，在春秋战国时期就已经出现，直至明末都较为流行。该游戏是（）。图1",
-      "options": [
-        {
-          "key": "A",
-          "text": "射覆"
-        },
-        {
-          "key": "B",
-          "text": "藏钩"
-        },
-        {
-          "key": "C",
-          "text": "投壶"
-        },
-        {
-          "key": "D",
-          "text": "击壤"
-        }
-      ],
-      "answer": [
-        "C"
-      ],
-      "trap": "A",
       "source_page": 29
     },
     {
@@ -3112,39 +3013,6 @@
       "source_page": 35
     },
     {
-      "id": "2022上-24",
-      "type": "single",
-      "year": 2022,
-      "half": "上",
-      "stage": "中学",
-      "subject": "综合素质",
-      "no": 24,
-      "stem": "下图为国家博物馆馆藏精品青铜冰鉴，是由一个方鉴和一件方尊岳组成的青铜套器，方尊岳置于方鉴内，是古人用来冰酒的，堪称世界上最早的冰箱。下列选项中，青铜冰鉴产生的时代是（）。",
-      "options": [
-        {
-          "key": "A",
-          "text": "夏朝"
-        },
-        {
-          "key": "B",
-          "text": "战国"
-        },
-        {
-          "key": "C",
-          "text": "三国"
-        },
-        {
-          "key": "D",
-          "text": "唐朝"
-        }
-      ],
-      "answer": [
-        "B"
-      ],
-      "trap": "A",
-      "source_page": 35
-    },
-    {
       "id": "2021下-17",
       "type": "single",
       "year": 2021,
@@ -3305,39 +3173,6 @@
       ],
       "answer": [
         "B"
-      ],
-      "trap": null,
-      "source_page": 40
-    },
-    {
-      "id": "2021下-23",
-      "type": "single",
-      "year": 2021,
-      "half": "下",
-      "stage": "中学",
-      "subject": "综合素质",
-      "no": 23,
-      "stem": "我国是一个多民族的国家，民族服饰多样优美，体现了各族人民对美的追求。下列剪纸画中的民族人物服饰，属于傣族的是（）。",
-      "options": [
-        {
-          "key": "A",
-          "text": "A"
-        },
-        {
-          "key": "B",
-          "text": "B"
-        },
-        {
-          "key": "C",
-          "text": "C"
-        },
-        {
-          "key": "D",
-          "text": "D"
-        }
-      ],
-      "answer": [
-        "C"
       ],
       "trap": null,
       "source_page": 40
@@ -4828,39 +4663,6 @@
       "source_page": 59
     },
     {
-      "id": "2019上-22",
-      "type": "single",
-      "year": 2019,
-      "half": "上",
-      "stage": "中学",
-      "subject": "综合素质",
-      "no": 22,
-      "stem": "右图是（鲁迅小说插图集）中的一幅，与这一插图相关的小说是（)。",
-      "options": [
-        {
-          "key": "A",
-          "text": "《故乡》"
-        },
-        {
-          "key": "B",
-          "text": "《社戏》"
-        },
-        {
-          "key": "C",
-          "text": "《孔乙己》"
-        },
-        {
-          "key": "D",
-          "text": "《祝福》"
-        }
-      ],
-      "answer": [
-        "C"
-      ],
-      "trap": null,
-      "source_page": 60
-    },
-    {
       "id": "2019上-23",
       "type": "single",
       "year": 2019,
@@ -5120,39 +4922,6 @@
       ],
       "answer": [
         "B"
-      ],
-      "trap": null,
-      "source_page": 65
-    },
-    {
-      "id": "2018下-24",
-      "type": "single",
-      "year": 2018,
-      "half": "下",
-      "stage": "中学",
-      "subject": "综合素质",
-      "no": 24,
-      "stem": "图2的人像雕塑出自组雕《地狱之门》，原是法国雕塑家奥古斯特·罗丹为巴黎装饰艺术博物馆大门而作。此雕塑后来被放大三倍复制，称为独立作品，作品的通行名称是（)。",
-      "options": [
-        {
-          "key": "A",
-          "text": "《诗人》"
-        },
-        {
-          "key": "B",
-          "text": "《守门人》"
-        },
-        {
-          "key": "C",
-          "text": "《瞭望》"
-        },
-        {
-          "key": "D",
-          "text": "《思想者》"
-        }
-      ],
-      "answer": [
-        "D"
       ],
       "trap": null,
       "source_page": 65
@@ -7633,39 +7402,6 @@
       "source_page": 95
     },
     {
-      "id": "2015上-14",
-      "type": "single",
-      "year": 2015,
-      "half": "上",
-      "stage": "中学",
-      "subject": "综合素质",
-      "no": 14,
-      "stem": "在编选校本教材时，尚老师一丝不苟地审查每一篇文章，即使插图的一点小瑕疵，都会改过来，这表明尚老师（)。",
-      "options": [
-        {
-          "key": "A",
-          "text": "诲人不倦"
-        },
-        {
-          "key": "B",
-          "text": "公正待生"
-        },
-        {
-          "key": "C",
-          "text": "勤恳敬业"
-        },
-        {
-          "key": "D",
-          "text": "廉洁奉公"
-        }
-      ],
-      "answer": [
-        "C"
-      ],
-      "trap": "A",
-      "source_page": 95
-    },
-    {
       "id": "2015上-15",
       "type": "single",
       "year": 2015,
@@ -8092,39 +7828,6 @@
         "B"
       ],
       "trap": "A",
-      "source_page": 99
-    },
-    {
-      "id": "2014下-14",
-      "type": "single",
-      "year": 2014,
-      "half": "下",
-      "stage": "中学",
-      "subject": "综合素质",
-      "no": 14,
-      "stem": "图1中，教师的行为（)。家庭作业图",
-      "options": [
-        {
-          "key": "A",
-          "text": "正确，有利于促进家校合作"
-        },
-        {
-          "key": "B",
-          "text": "正确，有利于拉近师生距离"
-        },
-        {
-          "key": "C",
-          "text": "不正确，教师必须廉洁从教"
-        },
-        {
-          "key": "D",
-          "text": "不正确，此事应当避开学生公众号西米学府团队原创整理第98页／共105页公众号西米学府团队原创整理"
-        }
-      ],
-      "answer": [
-        "C"
-      ],
-      "trap": "D",
       "source_page": 99
     },
     {
@@ -8852,39 +8555,6 @@
       ],
       "trap": null,
       "source_page": 104
-    },
-    {
-      "id": "2014上-24",
-      "type": "single",
-      "year": 2014,
-      "half": "上",
-      "stage": "中学",
-      "subject": "综合素质",
-      "no": 24,
-      "stem": "图1是一幅书法作品，下列对其中书体判断正确的是（）。",
-      "options": [
-        {
-          "key": "A",
-          "text": "隶书"
-        },
-        {
-          "key": "B",
-          "text": "楷书"
-        },
-        {
-          "key": "C",
-          "text": "行书"
-        },
-        {
-          "key": "D",
-          "text": "草书"
-        }
-      ],
-      "answer": [
-        "D"
-      ],
-      "trap": null,
-      "source_page": 105
     }
   ]
 }
