@@ -163,14 +163,29 @@ def execute(spec: ToolSpec, args: dict, ctx: ToolContext) -> dict:
 # ---------------- 三个工具 ----------------
 
 def _search_kb(query: str, k: int = 6, ctx: ToolContext = None) -> dict:
-    """宽召回：向量 ⊕ 关键词 → RRF（含精排，见 kb_retrieval.retrieve）。"""
-    from .kb_retrieval import retrieve
+    """宽召回：**答案库优先**（方案 B），命中不足再回官方语料（向量 ⊕ 关键词 → RRF）。
 
-    chunks = retrieve(ctx.db, query, ctx.scope, k=k, embed_fn=ctx.embed_fn)
+    ## 为什么"优先答案库"放在这里，而不是新加一个工具
+
+    "优先依据真题与满分答案"是**产品口径**，不是让模型去选的选项 —— 若做成第四个工具，
+    模型可能压根不调它，口径就落空了。放在 `search_kb` 内部，则**每次检索都自动优先**，
+    且 Agent 的工具契约（三个工具、名称、Schema）完全不变，既有测试与提示词都不受影响。
+
+    答案库条目在给模型的文本里**显式标注`答案库·半官方`**：它是教辅整理，
+    **不能冒充官方原文** —— 模型据此在引用时才能如实交代来源。
+    """
+    from .answer_bank import retrieve_for_question
+
+    chunks = retrieve_for_question(ctx.db, ctx.scope, query, k=k, embed_fn=ctx.embed_fn)
     return {
         "items": chunks,
         "text": "\n".join(
-            f"[依据 #{c.get('id')}｜{c.get('heading_path') or '未分章'}]\n{c.get('content') or ''}"
+            "[依据 #{}｜{}{}]\n{}".format(
+                c.get("id"),
+                c.get("heading_path") or "未分章",
+                "｜**答案库·半官方**" if c.get("source_type") == "answer_bank" else "",
+                c.get("content") or "",
+            )
             for c in chunks
         ),
     }

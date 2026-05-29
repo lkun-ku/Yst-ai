@@ -142,7 +142,7 @@ def search_answer_bank(query: str, k: int = 8) -> list[dict]:
     return out
 
 
-def retrieve_for_question(db, scope, query: str, k: int = 8) -> list[dict]:
+def retrieve_for_question(db, scope, query: str, k: int = 8, embed_fn=None) -> list[dict]:
     """**答题专用检索**：答案库优先，命中不足再回落官方语料。
 
     这是"优先依据真题"的落点 —— 不是把真题塞进知识库，而是**在检索顺序上优先**。
@@ -155,7 +155,7 @@ def retrieve_for_question(db, scope, query: str, k: int = 8) -> list[dict]:
 
     rest = k - len(hits)
     try:
-        official = retrieve(db, query, scope, k=rest)
+        official = retrieve(db, query, scope, k=rest, embed_fn=embed_fn)
     except Exception:  # noqa: BLE001 — 官方检索失败不应让答题整体失败
         return hits
     for h in official or []:

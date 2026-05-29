@@ -29,6 +29,23 @@ from fastapi.testclient import TestClient
 from app.db import Base, SessionLocal, engine, init_db
 
 
+@pytest.fixture(autouse=True)
+def _isolate_answer_bank(tmp_path, monkeypatch):
+    """**默认把答案库指到空目录** —— 测试必须与仓库数据无关。
+
+    ⚠️ 这条是踩出来的：`search_kb` 改成"答案库优先"之后，仓库里的
+    `data/answer_bank/真题答卷库.json`（294 条真实真题）会进入检索结果，
+    于是 `test_teacher_agent` 中**与数据无关的断言**（如"工具轮次有硬上限"）被
+    仓库内容改变了结果 —— 测试于是变成"看数据吃饭"。
+
+    需要答案库的用例（`tests/test_answer_bank.py`）自行 monkeypatch 指向自己的临时库。
+    """
+    from app.services import answer_bank as ab
+
+    monkeypatch.setattr(ab.settings, "answer_bank_enabled", True)
+    monkeypatch.setattr(ab.settings, "answer_bank_dir", str(tmp_path / "_no_bank"))
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _reset_db():
     """会话级重置：本次运行使用一个**全新的**库文件，跑完就删。

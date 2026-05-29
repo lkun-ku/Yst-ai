@@ -105,7 +105,7 @@ def test_答案库禁用时不检索(bank, monkeypatch):
 def test_答题检索_答案库优先且不足才回落官方(bank, monkeypatch):
     calls: list[int] = []
 
-    def _fake_retrieve(db, query, scope, k):
+    def _fake_retrieve(db, query, scope, k, embed_fn=None):
         calls.append(k)
         return [{"id": "official-1", "content": "官方切片内容", "heading_path": "法条/教师法"}]
 
