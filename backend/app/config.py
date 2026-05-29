@@ -148,6 +148,18 @@ class Settings:
     # 仍保留开关：任一条件反转（如换了模型后误杀率上升）要能立刻退回 `vote_uniqueness`。
     gate_g3_per_option: bool = os.getenv("GATE_G3_PER_OPTION", "true").lower() == "true"
 
+    # ---- 答案库（Answer Bank）：**独立于知识库**的一条检索路径 ----
+    #
+    # 背景：用户提供了 2011-2026 年的真题与解析，希望答题/批改时**优先依据它**。
+    # 但既定决策 ADR-0003 是「真题原文不入库」—— 于是取**方案 B**：
+    #   ① 答案库放 `data/answer_bank/`（**不在** `official_kb_dir` 下，故不会被
+    #      `kb_corpus` 自动摄入，官方语料保持纯净）；
+    #   ② 答题检索时**先查答案库**，命中不足再回落到官方语料（`retrieve_for_question`）。
+    #
+    # ⚠️ 答案库是**半官方**（教辅整理），引用它时**必须标注权威级别**，不得冒充官方原文。
+    answer_bank_dir: str = os.getenv("ANSWER_BANK_DIR", "")
+    answer_bank_enabled: bool = os.getenv("ANSWER_BANK_ENABLED", "true").lower() == "true"
+
     # ---------- 问答老师 Agent（见 services/teacher_agent.py） ----------
     # 工具循环硬上限。**必须有**：模型可能反复查同一个东西，
     # 而图里的环没有上限就会撞 LangGraph 的 recursion_limit（默认 25）报错。
