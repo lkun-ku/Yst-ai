@@ -182,6 +182,56 @@ def test_PointHit_是冻结的():
         p.hit = False  # type: ignore[misc]
 
 
+def test_分级模式_部分涉及给半分():
+    """`graded=True`：覆盖度加权 —— 越接近标准答案越容易得分，"答到一半"也有分。"""
+    j = _StubJudge({}, )
+    j._hits = None  # 走自定义 payload
+    j.ask = lambda prompt, timeout=30: json.dumps(
+        {"hits": [{"point": 1, "coverage": 1.0, "evidence": "答到了"},
+                  {"point": 2, "coverage": 0.5, "evidence": "沾到一点"},
+                  {"point": 3, "coverage": 0.0, "evidence": ""},
+                  {"point": 4, "coverage": 0.5, "evidence": "沾到一点"}]}
+    )
+    r = score_by_points(j, _POINTS, "作答", 10, graded=True)
+    assert r.graded is True
+    assert r.per_point == 2.5
+    assert r.score == 5.0  # (1.0 + 0.5 + 0 + 0.5) × 2.5
+    assert r.n_hits == 3   # 覆盖度 > 0 即算命中（含部分）
+
+
+def test_分级模式与非分级模式在同一作答上的差别():
+    """同一份作答：非分级只数命中，分级按贴近度加权 —— 后者给分更细（且不会更低）。"""
+    payload = json.dumps(
+        {"hits": [{"point": 1, "coverage": 1.0, "evidence": "甲"},
+                  {"point": 2, "coverage": 0.5, "evidence": "乙"}]}
+    )
+
+    class _P:
+        def ask(self, prompt, timeout=30):
+            return payload
+
+    plain = score_by_points(_P(), ["甲点", "乙点"], "作答", 4)
+    graded = score_by_points(_P(), ["甲点", "乙点"], "作答", 4, graded=True)
+    assert plain.score == 4.0        # 两点都算命中 → 满分
+    assert graded.score == 3.0       # 1.0 + 0.5 = 1.5 × 2.0
+
+
+def test_覆盖度越界被夹到0与1之间():
+    r = score_by_points(
+        _StubJudge({}),  # 不用其返回值
+        _POINTS,
+        "作答",
+        10,
+        graded=True,
+    )
+    # 替身无法解析自定义 payload 时 judged 为 False；这里只验证 clamping 逻辑本身
+    from app.services.prompts_kb import parse_point_judge
+
+    v = parse_point_judge('{"hits":[{"point":1,"coverage":2.5},{"point":2,"coverage":-1}]}')
+    assert v[1] == (True, 1.0, "")
+    assert v[2] == (False, 0.0, "")
+
+
 def test_替身能走通成功分支_否则链路无从验证():
     """与既有替身同一条约定：fake 必须能拿满分，否则"按点给分"在离线环境里恒为 0。"""
     r = score_by_points(FakeLLMClient(), _POINTS, "考生作答", 10)

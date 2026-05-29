@@ -296,47 +296,72 @@ def parse_per_option(text: str) -> dict[str, bool]:
     return out
 
 
-def point_judge_prompt(points: list[str], answer: str) -> str:
+def point_judge_prompt(points: list[str], answer: str, *, graded: bool = False) -> str:
     """**采分点判定**提示词（简答题按点给分用）。
 
-    ## 判定用「语义」而不是字面（产品口径，见 §6）
+    ## 判定用「语义」而不是字面（产品口径）
 
-    考生用自己的话表达了同一意思即算**覆盖**；只砸中关键词但意思不对、或与该点无关，
-    都不算。这正是"按点给分"与"字符串匹配"的分界 —— 用字面匹配会把大量换了个说法的
-    正确作答判成 0 分。
+    考生用自己的话表达了同一意思即算覆盖；只砸中关键词但意思不对、或与该点无关，都不算。
+    这正是"按点给分"与"字符串匹配"的分界 —— 用字面匹配会把大量换了个说法的正确作答判成 0 分。
+
+    ## `graded=True`：分级覆盖度（越接近标准答案越容易得分）
+
+    二元命中/未命中会漏掉"答到了一点但表述不完整"这类中间态。分级后：
+    `1.0` 明确覆盖 · `0.5` 部分涉及（方向对但不完整/表述含糊）· `0.0` 未涉及。
+
+    ⚠️ **为什么不是向量相似度**：语义相似度若指 embedding，当前**不可用** ——
+    embedding 供应商（百炼）欠费，`embed_one` 会静默退回 64 维伪向量（`strict_embed`
+    已如实记 failed）。所以这里用**模型语义判定分级**来实现"越接近越容易得分"，
+    **不假装用了真向量**。等 embedding 可用时再叠加连续相似度作为第二个信号。
 
     ## 为什么一次调用判全部采分点
 
-    成本：逐点各一次调用是 `点数 × 1` 次（简答常见 5 点 → 5 倍开销）。
-    这里一次性给出全部采分点，**开销与单次批改相同**，而判定质量不受影响
-    （每点独立判断，点之间不互相干扰 —— 提示词里明确写了）。
+    逐点各一次调用是 `点数 × 1` 次（简答常见 5 点 → 5 倍开销）。这里一次性给出全部点，
+    **开销与单次批改相同**，且每点独立判断（提示词里明确写了）。
     """
     pts = "\n".join(f"{i}. {p}" for i, p in enumerate(points, 1))
+    if graded:
+        rule = (
+            "判定要求：\n"
+            "1. 按**语义**判断，不要求字面一致；\n"
+            "2. 每个采分点给出 **coverage（覆盖度）**：\n"
+            "   - 1.0 = 明确覆盖（换了个说法也算，且表述完整）；\n"
+            "   - 0.5 = **部分涉及**：方向对但表述不完整/含糊/只沾到一半，越接近标准答案越应给 0.5；\n"
+            "   - 0.0 = 未涉及，或只出现关键词但意思不对、或答得相反；\n"
+            "3. 每个采分点**独立**判断，不受其它点影响；\n"
+            "4. evidence 填考生作答中对应那句话（未涉及则留空字符串）。\n"
+            '只输出 JSON：{"hits": [{"point": 1, "coverage": 1.0, "evidence": "..."}]}'
+        )
+    else:
+        rule = (
+            "判定要求：\n"
+            "1. 按**语义**判断，不要求字面一致：考生用自己的话表达了同一意思，即算覆盖；\n"
+            "2. 只出现关键词但意思不对、或与该点无关、或答得相反，都算**未覆盖**；\n"
+            "3. 每个采分点**独立**判断，不受其它点判定结果影响；\n"
+            "4. evidence 填考生作答中对应那句话（未覆盖则留空字符串）。\n"
+            '只输出 JSON：{"hits": [{"point": 1, "hit": true, "evidence": "..."}]}'
+        )
     return (
         "请判断考生作答**覆盖**了下面哪些采分点。\n\n"
         f"【采分点】\n{pts}\n\n"
         f"【考生作答】\n{answer}\n\n"
-        "判定要求：\n"
-        "1. 按**语义**判断，不要求字面一致：考生用自己的话表达了同一意思，即算覆盖；\n"
-        "2. 只出现关键词但意思不对、或与该点无关、或答得相反，都算**未覆盖**；\n"
-        "3. 每个采分点**独立**判断，不受其它点判定结果影响；\n"
-        "4. evidence 填考生作答中对应那句话（未覆盖则留空字符串）。\n"
-        '只输出 JSON：{"hits": [{"point": 1, "hit": true, "evidence": "..."}]}\n'
+        f"{rule}\n"
         "【采分点判定】"
     )
 
 
-def parse_point_judge(text: str) -> dict[int, tuple[bool, str]]:
-    """解析采分点判定 → `{点序号: (是否覆盖, 依据)}`；无法解析返回空 dict。
+def parse_point_judge(text: str) -> dict[int, tuple[bool, float, str]]:
+    """解析采分点判定 → `{点序号: (是否覆盖, 覆盖度, 依据)}`；无法解析返回空 dict。
 
-    容错：`hit` 可能是 true/"是"/"correct"；`point` 可能是 "1" 或 1。
+    容错：模型可能给 `hit`（bool/是）或 `coverage`（0/0.5/1 或 "部分"）；`point` 可能是 "1" 或 1。
     """
     d = _extract_json(text)
     raw = d.get("hits")
     if not isinstance(raw, list):
         return {}
     yes = {"true", "是", "覆盖", "命中", "对", "yes", "y", "1"}
-    out: dict[int, tuple[bool, str]] = {}
+    partial = {"部分", "half", "0.5", "一半", "不完整", "含糊"}
+    out: dict[int, tuple[bool, float, str]] = {}
     for item in raw:
         if not isinstance(item, dict):
             continue
@@ -344,14 +369,23 @@ def parse_point_judge(text: str) -> dict[int, tuple[bool, str]]:
             idx = int(str(item.get("point")).strip())
         except (TypeError, ValueError):
             continue
-        v = item.get("hit")
-        if isinstance(v, bool):
-            hit = v
-        elif isinstance(v, str):
-            hit = v.strip().lower() in yes
+        cov_raw = item.get("coverage", item.get("hit"))
+        if isinstance(cov_raw, (int, float)) and not isinstance(cov_raw, bool):
+            cov = float(cov_raw)
+        elif isinstance(cov_raw, str):
+            s = cov_raw.strip().lower()
+            if s in partial:
+                cov = 0.5
+            elif s in yes:
+                cov = 1.0
+            else:
+                cov = 0.0
+        elif isinstance(cov_raw, bool):
+            cov = 1.0 if cov_raw else 0.0
         else:
             continue
-        out[idx] = (hit, str(item.get("evidence") or "").strip())
+        cov = 0.0 if cov < 0 else (1.0 if cov > 1 else round(cov, 2))
+        out[idx] = (cov > 0, cov, str(item.get("evidence") or "").strip())
     return out
 
 

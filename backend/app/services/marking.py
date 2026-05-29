@@ -136,7 +136,8 @@ class PointHit:
 
     point: str
     hit: bool
-    evidence: str = ""  # 考生作答里对应的话（供人工核对 —— 语义判定必须有据可查）
+    evidence: str = ""       # 考生作答里对应的话（供人工核对 —— 语义判定必须有据可查）
+    coverage: float = 0.0    # 覆盖度（分级模式下为 0/0.5/1；非分级模式下 hit 即 1.0 或 0.0）
 
 
 @dataclass(frozen=True)
@@ -152,6 +153,7 @@ class PointwiseResult:
     max_score: float
     per_point: float
     scored: bool
+    graded: bool = False  # True = 按覆盖度加权（越接近标准答案越容易得分）
 
     @property
     def n_hits(self) -> int:
@@ -159,10 +161,11 @@ class PointwiseResult:
 
     @property
     def score(self) -> float:
-        """命中点数 × 每点分值（保留 1 位）。未判成时返回 0，但**必须看 `scored`**。"""
+        """分级模式按**覆盖度加权**，否则按命中点数。未判成时返回 0，但**必须看 `scored`**。"""
         if not self.scored:
             return 0.0
-        return round(self.per_point * self.n_hits, 1)
+        total = sum(p.coverage for p in self.points) if self.graded else float(self.n_hits)
+        return round(self.per_point * total, 1)
 
     def as_dict(self) -> dict:
         return {
@@ -206,8 +209,16 @@ def split_reference_points(text: str, *, min_len: int = 4) -> list[str]:
     return out
 
 
-def score_by_points(client, points, answer: str, max_score: float) -> PointwiseResult:
-    """简答题判分：**按采分点给分**，命中判定用语义（一次调用判全部点，开销与单次批改相同）。
+def score_by_points(
+    client, points, answer: str, max_score: float, *, graded: bool = False
+) -> PointwiseResult:
+    """简答题判分：**按采分点给分**，命中判定用**语义**（一次调用判全部点，开销与单次批改相同）。
+
+    `graded=True` → 用**覆盖度**（1.0 / 0.5 / 0）加权：**越接近标准答案的要点越容易得分**，
+    "答到一半"也能拿半分，而不是非黑即白。
+
+    ⚠️ 覆盖度里的"语义贴近"目前由**模型语义判定**给出，不是向量相似度 ——
+    embedding 供应商（百炼）欠费，`embed_one` 会静默退回伪向量。**不假装用了真向量**。
 
     无采分点时视为无法判分（`scored=False`）—— **不要**用"没有采分点"去推出"0 分"。
     """
@@ -215,18 +226,29 @@ def score_by_points(client, points, answer: str, max_score: float) -> PointwiseR
 
     pts = [str(p).strip() for p in (points or []) if str(p).strip()]
     if not pts:
-        return PointwiseResult((), max_score, 0.0, False)
+        return PointwiseResult((), max_score, 0.0, False, graded=graded)
 
-    text = client.ask(point_judge_prompt(pts, answer))
+    text = client.ask(point_judge_prompt(pts, answer, graded=graded))
     verdict = parse_point_judge(text or "")
     if not verdict:
-        return PointwiseResult((), max_score, 0.0, False)
+        return PointwiseResult((), max_score, 0.0, False, graded=graded)
+
+    def _v(i: int) -> tuple[bool, float, str]:
+        return verdict.get(i, (False, 0.0, ""))
 
     hits = tuple(
-        PointHit(point=p, hit=verdict.get(i, (False, ""))[0], evidence=verdict.get(i, (False, ""))[1])
+        PointHit(
+            point=p,
+            hit=_v(i)[0],
+            # 非分级模式下把布尔命中折算成 1.0/0.0，保证两种模式都能用同一套加权逻辑
+            coverage=_v(i)[1] if graded else (1.0 if _v(i)[0] else 0.0),
+            evidence=_v(i)[2],
+        )
         for i, p in enumerate(pts, 1)
     )
-    return PointwiseResult(hits, float(max_score), round(float(max_score) / len(pts), 4), True)
+    return PointwiseResult(
+        hits, float(max_score), round(float(max_score) / len(pts), 4), True, graded=graded
+    )
 
 
 @dataclass(frozen=True)

@@ -601,7 +601,7 @@ def _fake_point_judge(prompt: str) -> str:
     否则"按采分点给分"这条链路在离线环境里无从验证（会恒为 0 分，所有用例都红）。
     """
     pts = re.findall(r"^\s*(\d+)\.\s*(.+)$", prompt, re.MULTILINE)
-    hits = [{"point": int(i), "hit": True, "evidence": "（替身）覆盖该点"} for i, _ in pts]
+    hits = [{"point": int(i), "coverage": 1.0, "evidence": "（替身）覆盖该点"} for i, _ in pts]
     return json.dumps({"hits": hits}, ensure_ascii=False)
 
 
