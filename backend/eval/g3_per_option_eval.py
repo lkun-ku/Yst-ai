@@ -41,6 +41,7 @@ import json
 import os
 import pathlib
 import sys
+from collections import Counter
 from dataclasses import dataclass
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -116,32 +117,82 @@ def _build_ambiguous(client, items: list[dict], amb_mode: str) -> tuple[list[dic
     return built, notes
 
 
-def main(limit: int = 30, amb: int = 20, amb_mode: str = "synonym", safety: bool = True) -> dict:
+def main(
+    limit: int = 30,
+    amb: int = 20,
+    amb_mode: str = "synonym",
+    safety: bool = True,
+    dataset: str | None = None,
+    offset: int = 0,
+    tag: str = "",
+) -> dict:
     from datetime import datetime
 
-    if not _DATASET.exists():
-        raise SystemExit(f"评测集不存在：{_DATASET}")
-    items = (json.loads(_DATASET.read_text(encoding="utf-8")).get("items") or [])[:limit]
+    ds = pathlib.Path(dataset) if dataset else _DATASET
+    if not ds.exists():
+        raise SystemExit(f"评测集不存在：{ds}")
+    all_items = json.loads(ds.read_text(encoding="utf-8")).get("items") or []
+    # `--offset` + `--tag` 是为了**分片并行**：单次调用约 30 秒，254 道串行要两个多小时。
+    # 切片跑不会改变每条样本的判定（判据逐题独立），只改吞吐；各片的 md 文件靠 tag 区分。
+    items = all_items[offset : offset + limit] if limit else all_items[offset:]
     if not items:
-        raise SystemExit("评测集为空")
+        raise SystemExit(f"评测集为空（offset={offset} limit={limit} 共 {len(all_items)} 道）")
 
     client = get_llm_client()
     mode_llm = "fake" if type(client).__name__ == "FakeLLMClient" else "real"
-    print(f"官方题 {len(items)}　歧义模式 {amb_mode}　目标 {amb}　LLM={mode_llm}　投票 {settings.gate_g3_votes}", flush=True)
+    print(
+        f"数据集 {ds.name}（{len(items)} 道）　歧义模式 {amb_mode}　目标 {amb}　"
+        f"LLM={mode_llm}　投票 {settings.gate_g3_votes}",
+        flush=True,
+    )
 
     old_safe = _old_number(_OUT_DIR / "g3_baseline.json", "blocked_rate")
     old_syn = _old_number(_OUT_DIR / "g3_n3_ambiguity.json", "blocked_rate")
 
     safe_h = Half()
+    blocks: list[dict] = []
+    n_trap_hits = 0
+    # 每道题**成功判定的次数**。接口超时/备用通道欠费时票数会不足 ——
+    # 那时结论由更少的样本决定，**必须让报告自己说出来**，否则数字会被当成满票结果。
+    vote_dist: Counter[int] = Counter()
     if safety:
-        print("\n=== A) 安全性：官方好题上的误杀率（应**低**）===", flush=True)
+        print("\n=== A) 安全性：好题上的误杀率（应**低**）===", flush=True)
         for i, it in enumerate(items):
-            if i and i % 5 == 0:
+            if i and i % 25 == 0:
                 print(f"    [{i}/{len(items)}] …", flush=True)
             v = vote_per_option(client, it, settings.gate_g3_votes)
             if v.n == 0:
                 continue
             _tally(v.passed, safe_h)
+            vote_dist[v.n] += 1
+            # `trap` = 教辅标注的**易错项**（学生容易误选的那个错误选项）。
+            # 判据若把它也判成"成立"，就不是"模型拿不准"，而是**过度判定**：
+            # 干扰项被当成了并列的正确答案 —— 这是本判据最需要盯的失效方式。
+            trap = str(it.get("trap") or "").upper()
+            hit = bool(trap) and trap in set(v.judged)
+            n_trap_hits += int(hit)
+            if not v.passed:
+                expect = [str(x).upper() for x in (it.get("answer") or [])]
+                if hit:
+                    reason = f"把教辅标注的易错项 {trap} 也判成立（过度判定）"
+                elif not v.stable:
+                    reason = "多次判定不一致"
+                elif not (set(v.judged) & set(expect)):
+                    reason = "连答案键都没判成立"
+                else:
+                    reason = "判少了（与自带答案不符）"
+                blocks.append(
+                    {
+                        "id": it.get("id"),
+                        "expect": expect,
+                        "judged": list(v.judged),
+                        "stable": v.stable,
+                        "trap": trap,
+                        "trap_hit": hit,
+                        "reason": reason,
+                        "stem": (it.get("stem") or "")[:70],
+                    }
+                )
 
     print("\n=== B) 有效性：歧义题上的拦截率（应**高**）===", flush=True)
     built, notes = _build_ambiguous(client, items[:amb], amb_mode)
@@ -174,6 +225,14 @@ def main(limit: int = 30, amb: int = 20, amb_mode: str = "synonym", safety: bool
     is_limited = amb_mode == "limited"
     old_cell = (old_h.rate if is_limited else old_syn)
     md_name = "g3_n4_limited.md" if is_limited else "g3_per_option.md"
+    # ⚠️ **换数据集必须换文件名**（与 `g3_eval.py` 同一条纪律）：既有守卫只挡"fake 覆盖 real"，
+    # 但一次**真实**运行若换了数据集，同样会把别的基准槽位占掉 —— 那份证据再也回不来。
+    if ds.name != _DATASET.name:
+        md_name = f"{pathlib.Path(md_name).stem}_{pathlib.Path(ds.stem).name}.md"
+        print(f"    数据集不同（{ds.name}）→ 结果写到 {md_name}，不占用默认基准槽位")
+    if tag:
+        md_name = f"{pathlib.Path(md_name).stem}_{tag}.md"
+        print(f"    分片 tag={tag} → 结果写到 {md_name}")
     title = (
         "G3'（逐选项判定）· N4 题干缺限定歧义"
         if is_limited
@@ -225,6 +284,43 @@ def main(limit: int = 30, amb: int = 20, amb_mode: str = "synonym", safety: bool
             lines.append(f"- {n}")
         lines.append("")
 
+    if safety and blocks:
+        # 把「误杀」拆开看：整题被判不合格，可能来自四种**完全不同**的原因，
+        # 处置也完全不同（判多了要收紧、判少了要放宽、不稳定要加票）。
+        lines += ["", "## 拦截归因（把「误杀」拆开看）", ""]
+        by_reason: dict[str, list[dict]] = {}
+        for b in blocks:
+            by_reason.setdefault(b["reason"], []).append(b)
+        lines.append(f"- 有效判定 {safe_h.n} 道，其中被拦 {len(blocks)} 道：")
+        for reason, grp in sorted(by_reason.items(), key=lambda kv: -len(kv[1])):
+            lines.append(f"  - **{reason}** × {len(grp)}")
+        lines += [
+            "",
+            f"- 其中**把教辅标注的易错项也判成立**的有 **{n_trap_hits}** 道 —— "
+            "这类不是「模型拿不准」，而是**过度判定**（干扰项被当成并列的正确选项）。",
+            "  易错项正是学生最容易误选的错误项，判据对它过敏就会把大量**好题**拦掉。",
+            "",
+            "- 有效票数分布（每道题成功判定的次数）："
+            + "、".join(f"{k} 票 {c} 道" for k, c in sorted(vote_dist.items())),
+        ]
+        if any(k < settings.gate_g3_votes for k in vote_dist):
+            lines.append(
+                "  ⚠️ **存在票数不足的题**（接口超时 / 备用通道不可用）—— 这类题的结论"
+                "由更少的样本决定，读数字时必须带上这个前提，不能当成满票结果。"
+            )
+        lines += [
+            "",
+            "### 被拦的题（前 40 条）",
+            "",
+        ]
+        for b in blocks[:40]:
+            lines.append(
+                f"- #{b['id']}　期望 {b['expect']}　判定 {b['judged']}　"
+                f"易错项 {b['trap'] or '（无）'}　{b['reason']}"
+            )
+            lines.append(f"  - {b['stem']}")
+        lines.append("")
+
     lines += ["## 逐题（歧义集）", ""]
     for s in samples:
         lines.append(
@@ -252,12 +348,17 @@ def main(limit: int = 30, amb: int = 20, amb_mode: str = "synonym", safety: bool
         f"\n    **误杀 {safe_h.rate if safety else '(沿用 0.0)'}**（旧 {old_safe}）　|　"
         f"**歧义拦截 新 {new_h.rate} / 旧 {old_cell}**"
     )
+    if safety:
+        print(f"    拦截归因：把易错项判成立的 {n_trap_hits} 道 / 共拦 {len(blocks)} 道")
     print(f"\n已写入：{md}")
     return {
         "safety": safe_h.as_dict(),
+        "safety_blocks": blocks,
+        "safety_trap_hits": n_trap_hits,
         "effectiveness_new": new_h.as_dict(),
         "effectiveness_old": old_h.as_dict() if is_limited else {"from_file": old_syn},
         "mode": amb_mode,
+        "dataset": ds.name,
     }
 
 
@@ -276,5 +377,21 @@ if __name__ == "__main__":
         action="store_true",
         help="跳过安全性那一半（沿用既有记录；安全性已在 n=30 上测得 0.0）",
     )
+    ap.add_argument(
+        "--dataset",
+        default=None,
+        help="评测集路径（默认 30 道官方题样本）。可指向 `datasets/真题单选/真题单选.json`"
+        "（254 道真题，带 `trap` = 教辅标注的易错项）—— 换数据集会把结果写到独立证据文件",
+    )
+    ap.add_argument("--offset", type=int, default=0, help="从第几道开始（分片并行用）")
+    ap.add_argument("--tag", default="", help="分片标记，写进结果文件名（如 p1/p2…）")
     args = ap.parse_args()
-    main(limit=args.limit, amb=args.amb, amb_mode=args.amb_mode, safety=not args.no_safety)
+    main(
+        limit=args.limit,
+        amb=args.amb,
+        amb_mode=args.amb_mode,
+        safety=not args.no_safety,
+        dataset=args.dataset,
+        offset=args.offset,
+        tag=args.tag,
+    )
