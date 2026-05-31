@@ -23,6 +23,17 @@
     .scratch/mcp-interop/Scripts/python.exe backend/scripts/mcp_interop_client.py
 
 `--url` 可改目标；默认 `http://127.0.0.1:8123/mcp`。
+
+## 复验记录
+
+- **2026-06-11 首次通过**（`NO_PROXY='*'` 后才通；根因是环境里有东西拦出站，见 ADR-0020）。
+- **2026-06-15 原样重跑通过**：`protocol_version = 2026-03-30` ·
+  `server_info = youshitong-kb / 1.0.0` · 工具清单 `['check_quote','lookup_law','search_kb']` ·
+  `search_kb` 入参 `['query','k']` · `lookup_law` 取回 701 字含「第七条」 · 未知工具 `isError=True`。
+
+> 记这两条日期的用意：**这个脚本是"第三方客户端连得上"的唯一证据**，
+> 而它依赖一个**丢弃式 venv**（SDK 不进项目依赖）—— 环境一变就可能跑不起来。
+> 记下"什么时候跑通过、实况是什么"，下次失败时才分得清是**协议退化**还是**环境问题**。
 """
 
 from __future__ import annotations
