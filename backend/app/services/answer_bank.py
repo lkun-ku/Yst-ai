@@ -102,6 +102,40 @@ def _entry_text(e: dict) -> str:
     return "\n".join(x for x in parts if x)
 
 
+#: 规则类条目的 `id` 前缀。它们不是"某道真题"，而是**判分口径**（教辅转述的评分规则要点）。
+#:
+#: 为什么单列出来：规则条目**很短**（一两百字），而关键词打分带长度归一
+#: （`score = hit / (1 + len ** 0.5)`）—— 规则天然抢不过上千字的满分答卷。
+#: 可它恰恰是批改最该看到的东西（"按什么给分"比"某一年的满分答案"更普适）。
+#: 所以 `marking.retrieve_rubric` 对同题型的规则**必带**，不参与排名竞争。
+RULES_ID_PREFIX = "rule-"
+
+
+def _as_chunk(e: dict, score: float = 0.0) -> dict:
+    """条目 → 与检索切片**同形**的结果。**统一在这里盖权威级别的章**，避免各处漏标。"""
+    text = _entry_text(e)
+    return {
+        "id": e.get("id"),
+        "content": text,
+        "heading_path": f"答案库/{e.get('_bank_file')}#{e.get('id')}",
+        "char_count": len(text),
+        "bank_score": round(score, 4),
+        "authority": "半官方",  # ⚠️ 必带：禁止冒充官方
+        "source_type": "answer_bank",
+    }
+
+
+def rule_entries(qtype: str) -> list[dict]:
+    """取某题型的**评分规则**条目（`id` 以 `rule-` 开头、`type` 相符）。"""
+    want = str(qtype or "").strip().lower()
+    return [
+        _as_chunk(e)
+        for e in load_entries()
+        if str(e.get("id") or "").startswith(RULES_ID_PREFIX)
+        and str(e.get("type") or "").strip().lower() == want
+    ]
+
+
 def search_answer_bank(query: str, k: int = 8, types: set[str] | None = None) -> list[dict]:
     """在答案库里检索（关键词打分），返回**形状与切片一致**的结果，便于上游复用。
 
@@ -136,18 +170,7 @@ def search_answer_bank(query: str, k: int = 8, types: set[str] | None = None) ->
         scored.append((score, e))
 
     scored.sort(key=lambda x: -x[0])
-    out = []
-    for score, e in scored[:k]:
-        out.append({
-            "id": e.get("id"),
-            "content": _entry_text(e),
-            "heading_path": f"答案库/{e.get('_bank_file')}#{e.get('id')}",
-            "char_count": len(_entry_text(e)),
-            "bank_score": round(score, 4),
-            "authority": "半官方",  # ⚠️ 必带：禁止冒充官方
-            "source_type": "answer_bank",
-        })
-    return out
+    return [_as_chunk(e, score) for score, e in scored[:k]]
 
 
 def retrieve_for_question(db, scope, query: str, k: int = 8, embed_fn=None) -> list[dict]:

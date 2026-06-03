@@ -186,6 +186,64 @@ def test_水印碎片不会被当成采分点():
     ]
 
 
+def _use_real_bank(monkeypatch) -> None:
+    """把答案库指向仓库里的**真实**库（本文件的数据级用例都用它，原因见上面那条用例的说明）。"""
+    from app.services import answer_bank as ab
+
+    real = Path(__file__).resolve().parents[1] / "data" / "answer_bank"
+    monkeypatch.setattr(ab.settings, "answer_bank_dir", str(real))
+    monkeypatch.setattr(ab.settings, "answer_bank_enabled", True)
+
+
+# ---------------- 评分规则条目（判分口径）----------------
+
+
+def test_批改依据必带同题型的评分规则(monkeypatch):
+    """规则条目很短、关键词得分抢不过上千字的满分答卷，所以它必须被**必带**、且排在**最前**。
+
+    这条钉住的是一个设计决定：**判分口径优先于样例**。少了它，依据里只剩某几年的满分答案，
+    而"按什么给分"反而看不到。
+    """
+    _use_real_bank(monkeypatch)
+    for qt in ("material", "writing"):
+        ids = [h.get("id") for h in retrieve_rubric(None, None, qt, k=3)]
+        assert f"rule-{qt}" in ids, f"{qt} 的评分规则没进依据（实得 {ids}）"
+        assert ids[0] == f"rule-{qt}", "规则应排在**最前**（先口径、后样例）"
+
+
+def test_规则条目也是半官方_不冒充官方(monkeypatch):
+    _use_real_bank(monkeypatch)
+    rule = [h for h in retrieve_rubric(None, None, "material", k=3)
+            if h.get("id") == "rule-material"][0]
+    assert rule["authority"] == "半官方"
+    assert "答案库·半官方" in _rubric_block([rule])
+
+
+def test_每种主观题型都有规则条目(monkeypatch):
+    """数据级契约：题型与规则条目的对应关系缺一个，就有一类题**没有判分口径**。"""
+    from app.services import answer_bank as ab
+
+    _use_real_bank(monkeypatch)
+    types = {
+        str(e.get("type"))
+        for e in ab.load_entries()
+        if str(e.get("id") or "").startswith(ab.RULES_ID_PREFIX)
+    }
+    assert {"material", "writing", "short", "analysis"} <= types, types
+
+
+def test_规则缺失时官方兜底照常工作(monkeypatch):
+    """规则是"必带"，但不是"必须有" —— 某题型还没写规则、库里也没该题型的条目时，
+    应当**照常回落官方语料**，而不是返回空、更不该抛异常。"""
+    _use_real_bank(monkeypatch)
+    monkeypatch.setattr(
+        kb_retrieval, "retrieve",
+        lambda db, q, s, k=6, embed_fn=None: [_chunk(f"off-{i}") for i in range(k)],
+    )
+    hits = retrieve_rubric(object(), object(), "design", k=2)
+    assert hits and all(h["source_type"] == "official" for h in hits)
+
+
 def test_写作采分点不含参考范文():
     """范文是**整篇示例**，不是采分点。不切掉它，整篇范文会变成一个长"采分点"，
     而它一旦进了批改依据，模型就会拿一篇范文去给考生的作文找采分点。"""

@@ -346,9 +346,19 @@ def retrieve_rubric(db, scope, qtype: str, k: int = 6, embed_fn=None) -> list[di
     key = str(qtype or "").strip().lower()
     hits: list[dict] = []
     if key in SUBJECTIVE_TYPES:
-        from .answer_bank import search_answer_bank
+        from .answer_bank import rule_entries, search_answer_bank
 
-        hits = search_answer_bank(query, k, types={key})
+        # 判分口径**必带**：规则条目很短，关键词得分天然抢不过上千字的满分答卷，
+        # 但它才是"按什么给分"（而满分答卷只是"某一年的例子"）。
+        hits = rule_entries(key) + search_answer_bank(query, k, types={key})
+        deduped: list[dict] = []
+        seen: set = set()
+        for h in hits:
+            if h.get("id") in seen:
+                continue
+            seen.add(h.get("id"))
+            deduped.append(h)
+        hits = deduped[:k]
     if len(hits) >= k or db is None:
         return hits[:k]
 
