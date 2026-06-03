@@ -184,6 +184,14 @@ class PointwiseResult:
 #: 采分点切分的候选边界：换行、中文序号、分号、以及 `1.` / `（1）` 这类编号。
 _POINT_SPLIT_RE = re.compile(r"\r?\n|(?=[①②③④⑤⑥⑦⑧⑨⑩])|；|;|(?<=。)(?=[^\s])")
 
+#: 教辅水印 / 引流碎片 —— 随 OCR 混进参考答案，**长得像采分点但不含任何评分信息**。
+#: 实测（2026-06-15 对 527 条采分点做质量检查）确实出现了「对公众号」这类碎片。
+#:
+#: ⚠️ **只放高精度词**：像「关注」这种在教育语境里是**真实采分点**的常用词一律不放
+#: （「关注学生的个体差异」就是标准采分点）—— 误删一个真采分点比留下一个碎片更糟：
+#: 前者让批改少给分，后者只是噪声。
+_JUNK_MARKERS = ("公众号", "扫码", "西米学府", "微信")
+
 
 def split_reference_points(text: str, *, min_len: int = 4) -> list[str]:
     """把参考答案切成采分点（**启发式**）。
@@ -203,6 +211,8 @@ def split_reference_points(text: str, *, min_len: int = 4) -> list[str]:
         seg = re.sub(r"^[（(]?\d+[)）.、．]?\s*", "", seg)
         seg = seg.strip()
         if len(seg) < min_len or seg in seen:
+            continue
+        if any(m in seg for m in _JUNK_MARKERS):
             continue
         seen.add(seg)
         out.append(seg)

@@ -22,7 +22,12 @@ if str(_ROOT) not in sys.path:
 
 from app.services import answer_bank  # noqa: E402
 from app.services import kb_retrieval  # noqa: E402
-from app.services.marking import SUBJECTIVE_TYPES, _rubric_block, retrieve_rubric  # noqa: E402
+from app.services.marking import (  # noqa: E402
+    SUBJECTIVE_TYPES,
+    _rubric_block,
+    retrieve_rubric,
+    split_reference_points,
+)
 
 
 def _chunk(cid: str, source_type: str = "official") -> dict:
@@ -163,3 +168,43 @@ def test_真实答案库对主观题型能产出依据(monkeypatch):
         hits = retrieve_rubric(None, None, qt, k=3)  # db=None → 只走答案库这一路
         assert hits, f"{qt} 题型取不到任何批改依据（答案库是否被重建坏了？）"
         assert all(h["source_type"] == "answer_bank" for h in hits)
+
+
+# ---------------- 采分点内容的质量护栏 ----------------
+
+
+def test_水印碎片不会被当成采分点():
+    """实测踩到过「对公众号」这种碎片（OCR 把教辅引流文案切进了参考答案）。
+
+    ⚠️ 但**只挡高精度词**：「关注」这类词在教育语境里是**真实采分点**的常用词
+    （「关注学生的个体差异」），挡它会让批改**少给分** —— 那比留下一点噪声更糟。
+    """
+    text = "对公众号\n首先，素质教育是面向全体学生的教育。\n关注学生的个体差异，因材施教。\n微信扫码领取资料"
+    assert split_reference_points(text) == [
+        "首先，素质教育是面向全体学生的教育。",
+        "关注学生的个体差异，因材施教。",
+    ]
+
+
+def test_写作采分点不含参考范文():
+    """范文是**整篇示例**，不是采分点。不切掉它，整篇范文会变成一个长"采分点"，
+    而它一旦进了批改依据，模型就会拿一篇范文去给考生的作文找采分点。"""
+    from scripts.parse_subjective_ocr import build
+
+    hdr = "2024年下半年&教师资格证考试笔试真题中学&《综合素质》"
+    q = (
+        f"{hdr}\n===== page 1 =====\n"
+        "33.阅读下面的材料，根据要求作文。（50分）\n"
+        "要求：自拟标题，自选角度，不少于八百字，文体不限。\n"
+    )
+    a = (
+        f"{hdr}\n===== page 1 =====\n"
+        "33．正确答案是：【立意分析】围绕勇于挑战不可能展开，结构清晰，语言流畅。\n"
+        "【参考范文】曾经有一位农民在海拔六百米的荒山上种出了优质脆桃，这告诉我们……\n"
+    )
+    data = build(q, a)
+    assert data["stats"]["n_writing_trimmed"] == 1
+    joined = "\n".join(data["items"][0]["points"])
+    assert "立意分析" in joined
+    assert "范文" not in joined, "参考范文不该被当成采分点"
+    assert "农民" not in joined, "范文正文（整篇示例）不该进采分点"

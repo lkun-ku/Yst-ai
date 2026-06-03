@@ -58,6 +58,10 @@ _QNO_RE = re.compile(r"(?<!\d)(\d{1,2})[．.]")
 #: 科目一主观题号：材料分析 30–32 + 写作 33（留一点余量）
 _MIN_NO, _MAX_NO = 30, 35
 
+#: 写作题的「参考范文」起始标记。范文是给考生看的**整篇示例**，不是采分点 ——
+#: 实测：不切掉它，整篇范文（约 150 字）会变成一个"采分点"。
+_FANWEN_RE = re.compile(r"【参考范文】|【范文】|【优秀范文】|【例文】|参考范文[：:]")
+
 
 def _flat(text: str) -> tuple[str, list[int]]:
     """整份文件 → `(连续文本, 每字符所属页码)`。
@@ -197,7 +201,8 @@ def build(q_text: str, a_text: str, *, stage: str = "中学", subject: str = "�
     ans = parse_answers_global(a_text)
 
     stats = {"n_exams": len(_exam_spans(_flat(q_text)[0])[1]), "n_items": 0,
-             "n_with_note": 0, "n_points": 0, "n_stem_missing": 0}
+             "n_with_note": 0, "n_points": 0, "n_stem_missing": 0,
+             "n_writing_trimmed": 0}
     items: list[dict] = []
     for a in ans:
         key = (a["year"], a["half"], a["no"])
@@ -205,7 +210,16 @@ def build(q_text: str, a_text: str, *, stage: str = "中学", subject: str = "�
         if q is None:
             stats["n_stem_missing"] += 1
             continue
-        points = split_reference_points(a["reference"])
+        # 写作题的「参考范文」是给考生看的**整篇示例**，不是采分点 ——
+        # 不切掉它，整篇范文会变成一个 150 字左右的"采分点"（实测踩到）。
+        # `reference`（示范作答）保留全文，只有 `points` 取自范文之前的部分。
+        ref_for_points = a["reference"]
+        if a["no"] >= 33:
+            cut = _FANWEN_RE.search(ref_for_points)
+            if cut:
+                ref_for_points = ref_for_points[: cut.start()]
+                stats["n_writing_trimmed"] += 1
+        points = split_reference_points(ref_for_points)
         if a.get("special_note"):
             stats["n_with_note"] += 1
         stats["n_points"] += len(points)
