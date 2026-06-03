@@ -309,23 +309,56 @@ def rubric_query(qtype: str) -> str:
     return RUBRIC_QUERY.get(str(qtype or "").strip().lower(), RUBRIC_QUERY["default"])
 
 
+#: 主观题型（与答案库的 `type` 取值一致）。用于给"评分依据"限定来源题型。
+SUBJECTIVE_TYPES = frozenset({"material", "writing", "short", "analysis", "design"})
+
+
 def retrieve_rubric(db, scope, qtype: str, k: int = 6, embed_fn=None) -> list[dict]:
-    """检索批改依据（采分点来源）。
+    """检索批改依据（采分点来源）：**答案库（同题型）优先，官方语料兜底**。
 
     **刻意不用考生答案去检索** —— 那会按答案内容去找"支持它的依据"，
     是确认偏误的机器版。依据应当由**题目类型**决定，与考生答得好不好无关。
+
+    ## 为什么要查答案库（2026-06-15 补）
+
+    此前这里**只查官方语料**（考纲 / 法条），于是模型拿到的是**一段描述性文字**，
+    而不是"这份答案的**采分点**在哪几点"。而答案库里恰好有**教辅整理的真题采分点与示范作答**
+    （87 份满分答卷 / 527 条采分点）。这是与 `answer_bank.retrieve_for_question`
+    （答题优先答案库）**同一个取舍**，区别只在：检索词由**题型**决定，不用考生答案。
+
+    ⚠️ **必须限定题型**（`types={qtype}`）：答案库里还有 254 道**单选题**，
+    不筛题型就会把客观题的答案当成主观题的采分点 —— 而且它看起来正常，错得很安静。
+    题型不在 `SUBJECTIVE_TYPES` 里（或该题型库里还没有）时，本函数**自动退回官方语料**。
     """
     from .kb_retrieval import retrieve
 
-    return retrieve(db, rubric_query(qtype), scope, k=k, embed_fn=embed_fn)
+    query = rubric_query(qtype)
+    key = str(qtype or "").strip().lower()
+    hits: list[dict] = []
+    if key in SUBJECTIVE_TYPES:
+        from .answer_bank import search_answer_bank
+
+        hits = search_answer_bank(query, k, types={key})
+    if len(hits) >= k or db is None:
+        return hits[:k]
+
+    rest = k - len(hits)
+    try:
+        official = retrieve(db, query, scope, k=rest, embed_fn=embed_fn)
+    except Exception:  # noqa: BLE001 — 官方检索失败不应让批改整体失败（与答题同原则）
+        official = []
+    return (hits + official)[:k]
 
 
 # ---------------- 提示词（与 contract 放在一起，便于对照） ----------------
 
 def _rubric_block(rubric: list[dict]) -> str:
+    """依据块。**如实标注权威级别** —— 答案库条目是教辅整理（半官方），
+    不标出来模型就会把它当官方原文引用（`tools.py` 的 `search_kb` 用的是同一条规则）。"""
     lines: list[str] = []
     for i, r in enumerate(rubric or [], 1):
-        lines.append(f"[依据 #{r.get('id')}｜{r.get('heading_path') or '未分章'}]")
+        mark = "｜答案库·半官方" if r.get("source_type") == "answer_bank" else ""
+        lines.append(f"[依据 #{r.get('id')}｜{r.get('heading_path') or '未分章'}{mark}]")
         lines.append(str(r.get("content") or ""))
         lines.append("")
     return "\n".join(lines) or "（没有可引用的依据）"
@@ -335,7 +368,9 @@ def marking_prompt(stem: str, answer: str, rubric: list[dict]) -> str:
     dims = "、".join(f"{k}={v}" for k, v in DIMENSION_LABELS.items())
     return (
         "你是教资主观题批改老师。**只能依据下方【评分依据】评判**，"
-        "禁止使用依据之外的标准或你自己的偏好。只输出 JSON，不要解释文字或代码块围栏。\n\n"
+        "禁止使用依据之外的标准或你自己的偏好。"
+        "依据若标注「答案库·半官方」，那是教辅整理的真题采分点，**不得当成官方原文**。"
+        "只输出 JSON，不要解释文字或代码块围栏。\n\n"
         f"题目：{stem}\n\n"
         f"考生作答：{answer}\n\n"
         f"【评分依据】\n{_rubric_block(rubric)}\n"

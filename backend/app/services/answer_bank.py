@@ -102,9 +102,17 @@ def _entry_text(e: dict) -> str:
     return "\n".join(x for x in parts if x)
 
 
-def search_answer_bank(query: str, k: int = 8) -> list[dict]:
-    """在答案库里检索（关键词打分），返回**形状与切片一致**的结果，便于上游复用。"""
+def search_answer_bank(query: str, k: int = 8, types: set[str] | None = None) -> list[dict]:
+    """在答案库里检索（关键词打分），返回**形状与切片一致**的结果，便于上游复用。
+
+    `types`：只在这些题型里找（如 `{"material"}`）。**批改链路必须传它** ——
+    答案库里同时躺着 254 道**单选题**，不筛题型就会把客观题的答案与解析
+    当成主观题的"评分依据"，而那看起来完全正常（错得很安静）。
+    """
     entries = load_entries()
+    if types is not None:
+        want = {str(t).strip().lower() for t in types}
+        entries = [e for e in entries if str(e.get("type") or "").strip().lower() in want]
     if not entries:
         return []
     q = _tokens(query)
