@@ -163,6 +163,8 @@ class FakeLLMClient(LLMClient):
             return _fake_per_option(prompt)
         if "【采分点判定】" in prompt:
             return _fake_point_judge(prompt)
+        if "【题目评分】" in prompt:
+            return _fake_judge(prompt)
         if "【工具决策】" in prompt:
             return _fake_tool_decision(prompt)
         if "【答疑作答】" in prompt:
@@ -592,6 +594,21 @@ def _fake_per_option(prompt: str) -> str:
     pairs = re.findall(r'"key"\s*:\s*"([A-Z])"\s*,\s*"text"\s*:\s*"([^"]*)"', prompt)
     verdicts = {k: ("正确表述" in text) for k, text in pairs}
     return json.dumps({"verdicts": verdicts}, ensure_ascii=False)
+
+
+def _fake_judge(prompt: str) -> str:
+    """确定性五维打分：**走通成功分支**（与其它替身同一条约定）。
+
+    为什么必须补这一支：`eval/judge.py` 的 docstring 早就写着「Fake 模式下由 FakeLLMClient
+    对「【题目评分】」标记返回确定性分值」，但**实际没有这一支** —— 于是 fake 下
+    `parse_judge` 拿不到 JSON、五维全部落回默认 `3.0`，而 `faithfulness_rate(≥4)` 恒为 `0.0`：
+    看起来像"事实性全军覆没"，实际是"这一支根本不存在"。
+    （"文档说有、代码没有" —— 与 §5 第 15 项记录的是同一类问题。）
+    """
+    return json.dumps(
+        {"factuality": 5, "coverage": 4, "uniqueness": 4, "explanation": 4, "difficulty": 4},
+        ensure_ascii=False,
+    )
 
 
 def _fake_point_judge(prompt: str) -> str:

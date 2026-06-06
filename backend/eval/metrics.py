@@ -227,3 +227,108 @@ def evaluate_citation_gate(
         n_passed=n_pass,
         n_leaked_fabricated=n_leak,
     )
+
+
+# ---------------- 三条曾被"承诺写了一个口径、实现测的是另一个"的指标 ----------------
+
+
+def pick_ks(n_chunks: int) -> tuple[int, ...]:
+    """按**语料规模**选考察的 k：小语料只测紧邻档，大语料才测 k=5/10。
+
+    ## 为什么是函数而不是常量
+
+    §6.3 的承诺写「K = 1/5/10」，而历史数字只测到 **K = 1/2/3** —— 于是「≥ 0.80 @5」
+    **无法对照**（这是对齐审计发现的第 2 类问题）。根因是当时写死了 `DEFAULT_KS`，
+    而当时的语料只有 6 片：`recall@10` 在 6 片语料上**恒为 1.0，没有任何信息量**。
+
+    所以 k 不该是常量，而应随语料规模走 —— 并守住一条不变量：**k 必须小于语料规模**
+    （否则"前 k 条"就是全部，指标失去区分度）。官方法条语料有 415 片，那里 k=5/10
+    才是有效档位。
+    """
+    if n_chunks >= 50:
+        return (1, 2, 3, 5, 10)
+    if n_chunks >= 20:
+        return (1, 2, 3, 5)
+    return DEFAULT_KS
+
+
+def faithfulness_rate(judged: Sequence[dict], min_factuality: float = 4.0) -> float:
+    """**faithfulness 的「比例」口径**：事实性达标的样本占比。
+
+    §6.3 承诺写的是「生成内容可被检索依据支撑的**比例** ≥ 0.90」，而 `eval/judge.py`
+    产出的是 `factuality` **1–5 分**（连续量）—— 量纲不同，**拿平均分去比 0.90 是对不上的**
+    （对齐审计发现的第 3 类问题：承诺了一个口径、实现测的是另一个）。
+
+    这里把它落成比例：每个样本过 `min_factuality` 线算"达标"，再算占比。
+
+    ⚠️ **来源要说清**：判分来自 LLM judge，**不是硬机制**，所以这个数字的可信度
+    **低于**引用校验（后者是零误判的子串判定）。报告里必须标明来源 ——
+    否则一个 0.92 会被读成和"编造率 0"同等硬。
+    """
+    rows = list(judged or [])
+    if not rows:
+        return 0.0
+
+    def _ok(s: dict) -> bool:
+        # 判分可能缺失、也可能是模型给的杂串 —— 一律按**不达标**处理。
+        # ⚠️ 不能让它抛异常：一条坏判分会把整张表的数打没（评测脚本最怕这种）。
+        try:
+            return float((s or {}).get("factuality") or 0) >= min_factuality
+        except (TypeError, ValueError):
+            return False
+
+    return round(sum(1 for s in rows if _ok(s)) / len(rows), 4)
+
+
+@dataclass(frozen=True)
+class GatePassMetrics:
+    """闸门的**通过率**口径：`通过 / 待过闸门的全部`。
+
+    ## 为什么不复用「误杀率」
+
+    两个数的**分母不同、回答的问题也不同**：
+
+    - 误杀率 = 被拦的好题 / **好题总数** → 回答"会不会误伤好题"（数据集必须全是好题）；
+    - 通过率 = 通过的题 / **待过闸门的全部题** → 回答"产出率是多少"（含本该被拦的坏题）。
+
+    在"全是好题"的数据集上两者数值互补（`1 − 误杀率`），**但语义与分母不同** ——
+    用错分母会把"拦掉了多少坏题"与"留下了多少好题"混成一个数。这正是 §6.3 里
+    「唯一性通过率」被「误杀率」顶替的根因：手上有 G3 证据，却没有一条**是对口径的**。
+    """
+
+    n_total: int
+    n_passed: int
+
+    @property
+    def pass_rate(self) -> float:
+        return round(self.n_passed / self.n_total, 4) if self.n_total else 0.0
+
+    @property
+    def measurable(self) -> bool:
+        """分母为 0 时这个数字**没有意义** —— 它会显示成 `0.0`，看起来像"全军覆没"。
+
+        与 `vote_uniqueness` 那条同源：**"无法判定"必须与"判定为不合格"分开**。
+        """
+        return self.n_total > 0
+
+    def as_row(self) -> dict:
+        return {
+            "n": self.n_total,
+            "passed": self.n_passed,
+            "pass_rate": self.pass_rate,
+            "measurable": self.measurable,
+        }
+
+
+def evaluate_gate_pass(
+    payloads: Sequence[dict],
+    gate_fn: Callable[[list[dict]], tuple[list[dict], list[dict]]],
+) -> tuple[list[dict], GatePassMetrics]:
+    """跑一遍闸门，产出**通过率**（闸门本身由调用方注入）。
+
+    与 `evaluate_citation_gate` 同一设计：指标不 import 闸门实现 ——
+    于是 G3 换成 G3'（逐选项判定）时，指标代码不动，历史数字仍可比。
+    """
+    items = list(payloads or [])
+    kept, _blocked = gate_fn(items)
+    return list(kept or []), GatePassMetrics(n_total=len(items), n_passed=len(kept or []))

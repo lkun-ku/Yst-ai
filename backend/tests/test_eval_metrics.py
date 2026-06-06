@@ -13,13 +13,17 @@ import os
 import pytest
 
 from eval.metrics import (
+    GatePassMetrics,
     RetrievalMetrics,
     citation_hit_rate,
+    evaluate_gate_pass,
     evaluate_retrieval,
+    faithfulness_rate,
     hit_of,
     hits_of,
     mrr,
     ndcg_at_k,
+    pick_ks,
     recall_at_k,
 )
 

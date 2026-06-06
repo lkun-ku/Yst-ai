@@ -62,10 +62,10 @@ from app.services.kb_retrieval import (  # noqa: E402
 from app.services.scope import NAMESPACE_OFFICIAL, Scope  # noqa: E402
 
 try:  # 兼容「脚本直接运行」与「pytest 包上下文」两种方式
-    from .metrics import DEFAULT_KS, evaluate_retrieval
+    from .metrics import evaluate_retrieval, pick_ks
     from .run_eval import DATASETS_DIR, _seed_dataset
 except ImportError:  # pragma: no cover
-    from eval.metrics import DEFAULT_KS, evaluate_retrieval  # noqa: E402
+    from eval.metrics import evaluate_retrieval, pick_ks  # noqa: E402
     from eval.run_eval import DATASETS_DIR, _seed_dataset  # noqa: E402
 
 
@@ -295,7 +295,7 @@ def _build_rerankers() -> dict:
 def main(
     domain: str = "教资",
     out: str | None = None,
-    ks=DEFAULT_KS,
+    ks=None,
     official: bool = False,
     auto: bool = False,
     rerank: bool = False,
@@ -331,6 +331,11 @@ def main(
     else:
         _seed_dataset(db, cand_id, dataset_dir)
         chunks = load_chunks(db, cand_id)
+
+    # k 按**语料规模**取，不写死：语料 6 片时 k=10 恒为 1.0、没有信息量；
+    # 而官方法条有 415 片，那里 k=5/10 才是有效档位（§6.3 承诺的正是 K=1/5/10）。
+    ks = tuple(ks) if ks else pick_ks(len(chunks))
+    print(f"[ks] 语料 {len(chunks)} 片 → 考察 k={list(ks)}（不变量：max(k) < 语料规模）")
 
     n_handwritten = len(labels)
     if auto:
