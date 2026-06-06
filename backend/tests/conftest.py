@@ -46,6 +46,23 @@ def _isolate_answer_bank(tmp_path, monkeypatch):
     monkeypatch.setattr(ab.settings, "answer_bank_dir", str(tmp_path / "_no_bank"))
 
 
+@pytest.fixture(autouse=True)
+def _force_fake_llm(monkeypatch):
+    """**测试一律走 Fake 模型** —— 不许看环境变量吃饭。
+
+    ⚠️ 这条是踩出来的（2026-06-15）：外层 shell 里 `LLM_MODE=real` 时，测试中
+    `get_llm_client()` 会返回**真实客户端**并真的发请求 —— 实测三个用例合计跑了 **400 秒**，
+    而且**偷偷消耗 API 额度**；更糟的是断言是按 fake 写的，**红不了**（付出代价却拿不到信号）。
+    同一个原因还会让 `test_pipeline.test_fake_client_is_default_no_api_quota` 在 real 环境下必红。
+
+    与本文件 `_isolate_answer_bank`（测试与仓库数据无关）是同一条纪律：
+    **测试不许依赖环境状态**。确实需要真实客户端的用例，请自己 `monkeypatch` 打开并写明理由。
+    """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "llm_mode", "fake")
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _reset_db():
     """会话级重置：本次运行使用一个**全新的**库文件，跑完就删。

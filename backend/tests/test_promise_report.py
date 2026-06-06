@@ -154,16 +154,22 @@ def test_渲染出承诺表需要的列并可被机器读(tmp_path):
 
 
 def test_现场跑闸门在fake下不给判定_只证明口径(tmp_path, monkeypatch):
-    """fake 的数字没有参考价值 —— 判定必须是 `—`，否则会被当成真实产出率。"""
+    """fake 的数字没有参考价值 —— 判定必须是 `—`，否则会被当成真实产出率。
+
+    ⚠️ **刻意直接构造 `FakeLLMClient`，不用 `get_llm_client()`**：
+    后者看环境变量吃饭 —— 在外层 shell 里 `LLM_MODE=real` 时，这个用例会去打**真实 API**
+    （实测每个 15~20 秒、并偷偷消耗额度），而断言又是按 fake 写的，**红不了但已经在花你的钱**。
+    这与 `conftest` 里"测试必须与仓库数据无关"是**同一条纪律**：测试不许依赖环境状态。
+    """
     from app.config import settings
-    from app.services.llm_client import get_llm_client
+    from app.services.llm_client import FakeLLMClient
 
     monkeypatch.setattr(settings, "gate_g3_enabled", False)  # 默认关，函数内部会临时打开
     row = pr.from_gate_live(
         [{"stem": "示例题", "type": "single",
           "options": [{"key": "A", "text": "示例正确表述"}, {"key": "B", "text": "错"}],
           "answer": ["A"]}],
-        get_llm_client(), "fake",
+        FakeLLMClient(), "fake",
     )
     assert row.verdict == pr._NONE
     assert "无参考价值" in row.note

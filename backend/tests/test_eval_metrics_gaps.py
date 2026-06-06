@@ -133,9 +133,12 @@ def test_与真实闸门串起来能算出数(monkeypatch):
     """端到端（fake 环境）：**真闸门** + 新口径 —— 证明这条度量能接到产品代码上，
     而不只是"纯函数自己算得对"。数字本身在 fake 下没有意义。"""
     from app.config import settings
-    from app.services.llm_client import get_llm_client
+    from app.services.llm_client import FakeLLMClient
     from app.services.quality_gates import apply_uniqueness_gate
 
+    # ⚠️ **显式用 `FakeLLMClient`，不用 `get_llm_client()`**：后者看环境变量吃饭 ——
+    # 外层 `LLM_MODE=real` 时用例会去打真实 API（慢且**偷偷花额度**），而断言按 fake 写、
+    # 于是「红不了但已经在花钱」。与 conftest 的"测试与仓库数据无关"同一条纪律。
     monkeypatch.setattr(settings, "gate_g3_enabled", True)
     payloads = [
         {"stem": "示例题", "type": "single",
@@ -144,7 +147,7 @@ def test_与真实闸门串起来能算出数(monkeypatch):
         {"stem": "示例简答题", "type": "short", "answer": ["甲要点"]},
     ]
     kept, m = evaluate_gate_pass(
-        payloads, lambda items: apply_uniqueness_gate(get_llm_client(), items)
+        payloads, lambda items: apply_uniqueness_gate(FakeLLMClient(), items)
     )
     assert m.measurable and m.n_total == 2
     # 简答题**不参与**唯一性判定（对没有唯一答案的题型谈唯一性是概念错误）→ 必被放行
