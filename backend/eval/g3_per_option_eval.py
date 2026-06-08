@@ -155,44 +155,104 @@ def main(
     # 每道题**成功判定的次数**。接口超时/备用通道欠费时票数会不足 ——
     # 那时结论由更少的样本决定，**必须让报告自己说出来**，否则数字会被当成满票结果。
     vote_dist: Counter[int] = Counter()
+
+    # ---------------- 逐题落盘 + 断点续跑 ----------------
+    #
+    # 为什么必须有（2026-06-15 踩到）：本机网络经隧道后**单次调用要 20 秒以上**，
+    # 而 254 道 × 3 票 ≈ 4.5 小时 —— 中途超时、被人 Ctrl+C 都是常态。
+    # 而"结果只在跑完时写"意味着**一次中断就丢掉全部进度**：实测三次运行被中断后，
+    # 一份证据都没留下（连"跑了多少"都无从查）。
+    #
+    # 所以改成：① 每判完一题**追加一行 JSONL**；② 启动时读回 JSONL，**自动跳过已完成的题**。
+    # 于是"网络慢 + 会中断"不再是致命的 —— 重跑同一条命令接着往下跑即可。
+    jsonl = _OUT_DIR / f"g3_safety_{pathlib.Path(ds.stem).name}_{tag or 'all'}.jsonl"
+
+    def _load_done() -> dict[str, dict]:
+        out: dict[str, dict] = {}
+        if not jsonl.exists():
+            return out
+        for line in jsonl.read_text(encoding="utf-8").splitlines():
+            try:
+                rec = json.loads(line)
+                out[str(rec.get("id"))] = rec
+            except Exception:  # noqa: BLE001 — 一行坏了不该让整份进度作废
+                continue
+        return out
+
+    def _fold(rec: dict) -> None:
+        """把一条结果并进统计 —— **无论它来自本次运行还是上次剩下的**（续跑的正确性靠它）。"""
+        nonlocal n_trap_hits
+        n_v = int(rec.get("n") or 0)
+        if n_v == 0:
+            return
+        passed = bool(rec.get("passed"))
+        safe_h.n += 1
+        if not passed:
+            safe_h.n_blocked += 1
+        vote_dist[n_v] += 1
+        if rec.get("trap_hit"):
+            n_trap_hits += 1
+        if not passed:
+            blocks.append(
+                {
+                    "id": rec.get("id"),
+                    "expect": rec.get("expect") or [],
+                    "judged": rec.get("judged") or [],
+                    "stable": rec.get("stable"),
+                    "trap": rec.get("trap"),
+                    "trap_hit": rec.get("trap_hit"),
+                    "reason": rec.get("reason") or "（未记录原因）",
+                    "stem": rec.get("stem") or "",
+                }
+            )
+
     if safety:
         print("\n=== A) 安全性：好题上的误杀率（应**低**）===", flush=True)
-        for i, it in enumerate(items):
-            if i and i % 25 == 0:
-                print(f"    [{i}/{len(items)}] …", flush=True)
-            v = vote_per_option(client, it, settings.gate_g3_votes)
-            if v.n == 0:
-                continue
-            _tally(v.passed, safe_h)
-            vote_dist[v.n] += 1
-            # `trap` = 教辅标注的**易错项**（学生容易误选的那个错误选项）。
-            # 判据若把它也判成"成立"，就不是"模型拿不准"，而是**过度判定**：
-            # 干扰项被当成了并列的正确答案 —— 这是本判据最需要盯的失效方式。
-            trap = str(it.get("trap") or "").upper()
-            hit = bool(trap) and trap in set(v.judged)
-            n_trap_hits += int(hit)
-            if not v.passed:
+        done = _load_done()
+        if done:
+            print(f"    ↻ 断点续跑：已有 {len(done)} 道结果（{jsonl.name}）—— 会自动跳过它们",
+                  flush=True)
+        try:
+            for i, it in enumerate(items):
+                key = str(it.get("id"))
+                if key in done:
+                    _fold(done[key])
+                    continue
+                if i and i % 10 == 0:
+                    print(f"    [{i}/{len(items)}] 本次已完成 {len(done)} 道", flush=True)
+                v = vote_per_option(client, it, settings.gate_g3_votes)
+                # `trap` = 教辅标注的**易错项**（学生容易误选的那个错误选项）。
+                # 判据若把它也判成"成立"，就不是"模型拿不准"，而是**过度判定**。
+                trap = str(it.get("trap") or "").upper()
                 expect = [str(x).upper() for x in (it.get("answer") or [])]
-                if hit:
-                    reason = f"把教辅标注的易错项 {trap} 也判成立（过度判定）"
-                elif not v.stable:
-                    reason = "多次判定不一致"
-                elif not (set(v.judged) & set(expect)):
-                    reason = "连答案键都没判成立"
-                else:
-                    reason = "判少了（与自带答案不符）"
-                blocks.append(
-                    {
-                        "id": it.get("id"),
-                        "expect": expect,
-                        "judged": list(v.judged),
-                        "stable": v.stable,
-                        "trap": trap,
-                        "trap_hit": hit,
-                        "reason": reason,
-                        "stem": (it.get("stem") or "")[:70],
-                    }
-                )
+                hit = bool(trap) and trap in set(v.judged)
+                reason = ""
+                if v.n and not v.passed:
+                    if hit:
+                        reason = f"把教辅标注的易错项 {trap} 也判成立（过度判定）"
+                    elif not v.stable:
+                        reason = "多次判定不一致"
+                    elif not (set(v.judged) & set(expect)):
+                        reason = "连答案键都没判成立"
+                    else:
+                        reason = "判少了（与自带答案不符）"
+                rec = {
+                    "id": key, "n": v.n, "judged": list(v.judged), "stable": v.stable,
+                    "passed": v.passed, "expect": expect, "trap": trap,
+                    "trap_hit": hit, "reason": reason,
+                    "stem": (it.get("stem") or "")[:70],
+                }
+                with jsonl.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                done[key] = rec
+                _fold(rec)
+        except KeyboardInterrupt:
+            # **吞掉中断**：让下面的报告照常产出（否则跑了几小时的中断等于白跑）。
+            print(
+                f"\n    ⏸ 被中断 —— 已完成的 {len(done)} 道**已落盘**（{jsonl.name}）。\n"
+                f"      重跑同一条命令会**自动续跑**，不会重复花调用。",
+                flush=True,
+            )
 
     print("\n=== B) 有效性：歧义题上的拦截率（应**高**）===", flush=True)
     built, notes = _build_ambiguous(client, items[:amb], amb_mode)

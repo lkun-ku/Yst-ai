@@ -138,6 +138,11 @@ class Settings:
     # 也要与题目自带答案相符。只在"高价值题"（如官方语料出的题）上开。
     gate_g3_enabled: bool = os.getenv("GATE_G3_ENABLED", "false").lower() == "true"
     gate_g3_votes: int = int(os.getenv("GATE_G3_VOTES", "3"))
+    # 单次 LLM 请求超时（秒）。**做成可配是踩出来的**（2026-06-15）：
+    # 本机网络经隧道后单次要 20 秒以上（正常应 1~3 秒），而客户端默认 30 秒 +
+    # 3 次重试 + 备用通道 → 一道题可以卡 90 秒以上，评测跑不动、只能被人 Ctrl+C。
+    # 慢网络下应当调大它（例如 90），而不是靠重启碰运气。
+    llm_timeout: int = int(os.getenv("LLM_TIMEOUT", "30"))
     # G3' 逐选项判定（**与 G3 同成本**，见 `quality_gates.vote_per_option`）：
     # 判据从「选哪个」换成「每个选项对不对」。旧判据在真实歧义题上只拦下 15%
     # —— 因为它问"选哪个"时模型被迫选一个，"被舍弃的那个同样正确"不会出现在结果里。

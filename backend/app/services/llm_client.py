@@ -361,7 +361,7 @@ class RealLLMClient(LLMClient):
         except Exception:
             return None
 
-    def _chat(self, prompt: str, timeout: int = 30) -> str | None:
+    def _chat(self, prompt: str, timeout: int | None = None) -> str | None:
         """#36 主模型瞬时失败重试（退避 2s/4s ×2）；耗尽后切备用供应商（若配置）。
 
         **只重试值得重试的**：`LLMApiError.retryable` 为假时立即跳出 ——
@@ -403,7 +403,7 @@ class RealLLMClient(LLMClient):
     def _do_chat(
         self,
         prompt: str,
-        timeout: int = 30,
+        timeout: int | None = None,
         base: str | None = None,
         key: str | None = None,
         model: str | None = None,
@@ -432,7 +432,9 @@ class RealLLMClient(LLMClient):
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            # 超时未显式给定时用**可配**的 `settings.llm_timeout`：
+            # 慢网络下默认 30 秒太小（实测单次 20+ 秒），会拖成"重试 × 3 + 备用通道"的长尾。
+            with urllib.request.urlopen(req, timeout=timeout or settings.llm_timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             # 转成带**响应体**的错误再抛：否则上游只能看到 "HTTP Error 400: Bad Request"，
@@ -440,8 +442,10 @@ class RealLLMClient(LLMClient):
             raise LLMApiError(_describe_http_error(e), code=e.code) from e
         return data["choices"][0]["message"]["content"]
 
-    def ask(self, prompt: str, timeout: int = 30) -> str | None:
-        return self._chat(prompt)
+    def ask(self, prompt: str, timeout: int | None = None) -> str | None:
+        # ⚠️ 原先这里**把 `timeout` 参数丢掉了**（`return self._chat(prompt)`）——
+        # 调用方写 `ask(p, timeout=90)` 也会静默用 30 秒。顺手修掉。
+        return self._chat(prompt, timeout=timeout)
 
 
 def get_llm_client() -> LLMClient:
