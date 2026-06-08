@@ -34,6 +34,7 @@ from ..schemas import (
     SubmitIn,
     SubmitOut,
 )
+from ..services.sampling import random_rows
 from ..services.validation import normalize_answer
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -79,18 +80,13 @@ def _official_pool_filters(subject: Subject | None, stage: Stage | None) -> list
 
 
 def _sample_pool(db, need: int, filters: list) -> list:
-    """SQL 层随机抽样（P1 性能改造）。
+    """SQL 层随机抽样（P1 性能改造）—— 实现已收口在 `services.sampling`。
 
-    改造前是 `.all()` 把整个模块的题拉进内存再 `random.shuffle`：418 题无碍，
-    但题库按计划扩到万级后，每次开局都要把上万行读进进程、再在内存里洗牌。
-    改为 `ORDER BY RANDOM() LIMIT n`，让数据库只回真正需要的行。
-
-    代价：PG 上 `RANDOM()` 是全表扫描 + 排序。题库到了十万级时应换成
-    「按 id 随机区间取行」或维护随机排序列；当前量级不值得上这个复杂度。
+    ⚠️ 这里原先与 `daily.py` **各写了一份**"全表 `.all()` + `random.shuffle`"，
+    改造时**只改了本文件**，`daily.py` 那处一直留着（2026-06-15 核实性能欠账时发现）。
+    所以两处现在都调 `random_rows` —— **随机抽样只有一个写法**，下次要抽别再抄一遍。
     """
-    if need <= 0:
-        return []
-    return db.query(Question).filter(*filters).order_by(func.random()).limit(need).all()
+    return random_rows(db, Question, filters, need)
 
 
 def _select_by_weight(db, n: int, subject: Subject | None = None, stage: Stage | None = None) -> list:

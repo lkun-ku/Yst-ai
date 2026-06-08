@@ -8,7 +8,6 @@
 """
 
 import json
-import random
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -29,6 +28,7 @@ from ..schemas import (
     QuestionOut,
 )
 from ..services import get_content_safety
+from ..services.sampling import random_rows
 
 router = APIRouter(prefix="/api/daily", tags=["daily"])
 
@@ -125,12 +125,16 @@ def _get_or_create_task(db: Session, candidate_id: int) -> DailyTask:
         for mb, stem in mistake_rows
     ]
 
-    # 新题：池中随机 N 题（排除本轮已选错题）
+    # 新题：池中随机 N 题（排除本轮已选错题）。
+    #
+    # ⚠️ 这里原先与 `sessions._sample_pool` **改造前**是同一个写法：`.all()` 把全表拉进内存
+    # 再 `random.shuffle`。`sessions.py` 那处已按计划改成 SQL 层随机抽样，**这处漏了同类的一处** ——
+    # 418 题无碍，万级题库时每次生成当日任务都要把全表读进进程。
+    # 现在两处都收口到 `services.sampling.random_rows`：只回真正需要的行。
     exclude_ids = [m["question_id"] for m in mistake_review]
-    pool = db.query(Question).filter(Question.source == QuestionSource.POOL).all()
-    pool = [q for q in pool if q.id not in exclude_ids]
-    random.shuffle(pool)
-    new_questions = pool[:NEW_QUESTIONS_LIMIT]
+    new_questions = random_rows(
+        db, Question, [Question.source == QuestionSource.POOL], NEW_QUESTIONS_LIMIT, exclude_ids
+    )
 
     task = DailyTask(
         candidate_id=candidate_id,

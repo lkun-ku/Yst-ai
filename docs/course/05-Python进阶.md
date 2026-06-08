@@ -459,7 +459,8 @@ points_hit: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON 数�
 
 `Session.question_ids` 属于第 1 类（只整体读写），**当前可接受**。
 但一旦要做「统计某考点的答题情况」，就必须全表扫 + 内存解析 ——
-这也是 `_select_by_weight` 全表 `.all()` 的同类问题。
+这与 `_select_by_weight` 改造**前**的问题是同一类
+（那处已于 2026-06-15 核实改完，抽样实现收口在 `app/services/sampling.py`）。
 
 **改进方向**：
 
