@@ -14,11 +14,6 @@
     "pages/teacher/teacher",
     "pages/subjective/subjective"
   ],
-  "permission": {
-    "scope.record": {
-      "desc": "用于 AI 模拟答的语音输入，将你说的话转成文字"
-    }
-  },
   "window": {
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#ffffff",

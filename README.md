@@ -78,9 +78,16 @@ python -m app.services.kb_corpus       # 官方语料入库：法条/考纲/rubr
 
 ### 2. 小程序
 
-1. 微信开发者工具导入 `miniprogram-native/` 目录
+1. 微信开发者工具**导入仓库根目录**（`优师通小程序/`，**不是** `miniprogram-native/` 子目录）
 2. 后端地址默认 `http://127.0.0.1:8000`（`utils/api.js` 的 `BASE` 常量，真机预览改为电脑局域网 IP）
 3. 编译即可运行（游客身份自动创建）
+
+> ⚠️ **为什么要导根目录**：`project.config.json` 在仓库根目录，其中 `miniprogramRoot: "miniprogram-native/"`
+> 指向真正的小程序，并带着 `appid` 与 **`es6: true`**。从子目录导入时这份配置**读不到**，
+> 而代码是 ESM（`export/import`）→ 控制台会报
+> `Unexpected token 'export'`，紧接着 `module 'app.js' is not defined`，页面**白屏**。
+> 这两个报错是**同一个原因**（都不是代码 bug）。子目录里只有 `project.private.config.json`
+> （个人配置、已 gitignore），补 `"es6": true` 也能就地救活，但**规范做法是导根目录**。
 
 ### 3. 测试
 
