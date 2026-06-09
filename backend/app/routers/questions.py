@@ -35,13 +35,17 @@ from ..models import (
     Question,
     QuestionType,
 )
+from ..services.qt import DEFAULT_QTYPE, SUBJECTIVE_QTYPES
 
 router = APIRouter(prefix="/api/questions")
 
-#: 可练习的主观题型。**与 `routers/marking.py` 的 `QTYPES` 保持一致** ——
-#: 两边若各写一份，"能抽到的题"与"能批改的题"会悄悄分叉。
-#: 注意含 `short`（简答）：它在 `marking` 里是可批改类型，只是不在科目一的三个主观题型里。
-PRACTICE_QTYPES: tuple[str, ...] = ("material", "writing", "short", "design")
+#: 可练习的主观题型 —— **唯一真相在 `services/qt.py`**。
+#: 此前这里与 `routers/marking.py` 各写一份，结果后者多一个 `default`
+#: 而小程序的「其它主观题」标签恰好发 `default` → 那个标签点抽题必然 400。
+PRACTICE_QTYPES: tuple[str, ...] = SUBJECTIVE_QTYPES
+
+#: 表示"随便给我一道主观题"（小程序的「其它主观题」标签用它）。它不是题型本身。
+ANY_SUBJECTIVE = DEFAULT_QTYPE
 
 #: 回传的题干上限。与 `marking.MAX_ANSWER` 同量级 —— 用户能提交的作答有多长，
 #: 题干就多长；再长的材料应走「按资料出题」那条路，而不是塞进练习接口。
@@ -70,14 +74,18 @@ def practice_question(
     `func.random()` 是仓库既有的抽题写法（`routers/sessions.py` 的 `_sample_pool`）——
     万级题库时应在 SQL 层随机，而不是全表拉进内存再洗牌。
     """
-    if qtype not in PRACTICE_QTYPES:
+    if qtype not in PRACTICE_QTYPES and qtype != ANY_SUBJECTIVE:
         raise HTTPException(400, f"不支持练习的题型：{qtype}")
+
+    # `default` 的语义是「随便一道主观题」—— 小程序的「其它主观题」标签就用它。
+    # ⚠️ 此前这里直接 400（因为它不在可抽题型里），用户看到的是"这个标签坏了"。
+    wanted = list(PRACTICE_QTYPES) if qtype == ANY_SUBJECTIVE else [qtype]
 
     stmt = (
         select(Question)
         .where(
             Question.owner_candidate_id.is_(None),          # 官方池
-            Question.type == QuestionType(qtype),
+            Question.type.in_([QuestionType(t) for t in wanted]),
             Question.proofread_status == ProofreadStatus.PASSED,  # 只取已审校
             # `source_kind` 可能是 NULL（早期 418 题没有这个列值）→ 必须 NULL 安全：
             # `!= 'seed_template'` 单独写会让 NULL 行被 SQL 三值逻辑排除掉。
@@ -95,8 +103,9 @@ def practice_question(
     if q is None:
         raise HTTPException(
             404,
-            f"题库里暂时没有可练习的官方「{qtype}」主观题（需已审校、且非占位题）。"
-            "可以先用「问答老师」问考点，或稍后再试。",
+            f"题库里暂无「{qtype}」主观题（需官方池、已审校、非占位题）。"
+            "题库中的主观题需由 AI 按考纲出题生成，当前还没有可用的题目；"
+            "你可以把题目粘进题干框直接作答并批改。",
         )
 
     return PracticeQuestionOut(

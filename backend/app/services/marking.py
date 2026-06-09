@@ -320,6 +320,11 @@ def rubric_query(qtype: str) -> str:
 
 
 #: 主观题型（与答案库的 `type` 取值一致）。用于给"评分依据"限定来源题型。
+#:
+#: ⚠️ **与 `services/qt.py` 的 `SUBJECTIVE_QTYPES` 不是同一份清单**：那个管的是
+#: `Question.type`（题库里的题目），这个管的是**答案库条目**的 `type`（教辅整理的条目）。
+#: 两条轴各有自己的取值，别为了"少一份清单"把它们合并 —— 那会让"能不能当依据"
+#: 与"能不能抽题"这两件事互相牵连。
 SUBJECTIVE_TYPES = frozenset({"material", "writing", "short", "analysis", "design"})
 
 

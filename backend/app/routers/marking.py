@@ -26,6 +26,7 @@ from ..db import get_db
 from ..deps import get_current_candidate
 from ..models import Candidate
 from ..services.llm_client import LLMClient, get_llm_client
+from ..services.qt import MARKING_QTYPES
 from ..services.scope import NAMESPACE_BOTH, NAMESPACE_PERSONAL, Scope
 
 router = APIRouter(prefix="/api/marking")
@@ -34,7 +35,10 @@ router = APIRouter(prefix="/api/marking")
 MAX_ANSWER = 2000
 #: 一致性度量的次数上限：防止一句请求把成本放大几十倍
 MAX_VOTES = 5
-QTYPES = ("material", "writing", "short", "design", "default")
+#: 可批改的题型 —— **唯一真相在 `services/qt.py`**（比可抽题的清单多一个 `default`：
+#: 用户自己粘贴题目时可能说不清题型）。此前这里与 `routers/questions.py` 各写一份，
+#: 两边差一个 `default`，导致小程序「其它主观题」标签抽题必然 400。
+QTYPES = MARKING_QTYPES
 
 
 def get_llm_client_dep() -> LLMClient:
