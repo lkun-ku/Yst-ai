@@ -57,9 +57,15 @@ class CitationOut(BaseModel):
 
 
 class RubricItemOut(BaseModel):
-    id: int | None = None
+    # ⚠️ **id 必须是 `int | str`，不能只写 int**：批改依据现在有两类来源 ——
+    # 官方切片是整数 id，而答案库的**规则条目**是字符串 id（`rule-material` / `rule-writing`，
+    # 见 `data/answer_bank/评分规则.json`）。只写 `int` 会让响应模型校验失败，
+    # 整个 `/api/marking/evaluate` 直接 **500**（实测踩到：单测全绿，因为单测不经过响应模型）。
+    id: int | str | None = None
     heading_path: str | None = None
     content: str = ""
+    #: 权威级别（官方 / 答案库·半官方）—— 前端要能如实展示"这条依据什么来头"
+    authority: str = ""
 
 
 class MarkOut(BaseModel):
@@ -134,8 +140,12 @@ def evaluate(
         refused=out["refused"],
         refusal_reason=out["refusal_reason"],
         rubric=[
-            RubricItemOut(id=r.get("id"), heading_path=r.get("heading_path"),
-                          content=str(r.get("content") or "")[:500])
+            RubricItemOut(
+                id=r.get("id"),
+                heading_path=r.get("heading_path"),
+                content=str(r.get("content") or "")[:500],
+                authority=r.get("authority") or "",
+            )
             for r in rubric
         ],
     )

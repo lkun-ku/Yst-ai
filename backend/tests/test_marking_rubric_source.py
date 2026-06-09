@@ -170,6 +170,32 @@ def test_真实答案库对主观题型能产出依据(monkeypatch):
         assert all(h["source_type"] == "answer_bank" for h in hits)
 
 
+# ---------------- 响应模型：依据的 id 有两类 ----------------
+
+def test_响应模型必须容得下答案库的字符串_id():
+    """**这是真机才暴露的一个真 bug**：批改依据有两类来源 —— 官方切片是整数 id，
+    答案库的**规则条目**是字符串 id（`rule-material` / `rule-writing`，见
+    `data/answer_bank/评分规则.json`）。响应模型只写 `int` 会让校验失败，
+    整个 `POST /api/marking/evaluate` 直接 **500**。
+
+    ⚠️ **单测全绿也发现不了**：服务层测试拿到的是 dict，不经过 pydantic 响应模型 ——
+    只有真机发一次请求才会撞上。所以这条断言守的是**契约两端的一致性**。
+    """
+    from app.routers.marking import MarkOut, RubricItemOut
+
+    item = RubricItemOut(id="rule-material", heading_path="答案库/评分规则", 
+                         content="按点给分，答出一点给一分", authority="半官方")
+    out = MarkOut(
+        qtype="material", dimensions={}, total=0.0, comments={}, deductions=[],
+        suggestions=[], citations=[], grounded=True, refused=False,
+        refusal_reason="", rubric=[item],
+    )
+    assert out.rubric[0].id == "rule-material"
+    assert out.rubric[0].authority == "半官方"
+    # 官方切片走整数 id，同样要能过
+    assert RubricItemOut(id=7).id == 7
+
+
 # ---------------- 采分点内容的质量护栏 ----------------
 
 

@@ -61,6 +61,19 @@ cp .env.example .env
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
+⚠️ **启动前置（本机已有 dev.db 时先看一眼）**：`init_db()` 只 `create_all()` —— 它**只建缺的表，
+不给已有表加列、也不改已有列的约束**。所以"新模型 + 旧 dev.db"会出现两种**看起来像代码 bug** 的报错：
+`no such column: documents.is_official`（缺列）、`NOT NULL constraint failed: documents.candidate_id`
+（官方语料插不进去）。两条命令一次修好（幂等、改前自动备份）：
+
+```bash
+python scripts/repair_dev_schema.py    # 补列 + 重建约束不一致的表（保留数据）
+python -m app.services.kb_corpus       # 官方语料入库：法条/考纲/rubric → Document(is_official=True)
+```
+
+> 不灌语料时问答老师会**一直拒答**（"材料不足以支撑结论"）—— 那是检索确实无料，不是模型不行。
+> `kb_corpus` 默认算向量；embedding 供应商不可用时加 `--no-embed`，检索会走关键词通道。
+
 `LLM_MODE=fake`（默认）下全功能可用且不消耗任何 API 额度；切换 `real` 接入真实模型。
 
 ### 2. 小程序

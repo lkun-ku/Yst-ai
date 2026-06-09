@@ -367,6 +367,10 @@ def retrieve_rubric(db, scope, qtype: str, k: int = 6, embed_fn=None) -> list[di
         official = retrieve(db, query, scope, k=rest, embed_fn=embed_fn)
     except Exception:  # noqa: BLE001 — 官方检索失败不应让批改整体失败（与答题同原则）
         official = []
+    # 官方切片要**显式标权威级别**：否则前端分不清"这条依据是官方原文还是教辅整理"，
+    # 而两类依据的可信度不同（答案库那边由 `_as_chunk` 自带 authority）。
+    for h in official or []:
+        h.setdefault("authority", "官方")
     return (hits + official)[:k]
 
 

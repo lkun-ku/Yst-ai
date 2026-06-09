@@ -53,6 +53,47 @@ def bank(tmp_path, monkeypatch):
     return tmp_path
 
 
+def test_答案库不得独占槽位_官方语料必须留位置(tmp_path, monkeypatch):
+    """**真机踩到（2026-06-15）**：问「《教师法》第七条规定教师享有哪些权利？」时，
+    答案库按关键词命中一堆**单选题条目**并占满全部槽位，官方语料一片都没进来。
+
+    而单选题条目的正文是「题干+选项+答案」（构建脚本刻意不存解析正文），
+    **不构成任何可引用的论述** → 模型拿不到法条原文，只能判"材料不足"而**拒答**。
+    一个本可以答好的法条问题被检索顺序搞成了拒答。
+
+    所以断言两件事：官方检索**必须被调用**；答案库占比不超过一半。
+    """
+    items = [
+        {"id": f"q{i}", "type": "single",
+         "stem": f"{i} 教师法第七条规定教师享有权利与义务的相关表述", "answer": ["A"]}
+        for i in range(8)
+    ]
+    (tmp_path / "bank.json").write_text(
+        json.dumps({"items": items}, ensure_ascii=False), encoding="utf-8"
+    )
+    monkeypatch.setattr(ab.settings, "answer_bank_enabled", True)
+    monkeypatch.setattr(ab.settings, "answer_bank_dir", str(tmp_path))
+
+    calls: list[int] = []
+
+    def _fake_retrieve(db, query, scope, k, embed_fn=None):
+        calls.append(k)
+        return [
+            {"id": f"official-{i}", "content": "第七条 教师享有下列权利：进行教育教学活动"}
+            for i in range(k)
+        ]
+
+    monkeypatch.setattr("app.services.kb_retrieval.retrieve", _fake_retrieve)
+
+    # 答案库有 8 条命中、k 也是 8 —— 旧实现在这里**完全不查官方语料**
+    out = retrieve_for_question(object(), None, "教师法第七条规定教师享有权利", k=8)
+
+    assert calls, "官方语料必须被检索（答案库不得独占槽位）"
+    n_bank = sum(1 for h in out if h["source_type"] == "answer_bank")
+    assert n_bank <= 4, f"答案库占比过高：{n_bank}/8"
+    assert any(h.get("source_type") == "official" for h in out)
+
+
 def test_答案库默认目录不在_official_之下(monkeypatch):
     """**这是方案 B 的前提**：一旦落进 `data/official/`，就会被 `kb_corpus` 自动摄入，
     那样真题就混进了官方语料，B 方案也就不存在了。

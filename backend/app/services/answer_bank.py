@@ -173,14 +173,33 @@ def search_answer_bank(query: str, k: int = 8, types: set[str] | None = None) ->
     return [_as_chunk(e, score) for score, e in scored[:k]]
 
 
-def retrieve_for_question(db, scope, query: str, k: int = 8, embed_fn=None) -> list[dict]:
+def retrieve_for_question(
+    db, scope, query: str, k: int = 8, embed_fn=None, bank_quota: int | None = None
+) -> list[dict]:
     """**答题专用检索**：答案库优先，命中不足再回落官方语料。
 
     这是"优先依据真题"的落点 —— 不是把真题塞进知识库，而是**在检索顺序上优先**。
     答案库命中的条目带 `source_type="answer_bank"`，上游据此标注权威级别。
+
+    ## 为什么答案库**不能独占**槽位（2026-06-15 真机踩到）
+
+    第一版是 `search_answer_bank(query, k)` —— 命中够了就完全不查官方语料。
+    真机问「《教师法》第七条规定教师享有哪些权利？」时，答案库按关键词
+    （"教师法"）命中一堆**单选题条目**并占满全部槽位，**官方语料一片都没进来**。
+
+    而单选题条目的正文是「题干 + 选项 + 答案」（构建脚本刻意不存解析正文），
+    **它不构成任何可引用的论述** —— 于是模型拿不到"教师享有哪些权利"的原文，
+    只能判"材料不足"而**拒答**。一个本可以答好的法条问题被检索顺序搞成了拒答。
+
+    所以给答案库设上限（默认 `k // 2`，至少 1）：**优先但不独占**。
+    这不是削弱"优先依据真题"，而是把"优先"限定在它真正能提供依据的场景 ——
+    主观题的示范作答与采分点、以及规则条目（`rule-*`）。
     """
-    hits = search_answer_bank(query, k)
-    if len(hits) >= k or db is None:
+    if k <= 0:
+        return []
+    quota = max(1, k // 2) if bank_quota is None else max(0, min(bank_quota, k))
+    hits = search_answer_bank(query, quota)
+    if db is None or len(hits) >= k:
         return hits[:k]
     from .kb_retrieval import retrieve  # 延迟导入：避免与检索模块的循环依赖
 
