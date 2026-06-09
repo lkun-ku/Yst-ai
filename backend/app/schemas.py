@@ -183,6 +183,30 @@ class DocChunkPreview(BaseModel):
     preview: str = ""
 
 
+class DocumentFullOut(BaseModel):
+    """资料**连续全文**（由切片按 seq 拼接、已消除滑窗重叠）。
+
+    两条如实交代（前端必须显示，不能让人以为这就是原文件）：
+
+    - 上传时的原文件按 A3 决策**不保留**（只留切片，降低版权风险），
+      所以这里是**重建文本** —— 与原始文件的分段/排版可能略有差异；
+      实测（上传 7980 字 → 重建 7935 字）：少掉的是**章节标题行**，
+      它们在解析时被提取成 `heading_path`（「按片段」视图里显示为分组标题），正文中不再重复；
+    - 超长资料按 `MAX_FULL_CHARS` 截断，`truncated=True` 表示只给了前面一段。
+
+    `has_original_file` 为真时前端可以另外提供"看原文件"（历史资料才有）。
+    """
+
+    id: int
+    title: str
+    file_type: str
+    char_count: int
+    chunk_count: int
+    text: str
+    truncated: bool = False
+    has_original_file: bool = False
+
+
 class DocumentRenameIn(BaseModel):
     """资料重命名（#27 资料管理）。"""
 

@@ -171,6 +171,10 @@ Page({
         citations,
         confidence: body.confidence || "medium",
         refused: !!body.refused,
+        // 无据兜底：回答来自模型通识、**没有资料佐证**。带上标记，让卡片与有据回答
+        // 明显不同（后端已把 citations 清空、confidence 压到 low）。
+        ungrounded: !!body.ungrounded,
+        notice: body.notice || "",
         toolCalls: body.tool_calls || 0,
       });
     } catch (e) {

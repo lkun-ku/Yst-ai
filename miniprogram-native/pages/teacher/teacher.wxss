@@ -115,6 +115,14 @@
   font-size: 22rpx;
 }
 
+/* 无据兜底标签：**与「已拒答」用不同色系**（accent 蓝 vs warn 橙）。
+   两者含义相反 —— 拒答是"我没答"，无据是"我答了但没有出处"。只靠文字区分不够，
+   用户在快速滑动时必须一眼分清，否则会误以为这是一条有出处的答案。 */
+.tag-ungrounded {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
 /* ---------------- 引用 ---------------- */
 .cite-fold {
   display: flex;

@@ -7,9 +7,51 @@ import pytest
 from app.services.doc_parser import (
     clean_text,
     detect_no_text_layer,
+    join_chunks,
     split_chunks,
     normalize_stem,
 )
+
+
+class TestJoinChunks:
+    """`join_chunks`：把切片拼回连续全文。
+
+    它守的是「资料详情页看不到原文」这条实测反馈的修法。**滑窗切分带 overlap**，
+    直接首尾相接会把每个边界重复一遍（读起来像卡带），所以这里钉三件事：
+    拼回去要**等于原文**、重叠**恰好**被消掉、以及"不一致时不乱裁"。
+    """
+
+    def test_拼回等于原文(self):
+        """**端到端性质**：切分 → 拼接，必须还原原文（这是这段逻辑存在的全部意义）。"""
+        text = "".join(f"第{i}句：教育是有目的地培养人的社会活动。" for i in range(400))
+        chunks = [c["content"] for c in split_chunks(text, chunk_size=180, overlap=40)]
+        assert len(chunks) > 3, "样本要真的切出多片，否则这条测试是空的"
+        assert join_chunks(chunks) == clean_text(text)
+
+    def test_重叠段恰好被消掉(self):
+        # 上一片结尾与下一片开头重复 6 字
+        assert join_chunks(["甲乙丙丁戊己庚辛", "戊己庚辛壬癸"]) == "甲乙丙丁戊己庚辛壬癸"
+
+    def test_没有重叠时原样拼接(self):
+        assert join_chunks(["第一段内容。", "第二段内容。"]) == "第一段内容。第二段内容。"
+
+    def test_裁切量不超过上限_宁可留重复不可丢内容(self):
+        """上限 `max_overlap` 是**有意的**：两片若真的碰巧首尾相同很长，无上限地裁就会
+        切进真实内容（**丢内容比留一段重复更难被发现**）。
+
+        这里钉的是那个取舍的确切形态：只裁到上限，剩下的重复**留着**，真实内容一字不丢。
+        """
+        prev = "甲" * 30
+        cur = "甲" * 30 + "新的内容"
+
+        out = join_chunks([prev, cur], max_overlap=10)
+
+        assert out.endswith("新的内容"), "真实内容不能丢"
+        assert len(out) == 30 + 30 + 4 - 10, "只应裁掉上限内的 10 字"
+
+    def test_空切片不影响拼接(self):
+        assert join_chunks(["第一段。", "", "第二段。"]) == "第一段。第二段。"
+        assert join_chunks([]) == ""
 
 
 class TestCleanText:

@@ -83,6 +83,39 @@ def detect_no_text_layer(text: str | None, page_count: int | None) -> bool:
 
 # ---------------- 切分 ----------------
 
+#: 拼接全文时允许消掉的最大重复长度。取滑窗 overlap 的两倍余量。
+_RESTITCH_MAX_OVERLAP = 400
+
+
+def join_chunks(contents: list[str], max_overlap: int = _RESTITCH_MAX_OVERLAP) -> str:
+    """把切片按 seq 拼回连续全文，**消除滑窗重叠**。
+
+    为什么需要（2026-06-15 实测反馈）：资料详情页只给切片预览，用户看不到原文；
+    而 `split_chunks` 是**滑窗切分**（默认 `overlap=200`），直接把切片首尾相接，
+    每个边界处那 ~200 字会被**重复一遍** —— 用户会以为文件本身写重了。
+    这比不给全文更糟：损坏的文本让人无法判断到底是资料问题还是产品问题。
+
+    做法：相邻两片，取上一片**最长的后缀**去匹配下一片的**前缀**，命中即裁掉重复段。
+    只在「0 < 重复长度 ≤ `max_overlap`」时裁切 —— 上限是为了防"两片真的碰巧首尾相同很长"
+    那种情形：裁掉会**丢内容**，而丢内容比留一段重复更难被发现。
+    """
+    out = ""
+    for raw in contents or []:
+        cur = raw or ""
+        if not cur:
+            continue
+        if not out:
+            out = cur
+            continue
+        best = 0
+        for k in range(min(len(out), len(cur), max_overlap), 0, -1):
+            if out.endswith(cur[:k]):
+                best = k
+                break
+        out += cur[best:]
+    return out
+
+
 def split_chunks(
     text: str | None,
     chunk_size: int = 1500,

@@ -41,6 +41,11 @@
         <view wx:if="{{item.refused}}" class="refused-row">
           <text class="refused-tag">已拒答</text>
         </view>
+        <!-- 无据兜底：必须与有据回答**明显不同** —— 否则用户会以为这条有出处。
+             放在正文之前，先声明"没有依据"，再给答案。 -->
+        <view wx:if="{{item.ungrounded}}" class="refused-row">
+          <text class="refused-tag tag-ungrounded">无依据 · 通识回答</text>
+        </view>
         <text class="bubble-text">{{item.shown}}</text>
         <view wx:if="{{item.typing}}" class="caret" />
       </view>
@@ -66,8 +71,13 @@
         </view>
       </block>
 
-      <!-- 置信提示：低置信才出现，避免每一条都挂免责 -->
-      <view wx:if="{{item.confidence === 'low' && !item.refused}}" class="warn-bar">
+      <!-- 无据兜底的说明条（具体到"这条没有出处"），与下面的通用低置信提示分开 -->
+      <view wx:if="{{item.ungrounded && item.notice}}" class="warn-bar">
+        <text>{{item.notice}}</text>
+      </view>
+
+      <!-- 置信提示：低置信才出现，避免每一条都挂免责；无据回答已单独说明，不重复 -->
+      <view wx:if="{{item.confidence === 'low' && !item.refused && !item.ungrounded}}" class="warn-bar">
         <text>此说法存在争议，建议以官方教材为准</text>
       </view>
       <text wx:if="{{item.toolCalls}}" class="tool-note">本轮检索 {{item.toolCalls}} 次</text>

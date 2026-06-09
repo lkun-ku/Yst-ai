@@ -84,6 +84,9 @@ class TeacherState(TypedDict, total=False):
     answer: dict
     refused: bool
     refusal_reason: str
+    #: 无据兜底：回答来自模型通识而非检索材料（前端据此显示提示条）
+    ungrounded: bool
+    notice: str
     citation: dict
     on_event: object
 
@@ -256,6 +259,34 @@ def _route_after_check(s: TeacherState) -> str:
     return "answer" if s.get("sufficient") else "refuse"
 
 
+#: 无据兜底时的提示语 —— 必须**显式**，否则用户会把它当成有出处的答案。
+_UNGROUNDED_NOTICE = (
+    "资料库里没有找到能直接回答这个问题的依据。以下是模型的通识性回答，"
+    "未经过资料佐证，请以官方教材／法条原文为准。"
+)
+
+
+def _ungrounded_answer(s: TeacherState) -> dict | None:
+    """**无据兜底**：不检索、不带引用，直接让模型用通识作答。
+
+    为什么要有它（2026-06-15 实测反馈）：问「未成年人保护法里关于学校保护有哪些条文？」
+    时，检索**确实拿到了**第三十五／四十／四十一条，但模型判 `insufficient`
+    （因为"只有三条、不够全"）→ 整条回答变成拒答。用户什么也没得到，而它其实能答。
+
+    分寸：**降级 ≠ 放松**。无据回答必须带 `_UNGROUNDED_NOTICE` 标注、`citations` 恒为空、
+    `confidence` 强制 low。产品承诺从「宁可拒答，也不给没有出处的答案」改为
+    「**给答案，但明说它没有出处**」—— 前者让人拿不到信息，后者让人自己判断信不信。
+    """
+    text = s["client"].ask(teacher_answer_prompt(s["question"], [], ungrounded=True))
+    parsed = parse_teacher_answer(text) if text else None
+    if not parsed:
+        return None
+    # 无据回答**不许带引用**：模型若硬塞引用就清掉（它这次根本没有材料可引）。
+    parsed["citations"] = []
+    parsed["confidence"] = "low"
+    return parsed
+
+
 def _n_answer(s: TeacherState) -> dict:
     text = s["client"].ask(teacher_answer_prompt(s["question"], s.get("observations")))
     parsed = parse_teacher_answer(text) if text else None
@@ -267,6 +298,10 @@ def _n_answer(s: TeacherState) -> dict:
             "answer": None,
         }
     if parsed.get("insufficient") and s.get("mode") != "plain":
+        fb = _ungrounded_answer(s)
+        if fb:
+            _emit(s, "fallback", "有据答不出 → 已降级为无据回答（明确标注）")
+            return {"answer": fb, "refused": False, "ungrounded": True, "notice": _UNGROUNDED_NOTICE}
         return {
             "refused": True,
             "refusal_reason": "材料不足以支撑结论（模型判定 insufficient）",
@@ -284,6 +319,12 @@ def _route_after_answer(s: TeacherState) -> str:
 def _n_refuse(s: TeacherState) -> dict:
     if s.get("refusal_reason"):
         return {}
+    if s.get("mode") != "plain":
+        # 「库里没有相关材料」也走无据兜底而不是冷拒答（用户口径：没有的内容接 LLM 回答）。
+        fb = _ungrounded_answer(s)
+        if fb:
+            _emit(s, "fallback", "库里无相关材料 → 已降级为无据回答（明确标注）")
+            return {"answer": fb, "refused": False, "ungrounded": True, "notice": _UNGROUNDED_NOTICE}
     reason = "知识库里没有可支撑这个问题的材料" if s.get("mode") != "plain" else "无据版对照"
     return {"refused": True, "refusal_reason": reason, "answer": None}
 
@@ -391,6 +432,9 @@ def ask(
         "confidence": ans.get("confidence") or ("low" if result.get("refused") else "medium"),
         "refused": bool(result.get("refused")),
         "refusal_reason": result.get("refusal_reason") or "",
+        # 无据兜底标记：前端据此显示「通识性回答、未经资料佐证」提示条
+        "ungrounded": bool(result.get("ungrounded")),
+        "notice": result.get("notice") or "",
         "observations": [
             {"tool": ob.get("tool"), "ok": ob.get("ok"), "error": ob.get("error")} for ob in observations
         ],

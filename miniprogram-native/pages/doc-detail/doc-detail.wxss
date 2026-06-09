@@ -74,3 +74,49 @@ page {
   font-size: 20rpx;
   color: #b0b6c0;
 }
+
+/* ---------------- 视图切换：按片段 / 连续全文 ---------------- */
+
+.view-switch {
+  display: flex;
+  margin-top: var(--sp-sm);
+  padding: 4rpx;
+  border-radius: var(--r-pill);
+  background: var(--bg);
+}
+
+.vs-item {
+  flex: 1;
+  padding: 12rpx 0;
+  text-align: center;
+  font-size: 26rpx;
+  color: #6b7280;
+  border-radius: var(--r-pill);
+}
+
+.vs-item.on {
+  background: var(--card);
+  color: var(--brand);
+  font-weight: 600;
+  box-shadow: 0 2rpx 8rpx rgba(27, 42, 51, 0.06);
+}
+
+/* 全文说明条：用「信息」色而非警示色 —— 这是如实交代，不是出错 */
+.full-note {
+  background: var(--accent-light);
+}
+
+.full-note text {
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: var(--accent);
+}
+
+.full-text {
+  display: block;
+  font-size: 27rpx;
+  line-height: 1.8;
+  color: #3c4450;
+  word-break: break-all;
+  white-space: pre-wrap;
+}

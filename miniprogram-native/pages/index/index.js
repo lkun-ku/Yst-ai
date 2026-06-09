@@ -12,7 +12,9 @@ const ENTRIES = [
   // 问答老师 vs AI 模拟答：前者是「我提问 → 检索考纲法条 → 带引用作答」，后者是
   // 「AI 提问 → 我回答 → 评分」。方向相反，是两个入口而不是一个。
   { icon: ENTRY_ICONS.message, title: "问答老师", desc: "问考点，答必有出处", bg: "#eaf2fd", url: "/pages/teacher/teacher" },
-  { icon: ENTRY_ICONS.file_text, title: "主观题批改", desc: "材料分析/写作按采分点批", bg: "#e8f8ee", url: "/pages/subjective/subjective" },
+  // 名称要**说清是谁在出题**：这个模块是「AI 出题 → 我作答 → AI 按采分点批改」，
+  // 旧名「主观题批改」只提批改，看不出 AI 会出题（用户实测反馈）。
+  { icon: ENTRY_ICONS.file_text, title: "AI 出主观题", desc: "AI 出题，按采分点批改", bg: "#e8f8ee", url: "/pages/subjective/subjective" },
   { icon: ENTRY_ICONS.book, title: "错题本", desc: "今日任务与考点重练", bg: "#fff4e5", url: "/pages/mistakes/mistakes" },
   { icon: ENTRY_ICONS.history, title: "历史闯关", desc: "回看往期复盘", bg: "#f3ecfd", url: "/pages/history/history" },
   { icon: ENTRY_ICONS.file_text, title: "我的资料", desc: "上传资料出试题", bg: "#e8f8ee", url: "/pages/docs/docs" },

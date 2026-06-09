@@ -72,8 +72,34 @@ def tool_decision_prompt(
     )
 
 
-def teacher_answer_prompt(question: str, observations: list[dict] | None) -> str:
-    """依据观察结果作答，**强制带引用**。"""
+def teacher_answer_prompt(
+    question: str, observations: list[dict] | None, ungrounded: bool = False
+) -> str:
+    """依据观察结果作答，**强制带引用**。
+
+    `ungrounded=True` 是**无据兜底**（2026-06-15 实测反馈）：检索确实找不到材料时，
+    不再冷拒答，而是明确告诉模型"这次没有材料"，让它用通识作答并**自报未经佐证**。
+
+    ⚠️ **两种情况必须用不同的措辞**：有据时 `insufficient` 是合法出口（防硬编，这条不能松）；
+    但无据时若还留着"材料不足就置 true"，模型会**再报一次 insufficient** —— 兜底就白做了。
+    """
+    if ungrounded:
+        return (
+            "你是教资备考问答老师。**本次没有检索到任何资料**（资料库无相关内容）。"
+            "只输出 JSON，不要解释文字或代码块围栏。\n\n"
+            f"用户问题：{question}\n\n"
+            "输出字段：\n"
+            "1. answer：用你掌握的知识作答（口语、分点、不要客套话）。"
+            "**第一句必须写明**：「资料库中没有找到对应依据，以下是通识性回答，请以官方教材为准」。\n"
+            "2. citations：**必须是空数组 []** —— 没有资料可引，"
+            "**禁止编造任何「原文引用」或条文原文**。\n"
+            "3. confidence：只能是 low 或 medium。\n"
+            "4. insufficient：固定 false（已经明确标注无依据，不需要再拒答）。\n"
+            "⚠️ **不要给出具体条号的确切原文**（那是编造）；"
+            "只能说到「《X 法》中有相关规定」这个粒度，并提示考生以法条原文/官方教材为准。\n"
+            '输出格式：{"answer": "...", "citations": [], "confidence": "low", "insufficient": false}\n'
+            f"{MARK_ANSWER}"
+        )
     return (
         "你是教资备考问答老师。只能依据下方【观察结果】中的材料回答，"
         "禁止引入材料之外的知识。只输出 JSON，不要解释文字或代码块围栏。\n\n"
@@ -87,8 +113,12 @@ def teacher_answer_prompt(question: str, observations: list[dict] | None) -> str
         "   - 禁止改写、概括、合并句子，禁止自己补书名号；\n"
         "   - 程序会逐字比对，改写会导致整条回答作废。\n"
         "3. confidence：high / medium / low。\n"
-        "4. insufficient：布尔值。**材料不足以支撑结论时必须为 true**，"
-        "并在 answer 里说明缺什么。宁可说「资料里没有」，也不要编。\n"
+        "4. insufficient：布尔值。**只有材料与问题完全无关、毫无可用内容时才为 true**。\n"
+        "   ⚠️ **材料只覆盖问题的一部分时，必须先基于已有材料作答**，再在 answer 末尾"
+        "明确点出「资料里只涉及……，未覆盖……」（例如问「学校保护有哪些条文」而材料只有三条，"
+        "就把这三条答出来并说明这是资料库中涉及的部分）。"
+        "整体拒答只留给「材料与问题毫无关系」这一种情形 —— 宁可给**带说明的部分答案**，"
+        "也不要因为「不够全」而拒答。\n"
         '输出格式：{"answer": "...", "citations": [...], '
         '"confidence": "high", "insufficient": false}\n'
         f"{MARK_ANSWER}"

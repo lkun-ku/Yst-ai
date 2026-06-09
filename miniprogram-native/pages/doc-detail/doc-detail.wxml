@@ -13,30 +13,64 @@
         hover-stay-time="80"
         bindtap="onOpenOriginal"
       >查看原文件</view>
-      <text wx:else class="d-meta">纯文本文档，下方为全文内容</text>
+      <text wx:else class="d-meta">纯文本文档，可按片段展开，也可切到连续全文阅读</text>
+
+      <!-- 视图切换：#27 实测反馈「只能看到切分后的，没法看原文」→ 补一个连续全文视图 -->
+      <view class="view-switch">
+        <view
+          class="vs-item {{view === 'chunks' ? 'on' : ''}}"
+          hover-class="press"
+          hover-stay-time="80"
+          data-v="chunks"
+          bindtap="onSwitchView"
+        >按片段</view>
+        <view
+          class="vs-item {{view === 'full' ? 'on' : ''}}"
+          hover-class="press"
+          hover-stay-time="80"
+          data-v="full"
+          bindtap="onSwitchView"
+        >连续全文</view>
+      </view>
     </view>
 
-    <block wx:for="{{groups}}" wx:for-item="g" wx:for-index="gi" wx:key="heading">
-      <text class="section-title">{{g.heading}}</text>
-      <view class="card">
-        <view wx:for="{{g.items}}" wx:for-item="c" wx:for-index="ci" wx:key="id" class="chunk">
-          <view
-            class="chunk-head"
-            hover-class="press"
-            hover-stay-time="80"
-            data-gi="{{gi}}"
-            data-ci="{{ci}}"
-            data-cid="{{c.id}}"
-            bindtap="onToggleChunk"
-          >
-            <text class="chunk-text">{{c.isOpen ? c.content : c.preview}}</text>
-            <text class="chunk-caret">{{c.isOpen ? "▲" : "▼"}}</text>
-          </view>
+    <!-- 连续全文：由切片按原文顺序拼接（已消掉滑窗重叠），与「按片段」是同一份数据的两种读法 -->
+    <block wx:if="{{view === 'full'}}">
+      <view wx:if="{{fullLoading}}" class="card t-muted">正在拼接全文…</view>
+      <block wx:elif="{{full}}">
+        <view class="card full-note">
+          <text>{{fullNote}}</text>
         </view>
-      </view>
+        <view class="card">
+          <text class="full-text" user-select>{{full.text}}</text>
+        </view>
+      </block>
+      <view wx:else class="card t-muted">全文加载失败，可切回「按片段」逐段查看</view>
     </block>
 
-    <view wx:if="{{!groups.length}}" class="card t-muted">该资料暂无内容切片</view>
+    <block wx:else>
+      <block wx:for="{{groups}}" wx:for-item="g" wx:for-index="gi" wx:key="heading">
+        <text class="section-title">{{g.heading}}</text>
+        <view class="card">
+          <view wx:for="{{g.items}}" wx:for-item="c" wx:for-index="ci" wx:key="id" class="chunk">
+            <view
+              class="chunk-head"
+              hover-class="press"
+              hover-stay-time="80"
+              data-gi="{{gi}}"
+              data-ci="{{ci}}"
+              data-cid="{{c.id}}"
+              bindtap="onToggleChunk"
+            >
+              <text class="chunk-text">{{c.isOpen ? c.content : c.preview}}</text>
+              <text class="chunk-caret">{{c.isOpen ? "▲" : "▼"}}</text>
+            </view>
+          </view>
+        </view>
+      </block>
+
+      <view wx:if="{{!groups.length}}" class="card t-muted">该资料暂无内容切片</view>
+    </block>
   </block>
 
   <view wx:else class="card t-muted">资料不存在或已删除</view>

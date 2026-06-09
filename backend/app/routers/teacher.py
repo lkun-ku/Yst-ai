@@ -68,6 +68,9 @@ class TeacherAskOut(BaseModel):
     confidence: str
     refused: bool
     refusal_reason: str
+    #: 无据兜底：回答来自模型通识、**没有资料佐证**。前端必须显式提示，不得与有据回答同款展示。
+    ungrounded: bool = False
+    notice: str = ""
     evidence: list[dict]
     observations: list[dict]
     tool_calls: int
@@ -124,6 +127,8 @@ def teacher_ask(
         confidence=result["confidence"],
         refused=result["refused"],
         refusal_reason=result["refusal_reason"],
+        ungrounded=result.get("ungrounded", False),
+        notice=result.get("notice", ""),
         evidence=_evidence_out(result["evidence"]),
         observations=result["observations"],
         tool_calls=result["tool_calls"],

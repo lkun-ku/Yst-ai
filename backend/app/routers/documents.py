@@ -26,6 +26,7 @@ from ..schemas import (
     DocChunkPreview,
     DocTaskOut,
     DocumentDetailOut,
+    DocumentFullOut,
     DocumentOut,
     DocumentRenameIn,
     GenerateIn,
@@ -330,6 +331,48 @@ def rename_document(
     doc.title = title[:255]
     db.commit()
     return _doc_out(db, doc)
+
+
+#: 连续全文一次最多回多少字。超长资料（几十万字）一次性塞给小程序会卡在渲染上，
+#: 所以截断并**显式告知**（`truncated=True`），而不是静默给一半。
+MAX_FULL_CHARS = 120_000
+
+
+@router.get("/{doc_id}/full", response_model=DocumentFullOut)
+def get_document_full(
+    doc_id: int,
+    c: Candidate = Depends(get_current_candidate),
+    db: Session = Depends(get_db),
+) -> DocumentFullOut:
+    """资料**连续全文**：按 seq 拼接切片并消除滑窗重叠。
+
+    为什么需要（2026-06-15 实测反馈）：此前详情页只给**切片预览**（每片 120 字），
+    用户想回看自己传的资料时读不连贯 —— 反馈原话是「依旧看到的是切分后的，没法看原文」。
+
+    ⚠️ 拼出来的是**重建文本**：上传时的原文件按 A3 决策不保留（只留切片，降低版权风险），
+    所以 `has_original_file` 为假时**没有原文件可预览**，界面要如实说明，
+    不能让人以为这就是原始排版。
+    """
+    doc = db.get(Document, doc_id)
+    if doc is None or doc.candidate_id != c.id:
+        raise HTTPException(404, "资料不存在")
+    rows = (
+        db.query(DocumentChunk.content)
+        .filter(DocumentChunk.document_id == doc.id)
+        .order_by(DocumentChunk.seq)
+        .all()
+    )
+    text = doc_parser.join_chunks([r[0] or "" for r in rows])
+    return DocumentFullOut(
+        id=doc.id,
+        title=doc.title,
+        file_type=doc.file_type,
+        char_count=doc.char_count,
+        chunk_count=doc.chunk_count,
+        text=text[:MAX_FULL_CHARS],
+        truncated=len(text) > MAX_FULL_CHARS,
+        has_original_file=bool(doc.storage_path) and os.path.exists(doc.storage_path),
+    )
 
 
 @router.get("/{doc_id}/chunks/{chunk_id}")

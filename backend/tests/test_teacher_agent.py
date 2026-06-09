@@ -7,7 +7,9 @@
 1. 工具失败被当成异常抛出 → 整个问答崩（应当降级为"用已有材料作答"）；
 2. 条号模糊匹配 → 拿「第七十七条」当「第七条」用（**编造条文的一种形态**）；
 3. 引用无法定位却照常输出 → "句句有出处"变成口号；
-4. 没有证据也硬答 → 拒答这条出口被绕过。
+4. 没有证据的回答**冒充有据** → 出口已从"拒答"改为"**无据标注**"
+   （2026-06-15 口径变更：允许答，但必须带标记、清空引用、压低置信 ——
+   细目见 `test_teacher_fallback.py`）。
 
 所以这里逐条钉住，尤其是 `lookup_law` 的精确复核与 `verify` 的硬拦截。
 """
@@ -259,14 +261,21 @@ class _StubClient:
         return self.answer
 
 
-def test_无据可依时拒答(db_session, official):
-    """没有任何证据 → 拒答。这是"查不到就不要编"的出口，必须留着。"""
+def test_无据可依时降级为无据回答(db_session, official):
+    """⚠️ **口径变更（2026-06-15，实测反馈）**：这里原本断言"没有任何证据 → 拒答"。
+
+    改成「**给答案，但明说它没有出处**」的理由：冷拒答让用户什么也拿不到，
+    而模型完全能给出有价值的通识回答（用户原话："没有的内容接 LLM 回答"）。
+
+    本用例仍然钉住**分寸**（没有放松）：无据回答必须**带标记、引用为空、置信 low**
+    —— 绝不允许它冒充一条有出处的答案。更细的分寸见 `test_teacher_fallback.py`。
+    """
     # 让检索什么都查不到：把 scope 指向一个空的个人库
     empty = Scope(namespace=NAMESPACE_PERSONAL, candidate_id=987654)
     r = ask(db_session, 987654, "随便问问", empty, mode="grounded", client=FakeLLMClient())
-    assert r["refused"] is True
-    assert r["answer"] is None
-    assert "没有" in r["refusal_reason"] or "无据" in r["refusal_reason"]
+    assert r["refused"] is False, "无据时改为降级作答，不再冷拒答"
+    assert r["ungrounded"] is True and r["notice"]
+    assert r["citations"] == [] and r["confidence"] == "low"
 
 
 def test_有据时作答且引用校验通过(db_session, official):
@@ -367,11 +376,17 @@ def test_回答无法解析时转拒答而不是编一个(db_session, official):
     assert out["refused"] is True and out["answer"] is None
 
 
-def test_模型自称材料不足时拒答(db_session, official):
+def test_模型自称材料不足时降级为无据回答(db_session, official):
+    """⚠️ **口径变更（2026-06-15）**：原本断言"模型自称材料不足 → 拒答"。
+
+    实测里最常见的触发场景是**枚举型问题**：问「学校保护有哪些条文」而材料只有三条，
+    模型判"不够全"→ 整条拒答。现在改为降级为无据回答。
+    """
     from app.services.teacher_agent import _n_answer
 
     client = _StubClient([], json.dumps(
         {"answer": "资料里没有相关内容", "citations": [], "confidence": "low", "insufficient": True},
         ensure_ascii=False))
     out = _n_answer({"client": client, "question": "q", "observations": [], "mode": "grounded"})
-    assert out["refused"] is True and "insufficient" in out["refusal_reason"]
+    assert out["refused"] is False and out["ungrounded"] is True
+    assert out["answer"]["citations"] == []
