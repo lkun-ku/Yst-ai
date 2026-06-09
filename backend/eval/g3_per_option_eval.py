@@ -240,6 +240,10 @@ def main(
                     "id": key, "n": v.n, "judged": list(v.judged), "stable": v.stable,
                     "passed": v.passed, "expect": expect, "trap": trap,
                     "trap_hit": hit, "reason": reason,
+                    # `idx` = 在**整份数据集**里的序号（不是分片内序号）。
+                    # 留它是为了**能算出"还缺哪些题"**：只记题目 id 时，跨分片核缺口
+                    # 得先把 id 映射回数据集位置，而 id 顺序**不保证**等于数据集顺序。
+                    "idx": offset + i,
                     "stem": (it.get("stem") or "")[:70],
                 }
                 with jsonl.open("a", encoding="utf-8") as f:
@@ -304,6 +308,11 @@ def main(
         "",
         f"- 生成时间：{datetime.now().isoformat(timespec='seconds')}　LLM={mode_llm}　"
         f"每次投票 {settings.gate_g3_votes} 次",
+        # 分片跑（`--offset/--limit`）时，**必须让报告自己说出它覆盖的是哪一段**：
+        # 否则多份分片报告放在一起，无法判断"合并起来是否覆盖了整份数据集"、
+        # 也无法算出还缺哪些题（2026-06-15 踩到：靠记忆里的区间核缺口）。
+        f"- 数据切片：`{ds.name}` 第 {offset}–{offset + len(items) - 1} 道"
+        f"（共 {len(all_items)} 道）" + (f"　tag={tag}" if tag else ""),
         "- 判据：对每个选项独立判「是否成立」，投 N 次 → 多数表决 → 与答案键比对",
         "- 成本：**与旧判据持平**（一次调用给出所有选项的是/否，不是每个选项一次调用）",
         f"- 歧义构造：`{amb_mode}`"
