@@ -20,10 +20,11 @@
 
 ## 老分片为什么还要手写区间
 
-`p2 / p4 / p5` 三片是在"逐题落盘"和"报告写区间"**之前**跑的，产物里**没有任何位置信息** ——
-只能按它们当时的 `--offset/--limit` 记在下面的 `_LEGACY_SLICES` 里。
-⚠️ 这样做**不理想但诚实**：脚本会**先确认那份报告真的存在且是 real 模式**，才把它算进覆盖；
-文件不在就不算，于是"凭记忆claim覆盖"最坏也只会**多跑一遍**，不会漏跑。
+`p1b / p2 / p3b / p4 / p5 / s1` 是在"逐题落盘"和"报告写区间"**之前**跑的，产物里
+**没有任何位置信息** —— 只能按它们当时的 `--offset/--limit` 记在 `eval/g3_slices.py`
+那张**共享账本**里（`sum_g3_slices.py` 读的是同一张表，避免两边各写一份而分叉）。
+⚠️ 这样做**不理想但诚实**：脚本会**先确认那份报告真的存在、是 real、且不在"没测完"名单**里，
+才把它算进覆盖；不满足就不算，于是"凭记忆 claim 覆盖"最坏只会**多跑一遍**，不会漏跑。
 
 ## 用法
 
@@ -49,17 +50,17 @@ _ROOT = pathlib.Path(__file__).resolve().parent
 _RESULTS = _ROOT / "results"
 _EVAL = _ROOT / "g3_per_option_eval.py"
 
-#: 「逐题落盘」与「报告写区间」之前跑过的分片 —— 产物里没有位置信息，只能按当时命令记。
-#: 键 = tag，值 = (含首含尾的数据集序号)。**只在对应报告存在且为 real 时才计入覆盖。**
+if str(_ROOT.parent) not in sys.path:
+    sys.path.insert(0, str(_ROOT.parent))
+
+from eval.g3_slices import LEGACY_SPANS, POLLUTED_TAGS  # noqa: E402
+
+#: 可用于记账覆盖的老分片 = 账本里**非污染**的那些。
 #:
-#: ⚠️ **`p1b` / `p3b` 刻意不在此表里**：它们撞上额度耗尽，只测出 18/51 道与 0/51 道，
-#: 若按"区间已覆盖"记账会把缺口**少算**（看起来跑完了、其实没有）——
-#: 这正是本脚本要消灭的失效方式。0–29 段已由 `s1` 的逐题产物精确覆盖。
-_LEGACY_SLICES: dict[str, tuple[int, int]] = {
-    "p2": (51, 101),
-    "p4": (153, 203),
-    "p5": (204, 253),
-}
+#: ⚠️ `p1b` / `p3b` 撞上额度耗尽，只测出 18/51 与 15/51 道 —— 按"区间已覆盖"记账会把
+#: 缺口**少算**（看起来跑完了、其实没有），而那正是本脚本要消灭的失效方式。
+#: 0–29 段由 `s1` 的逐题产物精确覆盖，污染片提供不了任何额外信息。
+_LEGACY_USABLE = {t: sp for t, sp in LEGACY_SPANS.items() if t not in POLLUTED_TAGS}
 
 
 def _dataset_indices(ds: pathlib.Path) -> tuple[list[str], dict[str, int]]:
@@ -101,7 +102,7 @@ def _covered_from_md_headers(ds_stem: str) -> set[int]:
 def _covered_from_legacy(ds_stem: str) -> tuple[set[int], list[str]]:
     got: set[int] = set()
     used: list[str] = []
-    for tag, (a, b) in _LEGACY_SLICES.items():
+    for tag, (a, b) in _LEGACY_USABLE.items():
         f = _RESULTS / f"g3_per_option_{ds_stem}_{tag}.md"
         if not f.exists() or "LLM=real" not in f.read_text(encoding="utf-8"):
             continue

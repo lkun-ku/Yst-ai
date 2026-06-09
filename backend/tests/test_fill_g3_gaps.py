@@ -19,6 +19,8 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from eval import fill_g3_gaps as fill  # noqa: E402
+from eval import sum_g3_slices as sm  # noqa: E402
+from eval.g3_slices import LEGACY_SPANS, POLLUTED_TAGS  # noqa: E402
 
 
 def _write_md(dir_: pathlib.Path, stem: str, tag: str, real: bool = True) -> None:
@@ -101,15 +103,91 @@ def test_被额度污染的分片不许算成已覆盖(tmp_path, monkeypatch):
     """`p1b` 撞上额度耗尽、只测出 18/51 道。若按"区间已覆盖"记账，
     缺口会被**少算** 21 道 —— 于是报出来的 n 永远到不了 254，而看起来是跑完了。
 
-    所以它刻意不在 `_LEGACY_SLICES` 里：宁可多跑一遍，不可漏跑。
+    所以它不在 `_LEGACY_USABLE` 里：宁可多跑一遍，不可漏跑。
     """
     monkeypatch.setattr(fill, "_RESULTS", tmp_path)
     _write_md(tmp_path, "ds", "p1b")
     _write_md(tmp_path, "ds", "p3b")
     got, _used = fill._covered_from_legacy("ds")
     assert got == set()
-    assert "p1b" not in fill._LEGACY_SLICES
-    assert "p3b" not in fill._LEGACY_SLICES
+    assert "p1b" not in fill._LEGACY_USABLE
+    assert "p3b" not in fill._LEGACY_USABLE
+
+
+def test_两个脚本读的是同一张账本():
+    """账本两份就会分叉：`fill` 知道 p1b 没测完（不计覆盖），`sum` 不知道（当完整算），
+    实测报出 `n=287 > 数据集 254 道` —— 覆盖被重复计数。
+
+    所以这条断言守的不是数值，而是**"同一件事实只有一处定义"**：
+    污染片必须既在账本里（有声明区间）又被标为不可用。
+    """
+    assert set(POLLUTED_TAGS) <= set(LEGACY_SPANS), "污染片也得有声明区间，否则无法核对完整性"
+    assert set(fill._LEGACY_USABLE) == set(LEGACY_SPANS) - set(POLLUTED_TAGS)
+
+
+# ---------------- 汇总口径：没测完的片不许进主数字 ----------------
+
+
+def _slice_md(dir_: pathlib.Path, dataset: str, tag: str, n: int, span: tuple[int, int],
+              blocked: int = 0) -> None:
+    (dir_ / f"g3_per_option_{dataset}_{tag}.md").write_text(
+        f"# 报告\n- 生成时间：2026-06-15　LLM=real　每次投票 3 次\n"
+        f"- 数据切片：`x.json` 第 {span[0]}–{span[1]} 道（共 100 道）\n"
+        f"| 官方好题（n={n}） | **不该** | 0.0 | **0.0** | 越低越安全 |\n"
+        f"- 有效判定 {n} 道，其中被拦 {blocked} 道：\n",
+        encoding="utf-8",
+    )
+
+
+def test_没测完的分片不进主数字(tmp_path, monkeypatch, capsys):
+    """`p1b` 只测 18/51，它的区间与完整的片重叠 —— 相加就重复计数。
+
+    规则：`n < 声明区间长度` 的片**单列告警、不计入**（与"缺口"那边同一个判断）。
+    """
+    monkeypatch.setattr(sm, "_RESULTS", tmp_path)
+    _slice_md(tmp_path, "ds", "good", 51, (51, 101), blocked=1)
+    _slice_md(tmp_path, "ds", "p1b", 18, (0, 50), blocked=2)
+
+    assert sm.main(["ds", "good", "p1b"]) == 0
+    out = capsys.readouterr().out
+    assert "主数字（real 且测完区间）：n=51 被拦=1" in out
+    assert "没测完" in out and "p1b" in out
+
+
+def test_老分片靠账本才能核对完整性(tmp_path, monkeypatch, capsys):
+    """老报告头没写区间，只能查账本 —— 否则只能"假设它完整"，而那正是 n=287 的来源。"""
+    monkeypatch.setattr(sm, "_RESULTS", tmp_path)
+    (tmp_path / "g3_per_option_ds_p2.md").write_text(
+        "# 报告\n- 生成时间：2026-06-15　LLM=real\n"
+        "| 官方好题（n=51） | **不该** | 0.0 | **0.0** | 越低越安全 |\n"
+        "- 有效判定 51 道，其中被拦 1 道：\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sm, "_dataset_total", lambda _d: 100)
+
+    assert sm.main(["ds", "p2"]) == 0
+    out = capsys.readouterr().out
+    assert "51–101*" in out               # 区间来自账本
+    assert "主数字" in out and "n=51" in out
+    assert "覆盖：序号 51–101，去重后 51 道" in out
+
+
+def test_覆盖不足会明确报缺口而不是含糊过去(tmp_path, monkeypatch, capsys):
+    """⚠️ 报告头没写数据集总道数时，必须**去数据集文件数**，不能因为算不出就沉默 ——
+    "覆盖了 254 道"这个说法要么被算出来，要么明确报缺口。"""
+    monkeypatch.setattr(sm, "_RESULTS", tmp_path)
+    (tmp_path / "g3_per_option_ds_a.md").write_text(
+        "# 报告\n- 生成时间：2026-06-15　LLM=real\n"
+        "- 数据切片：`x.json` 第 30–50 道\n"      # 刻意不带「共 N 道」
+        "| 官方好题（n=21） | **不该** | 0.0 | **0.0** | 越低越安全 |\n"
+        "- 有效判定 21 道，其中被拦 0 道：\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sm, "_dataset_total", lambda _d: 254)
+
+    sm.main(["ds", "a"])
+    out = capsys.readouterr().out
+    assert "仍有缺口" in out and "去重后 21 道 / 数据集 254 道" in out
 
 
 # ---------------- 端到端：缺口算法 ----------------
