@@ -188,8 +188,11 @@ Page({
         ..._resolveCite(c, evidence),
       }));
 
-      // 拒答时后端 answer 为 null，用 refusal_reason 说明"为什么答不了" ——
-      // 这正是产品承诺的一半：宁可拒答，也不给一个没有出处的答案。
+      // 拒答时后端 answer 为 null，用 refusal_reason 说明"为什么答不了"。
+      // ⚠️ 产品口径已于 2026-06-15 变更：**拒答不再是"查不到"的默认出口** ——
+      // 查不到会降级为「无依据·通识回答」（`ungrounded`，带显式标注）。
+      // 真正的拒答现在只留给两种情况：回答解析失败、或引用无法在材料中定位（疑似编造）。
+      // 别再按"宁可拒答"改回去：那会让用户什么都拿不到（见 services/teacher_agent.py 的同类注释）。
       const content = body.refused
         ? body.refusal_reason || "这个问题在官方语料里找不到可引用的依据，暂时不能作答。"
         : body.answer || "";
