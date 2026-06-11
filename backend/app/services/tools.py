@@ -396,15 +396,19 @@ def decide(
     question: str,
     observations: list[dict] | None,
     max_calls: int,
+    history: list[dict] | None = None,
 ) -> dict | None:
     """让模型选下一步动作（结构化文本契约，见模块 docstring）。
 
     返回 `{"tool", "args", "reason"}`；**解析失败或模型不可用返回 None** ——
     调用方按"决策不可用"降级（通常退化为直接检索一次），而不是让整个问答失败。
+    `history`：多轮下必须给，否则模型会拿「第三条呢」这四个字去调工具。
     """
     from .prompts_teacher import parse_tool_decision, tool_decision_prompt
 
-    text = client.ask(tool_decision_prompt(question, observations, tool_blocks(), max_calls))
+    text = client.ask(
+        tool_decision_prompt(question, observations, tool_blocks(), max_calls, history)
+    )
     if not text:
         return None
     return parse_tool_decision(text)

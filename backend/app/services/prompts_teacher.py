@@ -53,13 +53,19 @@ def tool_decision_prompt(
     observations: list[dict] | None,
     tool_blocks: str,
     max_calls: int,
+    history: list[dict] | None = None,
 ) -> str:
-    """让模型决定下一步：调哪个工具，还是直接作答。"""
+    """让模型决定下一步：调哪个工具，还是直接作答。
+
+    `history`：agent 模式同样需要它 —— 决策里包含**用什么查询去调工具**，
+    而多轮的第二句往往只有指代（「第三条呢」）。不给历史，模型只能拿这四个字去查。
+    """
     used = len(observations or [])
+    hist = f"【对话历史】\n{history_block(history)}\n\n" if history else ""
     return (
         "你是教资备考问答老师的**检索调度器**。判断为了回答问题还需要查什么，"
         "然后只输出一个 JSON 决策，不要任何解释文字或代码块围栏。\n\n"
-        f"用户问题：{question}\n\n"
+        f"用户问题：{question}\n\n{hist}"
         f"可用工具：\n{tool_blocks}\n\n"
         f"已用轮次：{used}/{max_calls}\n\n"
         f"已有的观察结果：\n{_observations_block(observations)}\n"
@@ -72,8 +78,45 @@ def tool_decision_prompt(
     )
 
 
+def history_block(history: list[dict] | None) -> str:
+    """把最近几轮对话排成提示词里的历史块（**倒序→正序**，并在每条前标角色）。"""
+    rows = []
+    for h in history or []:
+        role = "考生" if str(h.get("role")) == "user" else "老师"
+        rows.append(f"{role}：{str(h.get('content') or '').strip()}")
+    return "\n".join(rows)
+
+
+def teacher_rewrite_prompt(question: str, history: list[dict] | None) -> str:
+    """**多轮的关键一步**：把带指代的追问补全成一个能拿去检索的独立查询。
+
+    ## 为什么必须做
+
+    检索发生在**作答之前**，它只看得到查询串。而多轮里第二句往往是
+    「第三条呢」「那它要多久」「接着说」这类**指代**——它们在检索层没有任何词可匹配。
+    拿它去检索，返回的是"凑数的 top-k"，而**看起来一切正常**（有结果、有引用），
+    只是全不相干。这是多轮最典型的静默失效：错得不响。
+
+    ⚠️ 用自己的标记「【多轮改写】」而**不复用**出题链路的「【查询改写】」：
+    那个分支的替身是"原样返回标记之后的整段文本"，到这里会取到空首行 ——
+    虽然我的实现会回退原问题（不会崩），但那是**兜底生效**而不是**语义正确**。
+    自有标记 + 自有替身 = fake 下确实是恒等变换，多轮链路的其它部分仍可离线验证。
+    """
+    return (
+        "【多轮改写】\n"
+        "下面是考生与老师的最近几轮对话，以及考生的**新问题**。"
+        "请把新问题改写成一个**不依赖上下文就能独立检索**的完整查询"
+        "（把「它」「上面那条」「第三条」这类指代补成具体对象与主题词）。\n\n"
+        f"【对话历史】\n{history_block(history) or '（无）'}\n\n"
+        f"新问题：{question}\n\n"
+        "输出要求：**只输出改写后的那一条查询**，一行，不要解释、不要标点包装；"
+        "若新问题本身已经自足（不依赖上下文），就原样输出它。\n"
+    )
+
+
 def teacher_answer_prompt(
-    question: str, observations: list[dict] | None, ungrounded: bool = False
+    question: str, observations: list[dict] | None, ungrounded: bool = False,
+    history: list[dict] | None = None,
 ) -> str:
     """依据观察结果作答，**强制带引用**。
 
@@ -83,11 +126,15 @@ def teacher_answer_prompt(
     ⚠️ **两种情况必须用不同的措辞**：有据时 `insufficient` 是合法出口（防硬编，这条不能松）；
     但无据时若还留着"材料不足就置 true"，模型会**再报一次 insufficient** —— 兜底就白做了。
     """
+    # 多轮：历史放进提示词，模型才能理解"第三条呢"指的是谁。
+    # ⚠️ 历史**不能替代检索改写**（见 `teacher_rewrite_prompt`）：改写在检索之前起作用，
+    # 这里只是让作答措辞连贯。
+    hist = f"【对话历史】\n{history_block(history)}\n\n" if history else ""
     if ungrounded:
         return (
             "你是教资备考问答老师。**本次没有检索到任何资料**（资料库无相关内容）。"
             "只输出 JSON，不要解释文字或代码块围栏。\n\n"
-            f"用户问题：{question}\n\n"
+            f"用户问题：{question}\n\n{hist}"
             "输出字段：\n"
             "1. answer：用你掌握的知识作答（口语、分点、不要客套话）。"
             "**第一句必须写明**：「资料库中没有找到对应依据，以下是通识性回答，请以官方教材为准」。\n"
@@ -103,7 +150,7 @@ def teacher_answer_prompt(
     return (
         "你是教资备考问答老师。只能依据下方【观察结果】中的材料回答，"
         "禁止引入材料之外的知识。只输出 JSON，不要解释文字或代码块围栏。\n\n"
-        f"用户问题：{question}\n\n"
+        f"用户问题：{question}\n\n{hist}"
         f"【观察结果】\n{_observations_block(observations)}\n"
         "输出字段：\n"
         "1. answer：面向考生的回答（口语、分点、不要客套话）。\n"

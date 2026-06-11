@@ -51,9 +51,17 @@ class Citation(BaseModel):
     source: str = ""
 
 
+class HistoryTurn(BaseModel):
+    role: str = "user"
+    content: str = ""
+
+
 class TeacherAskIn(BaseModel):
     question: str
     mode: str = "grounded"
+    #: 多轮：最近几轮对话。**只在非空时**才会多花一次"查询改写"调用（单轮不花）。
+    #: 长度与单条字数的裁剪在 `teacher_agent._trim_history` 一处做（出口统一）。
+    history: list[HistoryTurn] = []
     #: 是否把官方语料（考纲/法条）纳入检索范围。关掉即"只查我自己的资料"
     include_official: bool = True
     subject: str | None = None  # 领域包名（预留：Scope 的科目过滤尚未落到 SQL）
@@ -71,6 +79,8 @@ class TeacherAskOut(BaseModel):
     #: 无据兜底：回答来自模型通识、**没有资料佐证**。前端必须显式提示，不得与有据回答同款展示。
     ungrounded: bool = False
     notice: str = ""
+    #: 多轮下**实际**拿去检索的查询（已按上下文补全指代）—— 便于排查"改写错了"
+    retrieval_query: str = ""
     evidence: list[dict]
     observations: list[dict]
     tool_calls: int
@@ -118,7 +128,15 @@ def teacher_ask(
         subject=body.subject,
         stage=body.stage,
     )
-    result = agent_ask(db, c.id, question, scope, mode=body.mode, client=llm)
+    result = agent_ask(
+        db,
+        c.id,
+        question,
+        scope,
+        mode=body.mode,
+        client=llm,
+        history=[t.model_dump() for t in body.history],
+    )
     return TeacherAskOut(
         question=question,
         mode=result["mode"],
@@ -129,6 +147,7 @@ def teacher_ask(
         refusal_reason=result["refusal_reason"],
         ungrounded=result.get("ungrounded", False),
         notice=result.get("notice", ""),
+        retrieval_query=result.get("retrieval_query", question),
         evidence=_evidence_out(result["evidence"]),
         observations=result["observations"],
         tool_calls=result["tool_calls"],

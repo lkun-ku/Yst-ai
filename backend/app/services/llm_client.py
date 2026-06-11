@@ -157,6 +157,12 @@ class FakeLLMClient(LLMClient):
             return json.dumps({"questions": items}, ensure_ascii=False)
         if "【生成主观题】" in prompt:
             return _fake_subjective(prompt)
+        if "【多轮改写】" in prompt:
+            # 多轮改写：**原样返回当前问题**（恒等变换）。
+            # 替身若编一个"改写结果"，多轮链路的断言就只能测到那个编造值；
+            # 恒等变换下，`_retrieval_query` 的"失败/空则回退"才是被真正验证的那个行为。
+            m = re.search(r"新问题：(.*)", prompt)
+            return m.group(1).strip() if m else ""
         if "【主观题批改】" in prompt:
             return _fake_marking(prompt)
         if "【盲答投票】" in prompt:

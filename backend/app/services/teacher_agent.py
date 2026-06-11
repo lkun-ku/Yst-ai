@@ -50,7 +50,11 @@ from langgraph.graph import END, START, StateGraph
 
 from ..config import settings
 from .citation import verify_payloads
-from .prompts_teacher import parse_teacher_answer, teacher_answer_prompt
+from .prompts_teacher import (
+    parse_teacher_answer,
+    teacher_answer_prompt,
+    teacher_rewrite_prompt,
+)
 from .tools import (
     ANSWER,
     TOOLS_BY_NAME,
@@ -73,6 +77,10 @@ class TeacherState(TypedDict, total=False):
     client: object
     candidate_id: int
     question: str
+    #: 多轮：最近几轮 {role, content}。检索与实际作答都要用它（见 `_retrieval_query`）
+    history: list
+    #: 多轮下**真正拿去检索**的查询（改写后的）；单轮时等于 question
+    retrieval_query: str
     mode: str
     scope: object
     embed_fn: object
@@ -135,6 +143,52 @@ def _run_tool(s: TeacherState, name: str, args: dict) -> dict:
 
 # ---------------- 图节点 ----------------
 
+#: 多轮：进提示词的历史轮数 / 单条字数上限。
+#: 两重约束 —— **成本**（历史越长越贵）与**注入面**（历史里可能有用户粘贴的任意文本，
+#: 而提示词注入正是本产品要防的东西）。所以进模型前先裁剪，而不是照单全收。
+MAX_HISTORY_TURNS = 6
+MAX_HISTORY_CHARS = 400
+
+
+def _trim_history(history: list[dict] | None) -> list[dict]:
+    """只保留最近若干轮、裁掉单条过长内容。**不改角色、不编内容**。"""
+    out: list[dict] = []
+    for h in (history or [])[-MAX_HISTORY_TURNS:]:
+        raw = h or {}
+        content = str(raw.get("content") or "").strip()[:MAX_HISTORY_CHARS]
+        if content:
+            out.append({"role": "user" if str(raw.get("role")) == "user" else "ai", "content": content})
+    return out
+
+
+def _retrieval_query(s: TeacherState) -> str:
+    """多轮下**真正拿去检索**的查询：用历史把指代补全（见 `teacher_rewrite_prompt`）。
+
+    为什么不能只把历史塞进作答提示词：检索发生在**作答之前**，它只看得到查询串。
+    而多轮的第二句往往是「第三条呢」「那它要多久」这类**指代** —— 在检索层没有任何词可匹配。
+    拿它去检索，返回的是"凑数的 top-k"，而**看起来一切正常**（有结果、有引用），只是全不相干。
+    这是多轮最典型的静默失效：错得不响。
+
+    单轮不额外花一次调用（直接返回原问题）；改写失败/为空也**回退原问题** ——
+    绝不因为改写失败把检索变成空查询（那会把"能答"变成"拒答"）。
+    """
+    q = s["question"]
+    if not s.get("history"):
+        return q
+    try:
+        text = s["client"].ask(teacher_rewrite_prompt(q, s.get("history")))
+    except Exception:  # noqa: BLE001 — 改写是优化，失败不该让问答整体失败
+        return q
+    # 取**首个非空行**（不是第 0 行）：模型返回纯空白时 `splitlines()[0]` 会越界 ——
+    # 实测踩到（测试先红）。空则回退原问题。
+    first = ""
+    for line in (text or "").splitlines():
+        if line.strip():
+            first = line.strip()
+            break
+    return first[:200] or q
+
+
 def _n_plan(s: TeacherState) -> dict:
     """准备阶段：`grounded` 在这里直接检索一次（不做决策），`plain` 什么都不查。"""
     mode = s.get("mode") or "grounded"
@@ -142,14 +196,19 @@ def _n_plan(s: TeacherState) -> dict:
         _emit(s, "plan", "无据版对照：跳过检索，直接作答")
         return {"observations": [], "calls": 0}
     if mode == "grounded":
-        res = _run_tool(s, FALLBACK_TOOL, {"query": s["question"]})
+        # 多轮：先把指代补全成独立查询，再去检索（这是多轮能不能用的关键一步）
+        query = _retrieval_query(s)
+        if query != s["question"]:
+            _emit(s, "rewrite", f"检索查询已按上下文补全：{query}")
+        res = _run_tool(s, FALLBACK_TOOL, {"query": query})
         _emit(s, "retrieve", f"检索完成（{'成功' if res.get('ok') else '失败'}）")
         obs = [observe(FALLBACK_TOOL, res)]
         calls = 1
         # 确定性前置：问题里出现「X第N条」就直接走结构化定位（不经过模型决策）。
         # 只靠 search_kb 时，条号类问题会召回一堆没回答它的材料 → 模型**正确地**判
         # insufficient → 误拒。实测：grounded 误拒率 0.1、agent（可调 lookup_law）0.0。
-        ref = find_law_reference(s["question"])
+        # ⚠️ 改写后的查询也要试：多轮里条号可能只在**这一句**（「第三条呢」）或**历史**里出现。
+        ref = find_law_reference(s["question"]) or find_law_reference(query)
         if ref:
             res2 = _run_tool(s, "lookup_law", ref)
             if res2.get("items"):
@@ -160,7 +219,7 @@ def _n_plan(s: TeacherState) -> dict:
                 # 库里没有该条号：**别静默吞掉**。它不改变判定（无证据、不引入误答），
                 # 但排查时要能看见"这一步跑过了、只是没命中"。
                 _emit(s, "observation", f"lookup_law 未命中 {ref['law']}{ref['article']}")
-        return {"observations": obs, "calls": calls}
+        return {"observations": obs, "calls": calls, "retrieval_query": query}
     _emit(s, "plan", "Agent 模式：由模型决定查什么")
     return {"observations": [], "calls": 0}
 
@@ -177,7 +236,9 @@ def _route_after_plan(s: TeacherState) -> str:
 def _n_tool_call(s: TeacherState) -> dict:
     """让模型选下一步。模型不可用/解析失败 → 兜底检索一次（不阻断链路）。"""
     max_calls = s.get("max_calls") or settings.agent_max_tool_calls
-    decision = decide(s["client"], s["question"], s.get("observations"), max_calls)
+    decision = decide(
+        s["client"], s["question"], s.get("observations"), max_calls, s.get("history")
+    )
 
     if decision is None:
         # 决策失败不等于问答失败：用兜底工具把材料找回来，下一轮再让模型作答
@@ -288,7 +349,9 @@ def _ungrounded_answer(s: TeacherState) -> dict | None:
 
 
 def _n_answer(s: TeacherState) -> dict:
-    text = s["client"].ask(teacher_answer_prompt(s["question"], s.get("observations")))
+    text = s["client"].ask(
+        teacher_answer_prompt(s["question"], s.get("observations"), history=s.get("history"))
+    )
     parsed = parse_teacher_answer(text) if text else None
     if not parsed:
         # 解析不出来 → 转拒答。**不编一个回答**：那是本产品最不能犯的错。
@@ -390,6 +453,7 @@ def ask(
     client=None,
     max_calls: int | None = None,
     on_event=None,
+    history: list[dict] | None = None,
 ) -> dict:
     """问答老师主入口。**不抛异常**：任何降级都表达在返回值里。
 
@@ -401,9 +465,12 @@ def ask(
           "evidence": [切片],          # 供前端"依据 N 处"展示
           "tool_calls": int,
           "citation": {...},           # 引用校验计数
+          "retrieval_query": str,      # 多轮下**实际**拿去检索的查询（已按上下文补全）
         }
 
     `mode` 见模块 docstring；`on_event(type, text, detail)` 供前端渲染时间线。
+    `history`：最近几轮 `{role, content}`（多轮对话）。**只有它不为空时才会多花一次
+    改写调用** —— 单轮的检索查询就是原问题本身，不做无谓改写。
     """
     from .llm_client import get_llm_client
 
@@ -420,6 +487,7 @@ def ask(
         "observations": [],
         "calls": 0,
         "on_event": on_event,
+        "history": _trim_history(history),
     }
     result = _GRAPH.invoke(state, {"recursion_limit": 25})
 
@@ -441,4 +509,6 @@ def ask(
         "evidence": _evidence_chunks(result),
         "tool_calls": result.get("calls", 0),
         "citation": result.get("citation") or {},
+        # 可观测：多轮时前端/日志能看到"实际拿什么去检索的"，否则改写错了无从发现
+        "retrieval_query": result.get("retrieval_query") or question,
     }

@@ -127,6 +127,30 @@ Page({
     this.setData({ [`msgs[${i}].citeOpen`]: !row.citeOpen });
   },
 
+  /**
+   * 多轮：把已有对话整理成后端要的历史。
+   *
+   * 三个细节，都不是小事：
+   * - 取 `content` 而不是 `shown` —— `shown` 是逐字动画的中间态，送出去会是半句话；
+   * - 跳过错误气泡与仍在打字的那条 —— 把它们当历史会把"请求失败"喂给模型；
+   * - **去掉当前这一问**：它在发请求前就已入气泡（见 `_ask`），不删会与 `question` 重复。
+   *   （后端还会再裁一次轮数与单条长度，出口统一在 `teacher_agent._trim_history`。）
+   */
+  _history(current) {
+    const rows = [];
+    for (const m of this.data.msgs) {
+      if (m.error || m.typing) continue;
+      const content = (m.content || "").trim();
+      if (!content) continue;
+      rows.push({ role: m.role === "user" ? "user" : "ai", content });
+    }
+    const last = rows[rows.length - 1];
+    if (last && last.role === "user" && last.content === String(current || "").trim()) {
+      rows.pop();
+    }
+    return rows.slice(-6);
+  },
+
   /* ---------------- 提问 ---------------- */
 
   async onSend() {
@@ -150,7 +174,12 @@ Page({
     try {
       const body = await request("/api/teacher/ask", {
         method: "POST",
-        data: { question, mode: this.data.mode, include_official: true },
+        data: {
+          question,
+          mode: this.data.mode,
+          include_official: true,
+          history: this._history(question),
+        },
       });
 
       const evidence = body.evidence || [];
