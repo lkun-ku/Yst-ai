@@ -473,6 +473,14 @@ class Document(Base):
         Boolean, default=False, server_default=false(), nullable=False, index=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    #: 上传时**解析得到的原文文本**（纯文本，不是原始二进制，也不是 HTML）。
+    #:
+    #: 为什么要留它（2026-06-15 实测反馈："查看资料看到的是切分后的，没法看原文"）：
+    #: A3 决策删掉的是**原始文件**（降低版权暴露面），而正文本来就以切片形式全在库里 ——
+    #: 再留一份**连续文本不增加任何暴露面**，却让"看原文"变成读原文，而不是**重建**。
+    #: 重建是有损的：实测 7980 → 7935 字，少掉的正是章节标题行（被提取成 `heading_path`）。
+    #: 存量资料此列为 NULL → 详情接口回退到"按 seq 拼接切片"，并**如实标注**那是重建文本。
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class DocumentChunk(Base):

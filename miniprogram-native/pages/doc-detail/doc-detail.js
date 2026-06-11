@@ -1,4 +1,5 @@
 import { request, ensureIdentity, toastApiError, requestChunk, getUnionid, BASE } from "../../utils/api.js";
+import { parseMd } from "../../utils/mdtext.js";
 
 /** 可用微信原生预览的文件类型；txt/md 无排版，直接看切片全文（按 seq 拼接即原文顺序） */
 const PREVIEWABLE = new Set(["pdf", "docx", "doc"]);
@@ -16,14 +17,18 @@ const PREVIEWABLE = new Set(["pdf", "docx", "doc"]);
  * 逐字核对（发现段落被合并了），然后以为产品把资料弄坏了。
  */
 function _fullNote(f) {
-  const parts = ["以下全文由该资料的切片按原文顺序拼接（已合并重叠部分）"];
-  if (!f.has_original_file) {
-    parts.push("上传时的原文件未保留，此处为重建文本，分段与排版可能与原文件略有差异");
+  const parts = [];
+  if (f.source === "original") {
+    // 上传时留存的原文 —— 这才是"看原文"，不是重建
+    parts.push("这是上传时解析得到的原文");
+  } else {
+    parts.push("以下全文由该资料的切片按原文顺序拼接（已合并重叠部分）");
+    parts.push("该资料上传时未留存原文，此处为重建文本，分段与排版可能与原文件略有差异");
+    // 实测（上传 7980 字 → 重建 7935 字）：少掉的正是**章节标题行** ——
+    // 解析时被提取成章节信息（「按片段」视图里显示为分组标题），正文中不再重复。
+    // 不说这一句，用户会数着字数以为丢了内容。
+    parts.push("章节标题在解析时被提取为章节信息，正文中不再重复");
   }
-  // 实测（上传 7980 字 → 全文 7935 字）：少掉的正是**章节标题行** ——
-  // 解析时被提取成章节信息（「按片段」视图里就显示为分组标题），正文中不再重复。
-  // 不说这一句，用户会数着字数以为丢了内容。
-  parts.push("章节标题在解析时被提取为章节信息，正文中不再重复");
   if (f.truncated) parts.push("内容过长，此处只展示前一部分");
   return `${parts.join("；")}。`;
 }
@@ -37,6 +42,9 @@ Page({
     //: 视图：chunks（按片段，默认）/ full（连续全文，按需拉取）
     view: "chunks",
     full: null,
+    //: 全文的**块结构**（由 `parseMd` 处理）：标题/段落/列表/表格各自渲染，
+    //: 而不是把 markdown 原样丢进一个 <text>（那样表格会是一堆 `| --- |`）
+    fullBlocks: [],
     fullLoading: false,
     fullNote: "",
   },
@@ -88,7 +96,12 @@ Page({
     this.setData({ fullLoading: true });
     try {
       const f = await request(`/api/documents/${this._id}/full`);
-      this.setData({ full: f, fullLoading: false, fullNote: _fullNote(f) });
+      this.setData({
+        full: f,
+        fullBlocks: parseMd(f.text),
+        fullLoading: false,
+        fullNote: _fullNote(f),
+      });
     } catch (err) {
       this.setData({ fullLoading: false });
       toastApiError(err);

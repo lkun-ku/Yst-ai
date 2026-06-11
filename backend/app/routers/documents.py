@@ -239,6 +239,9 @@ def upload_document(
             chunk_count=len(chunks),
             status="parsed",
             storage_path="",
+            # 留一份**原文文本**：原始文件按 A3 不保留（版权暴露面），但正文本来就以切片
+            # 形式全在库里，再留连续文本不增加暴露面，却让"查看原文"不必靠重建（有损）。
+            content=text,
         )
         db.add(doc)
         db.flush()
@@ -356,13 +359,19 @@ def get_document_full(
     doc = db.get(Document, doc_id)
     if doc is None or doc.candidate_id != c.id:
         raise HTTPException(404, "资料不存在")
-    rows = (
-        db.query(DocumentChunk.content)
-        .filter(DocumentChunk.document_id == doc.id)
-        .order_by(DocumentChunk.seq)
-        .all()
-    )
-    text = doc_parser.join_chunks([r[0] or "" for r in rows])
+    # **优先给原文**（上传时留存的连续文本）；存量资料没有它，才回退到"拼接切片"。
+    # 回退时必须让前端知道这是**重建**文本（少章节标题行、分段可能与原文件不同），
+    # 否则用户会拿它逐字核对，然后以为产品把资料弄坏了。
+    if doc.content:
+        text, source = doc.content, "original"
+    else:
+        rows = (
+            db.query(DocumentChunk.content)
+            .filter(DocumentChunk.document_id == doc.id)
+            .order_by(DocumentChunk.seq)
+            .all()
+        )
+        text, source = doc_parser.join_chunks([r[0] or "" for r in rows]), "restitched"
     return DocumentFullOut(
         id=doc.id,
         title=doc.title,
@@ -372,6 +381,7 @@ def get_document_full(
         text=text[:MAX_FULL_CHARS],
         truncated=len(text) > MAX_FULL_CHARS,
         has_original_file=bool(doc.storage_path) and os.path.exists(doc.storage_path),
+        source=source,
     )
 
 

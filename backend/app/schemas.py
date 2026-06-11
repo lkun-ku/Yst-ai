@@ -205,6 +205,9 @@ class DocumentFullOut(BaseModel):
     text: str
     truncated: bool = False
     has_original_file: bool = False
+    #: `original` = 上传时留存的**原文**；`restitched` = 存量资料，由切片按 seq **重建**
+    #: （会少掉章节标题行）。前端据此决定提示语 —— 不能让用户把重建文本当成原文。
+    source: str = "restitched"
 
 
 class DocumentRenameIn(BaseModel):

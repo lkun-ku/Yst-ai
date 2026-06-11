@@ -120,3 +120,99 @@ page {
   word-break: break-all;
   white-space: pre-wrap;
 }
+
+/* ---------------- 全文的 markdown 块 ---------------- */
+/* 目标只有一个：**让它读起来像一份文档**。不做花哨排版（这是备考资料，不是杂志）。 */
+
+.md-h {
+  display: block;
+  margin: 24rpx 0 10rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.md-h1 {
+  font-size: 34rpx;
+}
+
+.md-h2 {
+  font-size: 31rpx;
+}
+
+.md-h3,
+.md-h4,
+.md-h5,
+.md-h6 {
+  font-size: 28rpx;
+  color: #374151;
+}
+
+.md-p {
+  display: block;
+  margin-bottom: 14rpx;
+  font-size: 27rpx;
+  line-height: 1.8;
+  color: #3c4450;
+  word-break: break-all;
+}
+
+.md-li {
+  display: block;
+  margin-bottom: 8rpx;
+  padding-left: 16rpx;
+  font-size: 27rpx;
+  line-height: 1.7;
+  color: #3c4450;
+  word-break: break-all;
+}
+
+.md-code {
+  display: block;
+  margin-bottom: 14rpx;
+  padding: 16rpx 20rpx;
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  font-family: Menlo, Consolas, monospace;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #4b5563;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 表格：横向可滚动（资料里的表格往往比屏宽），首行加底色当表头 */
+.md-table {
+  margin-bottom: 16rpx;
+  border: 1rpx solid var(--border);
+  border-radius: var(--r-sm);
+  overflow-x: auto;
+}
+
+.md-tr {
+  display: flex;
+  border-bottom: 1rpx solid var(--border);
+}
+
+.md-tr:last-child {
+  border-bottom: none;
+}
+
+.md-tr:first-child {
+  background: var(--bg);
+}
+
+.md-td {
+  flex: 1;
+  min-width: 140rpx;
+  padding: 10rpx 16rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #3c4450;
+  border-right: 1rpx solid var(--border);
+  word-break: break-all;
+}
+
+.md-td:last-child {
+  border-right: none;
+}

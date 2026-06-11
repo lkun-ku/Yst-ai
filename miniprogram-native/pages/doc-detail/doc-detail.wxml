@@ -42,7 +42,25 @@
           <text>{{fullNote}}</text>
         </view>
         <view class="card">
-          <text class="full-text" user-select>{{full.text}}</text>
+          <!-- 按块渲染：标题像标题、表格像表格、列表像列表。
+               直接把 markdown 丢进一个 <text> 的话，表格会显示成 `| --- |` —— 那正是用户
+               说的"看到的是切分后的"（其实不是切片，是**没有被当作文档读**）。 -->
+          <block wx:for="{{fullBlocks}}">
+            <text
+              wx:if="{{item.type === 'h'}}"
+              class="md-h md-h{{item.level}}"
+              user-select
+            >{{item.text}}</text>
+            <text wx:elif="{{item.type === 'li'}}" class="md-li" user-select>{{item.ordered ? "· " : "• "}}{{item.text}}</text>
+            <text wx:elif="{{item.type === 'code'}}" class="md-code" user-select>{{item.text}}</text>
+            <view wx:elif="{{item.type === 'table'}}" class="md-table">
+              <view wx:for="{{item.rows}}" wx:for-item="row" wx:for-index="ri" class="md-tr">
+                <text wx:for="{{row}}" wx:for-item="cell" wx:for-index="ci" class="md-td" user-select>{{cell}}</text>
+              </view>
+            </view>
+            <text wx:else class="md-p" user-select>{{item.text}}</text>
+          </block>
+          <view wx:if="{{!fullBlocks.length}}" class="t-muted">（该资料无可展示的文本）</view>
         </view>
       </block>
       <view wx:else class="card t-muted">全文加载失败，可切回「按片段」逐段查看</view>
