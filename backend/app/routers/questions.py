@@ -35,6 +35,7 @@ from ..models import (
     Question,
     QuestionType,
 )
+from ..services.llm_client import LLMClient, get_llm_client
 from ..services.qt import DEFAULT_QTYPE, SUBJECTIVE_QTYPES
 
 router = APIRouter(prefix="/api/questions")
@@ -117,6 +118,57 @@ def practice_question(
         options=_parse_options(q.options),
         aigc_flag=bool(q.aigc_flag),
     )
+
+
+def get_llm_client_dep() -> LLMClient:
+    """可覆写的 LLM 客户端依赖（与 `teacher.py` / `marking.py` 同一约定：测试注入 fake）。"""
+    return get_llm_client()
+
+
+class GenerateSubjectiveIn(BaseModel):
+    qtype: str = "material"
+
+
+class GeneratedSubjectiveOut(BaseModel):
+    """AI 现出的主观题（**不落库**）。"""
+
+    qtype: str
+    label: str
+    score: int
+    stem: str
+    #: 出题依据（官方语料切片）—— 前端展示"这题依据什么出的"
+    basis: list[dict] = []
+    aigc_flag: bool = True
+    #: 来源说明：AI 现出、**不是真题**。前端必须显示，否则用户会当成真题
+    note: str = ""
+
+
+@router.post("/generate-subjective", response_model=GeneratedSubjectiveOut)
+def generate_subjective_question(
+    body: GenerateSubjectiveIn,
+    _c: Candidate = Depends(get_current_candidate),
+    db: ORMSession = Depends(get_db),
+    llm: LLMClient = Depends(get_llm_client_dep),
+) -> GeneratedSubjectiveOut:
+    """按题型**现出一道主观题**（RAG for Generation 的主观题分支）。
+
+    为什么不是"从题库抽"：题库里主观题 **0 条** —— 按 ADR-0003 真题原文不入库，
+    而既有出题链路只产选择题，主观题从来没有被生产过（见 `services/subjective_gen.py`）。
+
+    ⚠️ 生成失败返回 **502**（而不是 500）：那是"上游模型没产出合格结果"，可重试；
+    前端据此提示"再点一次"，与"代码崩了"分开。
+    """
+    # 「其它主观题」标签发 `default`，语义是"随便给我出一道" —— 落到最标准的材料分析题。
+    qtype = "material" if body.qtype == ANY_SUBJECTIVE else body.qtype
+    if qtype not in PRACTICE_QTYPES:
+        raise HTTPException(400, f"不支持生成的主观题型：{body.qtype}")
+
+    from ..services import subjective_gen
+
+    out = subjective_gen.generate_subjective(db, qtype, llm)
+    if out.get("error"):
+        raise HTTPException(502, out["error"])
+    return GeneratedSubjectiveOut(**out)
 
 
 def _parse_options(raw: str | None) -> list[dict]:

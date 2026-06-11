@@ -74,6 +74,21 @@
   color: var(--ink-500);
 }
 
+/* AI 出题的来源说明：用「信息」色 —— 这是如实交代，不是警示。
+   它必须和正文明显不同，否则用户会跳过它并把 AI 现出的题当成真题。 */
+.gen-note {
+  margin-bottom: 12rpx;
+  padding: 12rpx 20rpx;
+  border-radius: var(--r-sm);
+  background: var(--accent-light);
+}
+
+.gen-note text {
+  font-size: 22rpx;
+  line-height: 1.6;
+  color: var(--accent);
+}
+
 /* ---------------- 输入区 ---------------- */
 .stem-input,
 .answer-input {

@@ -57,6 +57,10 @@ Page({
     stemOpen: true,
     //: 取题后的出处提示（题目 id / 模块 / 考点）—— 可追溯是产品的核心承诺之一
     drawnFrom: "",
+    // AI 出题的来源说明与依据条数（**必须显示**：否则用户会把 AI 现出的题当成真题）
+    genNote: "",
+    genBasis: 0,
+    generating: false,
     answer: "",
     canSubmit: false,
     loading: false,
@@ -132,17 +136,25 @@ Page({
    * 后端已排除三类题源（未审校 / 占位模板 / 他人的个人题），前端**不再重复判断** ——
    * 过滤条件必须只有一处，两处各写一份必然分叉。
    */
-  async onDraw() {
-    if (this.data.loading) return;
-    this.setData({ canSubmit: false });
+  async onGenerate() {
+    if (this.data.generating) return;
+    this.setData({ generating: true, canSubmit: false });
     try {
-      const q = await request(`/api/questions/practice?qtype=${this.data.qtype}`);
-      const stem = q.stem || "";
+      // 题库里没有主观题（ADR-0003 真题原文不入库 + 既有出题链路只产选择题），
+      // 所以这里改为**AI 现出一道**（后端 `subjective_gen`：检索考纲 → 生成 → 结构校验）。
+      const g = await request("/api/questions/generate-subjective", {
+        method: "POST",
+        data: { qtype: this.data.qtype },
+      });
+      const stem = g.stem || "";
       this.setData({
         stem,
         stemPreview: stem.length > 80 ? `${stem.slice(0, 80)}…` : stem,
         stemOpen: true,
-        drawnFrom: `已取题 #${q.id}　${q.module}　${q.knowledge_point}`,
+        drawnFrom: `AI 出题 · ${g.label} · ${g.score} 分`,
+        // 来源说明必须展示：否则用户会把 AI 现出的题当成真题
+        genNote: g.note || "",
+        genBasis: (g.basis || []).length,
         // ⚠️ 换题必须清掉上一道题的批改结果 —— 否则用户会看到**上一个题目**的四维度评分，
         // 而且它会与当前题目一起被截图/误信。这类"陈旧结果"不报错、最难发现。
         result: null,
@@ -155,10 +167,11 @@ Page({
         canSubmit: !!(stem || "").trim() && !!(this.data.answer || "").trim(),
       });
     } catch (e) {
-      // 404 表示"题库里暂时没有该类合格题"，后端会在 detail 里说明原因 ——
-      // 原样透传，不要替换成"网络错误"那类含糊文案。
+      // 502 表示"模型这次没产出合格的题"，可重试；后端 detail 里写了原因，原样透传。
       toastApiError(e);
       this.setData({ canSubmit: this._canSubmit(this.data.stem, this.data.answer) });
+    } finally {
+      this.setData({ generating: false });
     }
   },
 

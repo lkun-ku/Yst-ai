@@ -155,6 +155,8 @@ class FakeLLMClient(LLMClient):
                 "个人资料-考点", qtype, count, quote=_quote_from_prompt(prompt)
             )
             return json.dumps({"questions": items}, ensure_ascii=False)
+        if "【生成主观题】" in prompt:
+            return _fake_subjective(prompt)
         if "【主观题批改】" in prompt:
             return _fake_marking(prompt)
         if "【盲答投票】" in prompt:
@@ -549,6 +551,26 @@ def _fake_teacher_answer(prompt: str) -> str:
         },
         ensure_ascii=False,
     )
+
+
+def _fake_subjective(prompt: str) -> str:
+    """确定性主观题：**必须过得了 G1 结构校验**（与其它替身同一条约定）。
+
+    替身若产出不合法结构（题干过短 / 没有作答指令），fake 模式下这条链路永远走不到
+    成功分支 —— "AI 能出主观题"这件事在离线环境里就无从验证。
+    所以这里的题干长度是**刻意**拉到 200 字以上的（结构校验对材料分析题有此下限）。
+    """
+    m = re.search(r"一道(\S+?)\*\*", prompt)
+    label = m.group(1) if m else "材料分析题"
+    stem = (
+        f"（替身生成的{label}）材料：某中学初二（3）班的李老师在讲《看云识天气》一课时，"
+        "没有直接给出结论，而是先让学生观察窗外的云，再分组记录云的形状与变化，"
+        "最后请各组说明自己的判断依据；有学生答错时他不直接否定，而是追问「你是怎么想的」，"
+        "引导该生自己发现矛盾。课后他还把学生的记录整理成展板贴在教学楼走廊，"
+        "让其他班级的同学也能补充。一个学期下来，学生提问的次数明显变多了。"
+        "请从教育观（素质教育观与新课改的教学观）的角度评析李老师的做法。（14 分）"
+    )
+    return json.dumps({"stem": stem}, ensure_ascii=False)
 
 
 def _fake_marking(prompt: str) -> str:

@@ -23,16 +23,20 @@
     <view class="fold-head">
       <text class="zone-label">题目 / 材料</text>
       <view class="fold-actions">
-        <text class="fold-tap" hover-class="press" hover-stay-time="80" bindtap="onDraw">从题库抽一道</text>
+        <text class="fold-tap" hover-class="press" hover-stay-time="80" bindtap="onGenerate">{{generating ? 'AI 正在出题…' : 'AI 出一道'}}</text>
         <text class="fold-tap" hover-class="press" hover-stay-time="80" bindtap="onToggleStem">{{stemOpen ? '收起' : '展开'}}</text>
       </view>
     </view>
     <text wx:if="{{drawnFrom}}" class="drawn-note">{{drawnFrom}}</text>
+    <!-- 来源说明：AI 现出的题**不是真题**，必须显示，否则用户会当成真题 -->
+    <view wx:if="{{genNote}}" class="gen-note">
+      <text>{{genNote}}{{genBasis ? '　依据 ' + genBasis + ' 条' : ''}}</text>
+    </view>
     <textarea
       wx:if="{{stemOpen}}"
       class="stem-input"
       value="{{stem}}"
-      placeholder="粘题目，或点上面的「从题库抽一道」。批改只依据它检索到的评分标准，不会用你的作答去反推标准。"
+      placeholder="点上面的「AI 出一道」，或把题目粘到这里。批改只依据它检索到的评分标准，不会用你的作答去反推标准。"
       placeholder-class="ph"
       maxlength="2000"
       auto-height
