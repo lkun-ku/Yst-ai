@@ -74,6 +74,27 @@ python -m app.services.kb_corpus       # 官方语料入库：法条/考纲/rubr
 > 不灌语料时问答老师会**一直拒答**（"材料不足以支撑结论"）—— 那是检索确实无料，不是模型不行。
 > `kb_corpus` 默认算向量；embedding 供应商不可用时加 `--no-embed`，检索会走关键词通道。
 
+#### 恢复向量检索（等 embedding 账号结清后，两条命令）
+
+**当前状态（2026-06-16 实测）**：embedding 账号**欠费**，供应商原样回
+`{"type":"Arrearage", "message":"...overdue-payment"}` —— **不是代码问题**。
+想自己复现这个判断（而不是信这句注释）：
+
+```bash
+python .scratch/probe_embed.py        # 走 strict_embed，不会把"伪向量"当成功
+```
+
+结清后按顺序做**两件事**，缺一不可：
+
+```bash
+python -m app.services.kb_corpus      # ① 重灌语料（**不带** --no-embed）→ 写入真向量
+python eval/retrieval_eval.py         # ② 重跑检索评测拿**新基线**
+```
+
+> ⚠️ **旧基线不可比**：现在所有检索相关结论（Recall@K、问答老师的引用命中）都是在
+> **只有关键词通道**的条件下取得的。恢复向量后必须重测一轮，不能拿旧数字对比 ——
+> 否则"检索变好了/变差了"无法归因。这与"换了输入，旧基线就不再是基线"是同一条纪律。
+
 `LLM_MODE=fake`（默认）下全功能可用且不消耗任何 API 额度；切换 `real` 接入真实模型。
 
 ### 2. 小程序
