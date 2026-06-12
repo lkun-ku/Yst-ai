@@ -71,3 +71,4 @@ backend/data/models/
 project.private.config.json
 miniprogram-native/project.private.config.json
 backend/dev.db.bak
+backend/.test_tmp_pytest/

@@ -1,1 +1,0 @@
-{"metadata": {"time": "2026-06-11T02:41:29", "ks": [1, 5], "n_chunks": 415, "n_queries": 135}, "rows": {"⑤ RRF(命中数)+标题 ★生产": {"recall@1": 0.3, "recall@5": 0.5, "mrr": 0.7}}}

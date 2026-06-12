@@ -1,1 +1,0 @@
-{"metadata": {"time": "2026-06-11T19:20:59"}, "rows": {"grounded": {"n_answerable": 20, "n_unanswerable": 5, "answered": 20, "cite_first_pass_rate": 0.85, "avg_tool_calls": 1.8}, "agent": {"avg_tool_calls": 1.2}}}

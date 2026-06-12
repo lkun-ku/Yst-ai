@@ -1,7 +1,0 @@
-
-key: k1_comprehensive
-version: "test"
-modules:
-  - enum: PROFESSIONAL_IDEA
-    name: 职业理念
-question_types: [SINGLE]

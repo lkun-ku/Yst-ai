@@ -1,8 +1,0 @@
-
-key: k1_comprehensive
-version: "test"
-modules:
-  - enum: NOT_A_MODULE
-    name: 职业理念
-    weight: 1.0
-question_types: [SINGLE]
