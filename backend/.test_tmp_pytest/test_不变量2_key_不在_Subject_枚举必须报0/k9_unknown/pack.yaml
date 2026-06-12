@@ -1,0 +1,8 @@
+
+key: k9_unknown
+version: "test"
+modules:
+  - enum: PROFESSIONAL_IDEA
+    name: 职业理念
+    weight: 1.0
+question_types: [SINGLE]

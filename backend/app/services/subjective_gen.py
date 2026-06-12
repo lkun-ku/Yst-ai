@@ -131,8 +131,97 @@ def _basis(chunks: list[dict]) -> list[dict]:
     ]
 
 
-def generate_subjective(db, qtype: str, client, k: int = 6) -> dict:
-    """检索官方语料 → 让模型出题 → 结构校验。返回**不落库**的题目。
+#: 每个题型的池子上限。超了淘汰**用过最多**的那条 —— 它已经服务过足够多次，
+#: 而池子无限增长只会在库里堆一堆没人再看的题（成本很小，但"不设上限"不是好默认）。
+POOL_MAX_PER_QTYPE = 60
+
+
+def _pool_row_to_out(row) -> dict:
+    meta = QTYPE_META.get(row.qtype, {})
+    label = row.label or meta.get("label", "主观题")
+    return {
+        "qtype": row.qtype,
+        "label": label,
+        "score": row.score or meta.get("score", 0),
+        "stem": row.stem,
+        "basis": json.loads(row.basis or "[]"),
+        "aigc_flag": True,
+        "reused": True,
+        "note": (
+            f"这道{label}来自 **AI 题池**（此前由 AI 依据考纲生成，**不是真题**）；"
+            "批改依据来自官方语料与教辅评分规则。"
+        ),
+    }
+
+
+def _take_from_pool(db, qtype: str) -> dict | None:
+    """取池里**用得最少**的一道（同票数随机）。取不到返回 None（调用方去生成）。
+
+    ⚠️ 用 `used_count` 升序而不是纯随机：纯随机在小池子里会反复撞同一道，
+    而"每道都被用过一轮之后才重复"才是复用的意义。
+    """
+    from sqlalchemy import func
+
+    from ..models import AiSubjectiveQuestion
+
+    row = (
+        db.query(AiSubjectiveQuestion)
+        .filter(AiSubjectiveQuestion.qtype == qtype)
+        .order_by(AiSubjectiveQuestion.used_count.asc(), func.random())
+        .first()
+    )
+    if row is None:
+        return None
+    row.used_count = (row.used_count or 0) + 1
+    db.commit()
+    return _pool_row_to_out(row)
+
+
+def _save_to_pool(db, out: dict) -> bool:
+    """把新生成的题存进池子。**失败不影响本次返回** —— 出题是主流程，落池是优化。
+
+    去重按题干精确匹配：模型偶尔会给出与池中完全相同的一道，重复存只会让复用变差。
+    """
+    from ..models import AiSubjectiveQuestion
+
+    try:
+        dup = (
+            db.query(AiSubjectiveQuestion.id)
+            .filter(
+                AiSubjectiveQuestion.qtype == out["qtype"],
+                AiSubjectiveQuestion.stem == out["stem"],
+            )
+            .first()
+        )
+        if dup:
+            return False
+        db.add(
+            AiSubjectiveQuestion(
+                qtype=out["qtype"],
+                label=out["label"],
+                score=out["score"],
+                stem=out["stem"],
+                basis=json.dumps(out["basis"], ensure_ascii=False),
+            )
+        )
+        db.flush()
+        rows = (
+            db.query(AiSubjectiveQuestion)
+            .filter(AiSubjectiveQuestion.qtype == out["qtype"])
+            .order_by(AiSubjectiveQuestion.used_count.desc())
+            .all()
+        )
+        for extra in rows[POOL_MAX_PER_QTYPE:]:
+            db.delete(extra)
+        db.commit()
+        return True
+    except Exception:  # noqa: BLE001 — 落池失败不该让用户拿不到题
+        db.rollback()
+        return False
+
+
+def generate_subjective(db, qtype: str, client, k: int = 6, reuse: bool = True) -> dict:
+    """**先查 AI 题池**（命中即秒回、不花模型调用）；未命中才生成，生成后落池。
 
     失败返回带 `error` 的 dict（而不是抛异常）：调用方是"抽一道题"这种可重试的交互，
     抛异常会把 500 抛给用户，而"没生成出来"应当是可解释、可重试的结果。
@@ -140,6 +229,11 @@ def generate_subjective(db, qtype: str, client, k: int = 6) -> dict:
     meta = QTYPE_META.get(qtype)
     if meta is None:
         return {"error": f"不支持生成的主观题型：{qtype}"}
+
+    if reuse:
+        hit = _take_from_pool(db, qtype)
+        if hit:
+            return hit
 
     from .kb_retrieval import retrieve
 
@@ -160,7 +254,7 @@ def generate_subjective(db, qtype: str, client, k: int = 6) -> dict:
     if issues:
         return {"error": "生成的题目未通过结构校验：" + "；".join(issues), "issues": issues}
 
-    return {
+    out = {
         "qtype": qtype,
         "label": meta["label"],
         "score": meta["score"],
@@ -168,8 +262,12 @@ def generate_subjective(db, qtype: str, client, k: int = 6) -> dict:
         "basis": _basis(chunks),
         # 如实标注来源：这是 AI 现出的题，不是题库里的题、更不是真题
         "aigc_flag": True,
+        "reused": False,
         "note": (
             f"本题由 AI 依据考纲现出（{meta['label']}·{meta['score']} 分），"
             "**不是真题**；批改依据来自官方语料与教辅评分规则。"
         ),
     }
+    if _save_to_pool(db, out):
+        out["note"] += "（已存入 AI 题池，下次同一题型会直接复用）"
+    return out

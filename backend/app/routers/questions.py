@@ -139,6 +139,8 @@ class GeneratedSubjectiveOut(BaseModel):
     #: 出题依据（官方语料切片）—— 前端展示"这题依据什么出的"
     basis: list[dict] = []
     aigc_flag: bool = True
+    #: True = 来自 AI 题池（复用）；False = 本次**新生成**（已落池，下次会复用）
+    reused: bool = False
     #: 来源说明：AI 现出、**不是真题**。前端必须显示，否则用户会当成真题
     note: str = ""
 

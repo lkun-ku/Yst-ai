@@ -483,6 +483,43 @@ class Document(Base):
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class AiSubjectiveQuestion(Base):
+    """**AI 主观题池**：AI 按考纲生成的主观题 —— 生成一次、复用多次。
+
+    ## 为什么单开一张表，而不是塞进 `questions`
+
+    `questions` 是**题库**：闯关抽题、模考组卷、覆盖度统计、薄弱考点全挂在它上面。
+    而 AI 现出的主观题**未经人审**，混进去会同时踩两个已知形态的坑：
+
+    - 闯关的过滤是 `source == POOL` + `proofread_status != REJECTED` → **`PENDING` 会被抽中**，
+      于是未审校的 AI 题直接出现在闯关里（仓库里已记录过"抽题只过滤 `!= REJECTED`"这个缺陷）；
+    - `module` / `knowledge_point` 在题库里是**必填且参与统计**，而 AI 题的真实归属并不确定 ——
+      填一个猜的值会污染覆盖度与薄弱考点排序。
+
+    所以 AI 题池自成一表：**只服务主观题练习这一条链路**，不参与任何既有查询。
+    代价是一张表 + 一条迁移，换来的是"不污染题库语义"。
+
+    ## 复用策略（避免"每次点都现生成、10–30 秒 + 花额度"）
+
+    按 `used_count` 升序 + 随机取 —— 保证**池内每道题都被用过一轮之后才重复**；
+    单纯随机会在小池子里反复撞同一道。
+
+    ⚠️ 它是 AI 生成物、**不是真题**，界面上必须如实标注（`subjective_gen` 的 `note`）。
+    """
+
+    __tablename__ = "ai_subjective_questions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    qtype: Mapped[str] = mapped_column(String(16), index=True)
+    label: Mapped[str] = mapped_column(String(32), default="")
+    score: Mapped[int] = mapped_column(Integer, default=0)
+    stem: Mapped[str] = mapped_column(Text)
+    #: 出题依据（JSON `[{id, heading_path, content}]`），供前端展示"依据什么出的"
+    basis: Mapped[str] = mapped_column(Text, default="[]")
+    used_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class DocumentChunk(Base):
     """资料切片。
 
