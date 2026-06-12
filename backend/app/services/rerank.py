@@ -63,11 +63,12 @@ BATCH_SIZE = 16
 
 #: HuggingFace 上的权重来源（int8 档 266MB；fp32 是 1.06GB，对演示机负担过大）。
 REMOTE_REPO = "Xenova/bge-reranker-base"
+#: 只要**两个**文件：权重与分词器 —— `onnxruntime` / `tokenizers` 都不读 `config.json`
+#: 与 `tokenizer_config.json`（实测这两份在部分镜像上不存在）。
+#: 列在这里只会让下载日志多两条"跳过"告警，而**噪声会训练人忽略告警**。
 REMOTE_FILES = (
     ("onnx/model_int8.onnx", MODEL_FILE),
     ("tokenizer.json", TOKENIZER_FILE),
-    ("tokenizer_config.json", "tokenizer_config.json"),
-    ("config.json", "config.json"),
 )
 
 
@@ -275,31 +276,14 @@ def get_reranker() -> Reranker | None:
 def _fetch(model_dir: str | Path | None = None) -> int:
     """下载权重（不随仓库走）。返回下载的字节数；已存在则跳过。
 
-    写成 `.part` 再改名：中断不会留下半截文件被误判为"已下载"。
+    下载实现改到 `services/onnx_fetch.py`（2026-06-16）—— 与本地向量模型**共用一份**。
+    原先这里是硬编码的 `https://huggingface.co`：**国内不可达**，等于新用户装不了精排；
+    换成 hf-mirror 虽然能通，但实测只有 21 KB/s（265MB = 3.5 小时）。
+    共用实现按**实测吞吐**排序（modelscope 5.2 MB/s 优先），并带断点续传。
     """
-    import shutil
-    import urllib.request
+    from .onnx_fetch import fetch_files
 
-    dst = Path(model_dir or settings.rerank_model_dir)
-    dst.mkdir(parents=True, exist_ok=True)
-    base = f"https://huggingface.co/{REMOTE_REPO}/resolve/main/"
-    total = 0
-    for remote, local in REMOTE_FILES:
-        out = dst / local
-        if out.exists() and out.stat().st_size > 1024:
-            print(f"  已存在 {local}")
-            continue
-        tmp = dst / (local + ".part")
-        try:
-            with urllib.request.urlopen(base + remote, timeout=120) as resp, open(tmp, "wb") as f:
-                shutil.copyfileobj(resp, f, 1024 * 1024)
-            tmp.replace(out)
-            total += out.stat().st_size
-            print(f"  下载完 {local}（{out.stat().st_size / 1048576:.1f} MB）")
-        except Exception as exc:
-            tmp.unlink(missing_ok=True)
-            print(f"  跳过 {local}（{type(exc).__name__}）")
-    return total
+    return fetch_files(REMOTE_REPO, REMOTE_FILES, model_dir or settings.rerank_model_dir)
 
 
 if __name__ == "__main__":  # pragma: no cover

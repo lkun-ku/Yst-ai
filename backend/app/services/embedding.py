@@ -95,9 +95,31 @@ def _real_embed(text: str) -> list[float] | None:
     return data["data"][0]["embedding"]
 
 
+def _local_embed(text: str) -> list[float] | None:
+    """本地 ONNX 向量模型（`services/local_embed.py`）。
+
+    权重缺失 / 未配 `local` 模式时返回 `None`（让调用方按各自策略降级）——
+    这里**不抛异常**：`local` 模式下权重可能还没下（首次部署），
+    那是"暂时不可用"而不是"调用出错"，两种情况调用方的处置相同。
+    """
+    from .local_embed import get_embedder
+
+    embedder = get_embedder()
+    if embedder is None or not embedder.available():
+        return None
+    return embedder.embed_one(text)
+
+
 def embed_one(text: str) -> list[float]:
-    """单条文本向量化。real 模式失败时静默降级 fake —— 检索失败不得阻塞上传/出题。"""
-    if settings.embedding_mode == "real" and settings.embedding_api_base and settings.embedding_api_key:
+    """单条文本向量化。real / local 模式失败时静默降级 fake —— 检索失败不得阻塞上传/出题。"""
+    if settings.embedding_mode == "local":
+        try:
+            v = _local_embed(text)
+            if v:
+                return v
+        except Exception:
+            pass
+    elif settings.embedding_mode == "real" and settings.embedding_api_base and settings.embedding_api_key:
         try:
             v = _real_embed(text)
             if v:
@@ -111,8 +133,12 @@ def embed_one(text: str) -> list[float]:
 
 #: 向量来源取值。`strict_embed` 用它把"刻意离线"与"真的失败了"区分开。
 EMBED_REAL = "real"
+EMBED_LOCAL = "local"     # 本地 ONNX 模型 —— **同样是真向量**，只是不经过任何供应商
 EMBED_FAKE = "fake"       # 刻意用 fake 模式：离线开发 / 测试
-EMBED_FAILED = "failed"   # 配的是 real 却没拿到 → 必须显式失败，不许伪装成成功
+EMBED_FAILED = "failed"   # 配的是 real / local 却没拿到 → 必须显式失败，不许伪装成成功
+
+#: 真向量来源（可以落 `embed_status='ok'`）。**`fake` 不在其中** —— 伪向量必须看得见。
+REAL_SOURCES = (EMBED_REAL, EMBED_LOCAL)
 
 
 def declared_dim() -> int | None:
@@ -125,6 +151,23 @@ def declared_dim() -> int | None:
 
     col_type = DocumentChunk.__table__.c.embedding.type
     return getattr(col_type, "dim", None)
+
+
+def _with_dim_check(v: list[float], source: str) -> tuple[list[float] | None, str, str]:
+    """维度与列声明对不上就判失败 —— 这是向量入库的最后一道闸。
+
+    只有 PG 的 `VECTOR(N)` 有维度声明（SQLite 是 `LargeBinary`，`declared_dim()` 返回 None，
+    本就不做向量检索），所以这条检查在 dev 上**不会**触发 —— 那正是它必须写在**入库前**
+    而不是靠数据库报错的原因。
+    """
+    dim = declared_dim()
+    if dim is not None and len(v) != dim:
+        return (
+            None,
+            EMBED_FAILED,
+            f"embedding 维度不符：模型返回 {len(v)} 维，列声明 VECTOR({dim})",
+        )
+    return v, source, ""
 
 
 def strict_embed(text: str) -> tuple[list[float] | None, str, str]:
@@ -145,14 +188,33 @@ def strict_embed(text: str) -> tuple[list[float] | None, str, str]:
     —— 而**在 SQLite / dev 上它会静默通过**。这是"假装成功的失败"，比报错更危险。
 
     所以这里把两件事明确分开：
-    - **刻意**用 fake 模式（`embedding_mode != "real"`，离线开发 / 测试）→ 来源 `fake`，
+    - **刻意**用 fake 模式（`embedding_mode` 既非 `real` 也非 `local`，离线开发 / 测试）→ 来源 `fake`，
       调用方应落 `embed_status='fake'`，让它在统计里**看得见**；
-    - 配的是 real 但**调用失败 / 维度不符** → 来源 `failed` 且向量为 `None`。
+    - 配的是 real / local 但**调用失败、权重缺失 / 维度不符** → 来源 `failed` 且向量为 `None`。
       宁可让这批切片没有向量（检索按既有三级降级到关键词，且明写着 failed），
       也不让"看起来成功了"的假向量进库。
+
+    ## `local` 模式的"暂时没权重"也归到失败（2026-06-16）
+
+    本地模型最容易出的不是"调用报错"，而是**权重还没下**。若把它当成"没配"而退回伪向量，
+    结果会与"灌了真向量"在库里长得一模一样（全是 `ok`）—— 正是上面这个坑的翻版。
+    两种处置的代价不对称：宁可显式 failed（重灌一次只是几分钟），也不留"看起来有向量"的假象。
     """
+    mode = settings.embedding_mode
+
+    if mode == "local":
+        from .local_embed import OnnxEmbedder
+
+        try:
+            v = _local_embed(text)
+        except Exception as e:  # noqa: BLE001 — 失败**必须被看见**，理由见 docstring
+            return None, EMBED_FAILED, f"local 加载失败 {type(e).__name__}: {str(e)[:160]}"
+        if not v:
+            return None, EMBED_FAILED, f"local 模式未取到向量（{OnnxEmbedder().status()}）"
+        return _with_dim_check(v, EMBED_LOCAL)
+
     real = (
-        settings.embedding_mode == "real"
+        mode == "real"
         and bool(settings.embedding_api_base)
         and bool(settings.embedding_api_key)
     )
@@ -166,14 +228,7 @@ def strict_embed(text: str) -> tuple[list[float] | None, str, str]:
     if not v:
         return None, EMBED_FAILED, "real 模式未返回向量"
 
-    dim = declared_dim()
-    if dim is not None and len(v) != dim:
-        return (
-            None,
-            EMBED_FAILED,
-            f"embedding 维度不符：模型返回 {len(v)} 维，列声明 VECTOR({dim})",
-        )
-    return v, EMBED_REAL, ""
+    return _with_dim_check(v, EMBED_REAL)
 
 
 def wait_embed_ready(

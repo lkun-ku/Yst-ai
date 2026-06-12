@@ -172,10 +172,19 @@ class Settings:
     agent_max_tool_calls: int = int(os.getenv("AGENT_MAX_TOOL_CALLS", "4"))
 
     # ---------- Embedding（文档级语义检索；fake 模式不耗额度） ----------
-    embedding_mode: str = os.getenv("EMBEDDING_MODE", "fake")  # fake / real
+    #: `fake` 确定性伪向量（离线/测试）｜`real` 外部 /embeddings 接口｜
+    #: `local` 本地 ONNX 模型（`services/local_embed.py`，零额度、离线可跑）。
+    #: ⚠️ `local` 与 `real` 是**两条路**而非"更省钱的 real"：`local` 不联网、不花钱，
+    #: 代价是首次要下一份权重（约 330MB）并吃一点 CPU。
+    embedding_mode: str = os.getenv("EMBEDDING_MODE", "fake")
     embedding_api_base: str = os.getenv("EMBEDDING_API_BASE", "")
     embedding_api_key: str = os.getenv("EMBEDDING_API_KEY", "")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-v3")
+    #: `local` 模式的权重目录。**必须与列声明的 1024 维一致** ——
+    #: `bge-large-zh-v1.5` 是 1024 维，换成 base(768)/small(512) 会逼着改表。
+    embedding_model_dir: str = os.getenv(
+        "EMBEDDING_MODEL_DIR", "./data/models/bge-large-zh-v1.5"
+    )
 
 
 settings = Settings()

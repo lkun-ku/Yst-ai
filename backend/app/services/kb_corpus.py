@@ -31,7 +31,7 @@ from ..config import settings
 from ..models import Document, DocumentChunk
 from ..services.embedding import (
     EMBED_FAKE,
-    EMBED_REAL,
+    REAL_SOURCES,
     encode_vector,
     strict_embed,
 )
@@ -258,10 +258,12 @@ def _corpus_chunk_fields(content: str, *, embed: bool, is_pg: bool) -> tuple[obj
     if not embed:
         return None, "pending", ""
     vec, source, reason = strict_embed(content)
-    if source in (EMBED_REAL, EMBED_FAKE):
+    if source in REAL_SOURCES or source == EMBED_FAKE:
         stored = vec if is_pg else encode_vector(vec)
-        # 离线 fake 也如实标出来：统计里必须看得见"这批不是真向量"
-        return stored, ("ok" if source == EMBED_REAL else "fake"), ""
+        # `real`（供应商）与 `local`（本地模型）**都是真向量** → 都落 `ok`：
+        # 检索只认 `embed_status == "ok"`，来源差异不影响它是否可用。
+        # 离线 fake 也如实标出来：统计里必须看得见"这批不是真向量"。
+        return stored, ("fake" if source == EMBED_FAKE else "ok"), ""
     return None, "failed", reason
 
 

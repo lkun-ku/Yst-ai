@@ -1,104 +1,105 @@
 {
   "metadata": {
-    "time": "2026-06-11T02:41:29",
+    "time": "2026-06-16T01:44:11",
     "domain": "官方法条",
     "corpus": "official（法条）",
-    "n_chunks": 415,
+    "n_chunks": 516,
     "n_queries": 135,
     "n_labels_handwritten": 15,
     "n_labels_auto": 120,
     "ks": [
       1,
       2,
-      3
+      3,
+      5,
+      10
     ],
-    "mode": "LLM=real, Embedding=real",
+    "mode": "LLM=real, Embedding=local",
     "label_status": "手写 + 程序化（问法不代表真实用户）",
-    "labels_fingerprint": "c546386e7906",
+    "labels_fingerprint": "b23960bc3d43",
     "drift": 0,
     "ingest": {
-      "docs": 6,
-      "chunks": 415,
-      "skipped_empty": 0
+      "docs": 11,
+      "chunks": 516,
+      "skipped_empty": 0,
+      "embed_ok": 516,
+      "embed_fake": 0,
+      "embed_failed": 0,
+      "embed_pending": 0
     },
-    "rerank_pool": 20,
-    "rerank_status": {
-      "⑧ sparse→精排(仅正文)": "onnx：可用（data\\models\\bge-reranker-base）",
-      "⑨ sparse→精排(含标题)": "onnx：可用（data\\models\\bge-reranker-base）"
-    }
+    "rerank_pool": null,
+    "rerank_status": {}
   },
   "rows": {
     "① dense": {
       "n": 135,
-      "recall@1": 0.0074,
-      "recall@2": 0.0222,
-      "recall@3": 0.0222,
-      "mrr": 0.0266,
-      "ndcg": 0.0168
+      "recall@1": 0.3852,
+      "recall@2": 0.5259,
+      "recall@3": 0.6074,
+      "recall@5": 0.6889,
+      "recall@10": 0.7852,
+      "mrr": 0.5246,
+      "ndcg": 0.5766
     },
     "② sparse·命中数": {
       "n": 135,
-      "recall@1": 0.7111,
-      "recall@2": 0.8667,
+      "recall@1": 0.7259,
+      "recall@2": 0.8815,
       "recall@3": 0.9333,
-      "mrr": 0.8227,
-      "ndcg": 0.8397
+      "recall@5": 0.9778,
+      "recall@10": 0.9852,
+      "mrr": 0.8327,
+      "ndcg": 0.8679
     },
     "③ sparse·BM25": {
       "n": 135,
-      "recall@1": 0.2593,
-      "recall@2": 0.437,
-      "recall@3": 0.563,
-      "mrr": 0.4494,
-      "ndcg": 0.4315
+      "recall@1": 0.3333,
+      "recall@2": 0.4963,
+      "recall@3": 0.5926,
+      "recall@5": 0.7556,
+      "recall@10": 0.8741,
+      "mrr": 0.5073,
+      "ndcg": 0.5869
     },
     "④ RRF(命中数)": {
       "n": 135,
-      "recall@1": 0.0741,
-      "recall@2": 0.1259,
-      "recall@3": 0.1704,
-      "mrr": 0.1864,
-      "ndcg": 0.129
+      "recall@1": 0.637,
+      "recall@2": 0.8074,
+      "recall@3": 0.8519,
+      "recall@5": 0.9111,
+      "recall@10": 0.9704,
+      "mrr": 0.7596,
+      "ndcg": 0.807
     },
     "⑤ RRF(命中数)+标题 ★生产": {
       "n": 135,
-      "recall@1": 0.3111,
-      "recall@2": 0.4,
-      "recall@3": 0.4741,
-      "mrr": 0.4565,
-      "ndcg": 0.4042
+      "recall@1": 0.7111,
+      "recall@2": 0.837,
+      "recall@3": 0.9037,
+      "recall@5": 0.9333,
+      "recall@10": 0.9852,
+      "mrr": 0.81,
+      "ndcg": 0.8498
     },
     "⑥ RRF(BM25)": {
       "n": 135,
-      "recall@1": 0.0963,
-      "recall@2": 0.1333,
-      "recall@3": 0.1556,
-      "mrr": 0.1982,
-      "ndcg": 0.1308
+      "recall@1": 0.5111,
+      "recall@2": 0.7111,
+      "recall@3": 0.8074,
+      "recall@5": 0.8741,
+      "recall@10": 0.9556,
+      "mrr": 0.6727,
+      "ndcg": 0.7373
     },
     "⑦ RRF(BM25)+标题": {
       "n": 135,
-      "recall@1": 0.3333,
-      "recall@2": 0.4815,
-      "recall@3": 0.5259,
-      "mrr": 0.494,
-      "ndcg": 0.449
-    },
-    "⑧ sparse→精排(仅正文)": {
-      "n": 135,
-      "recall@1": 0.563,
-      "recall@2": 0.7556,
-      "recall@3": 0.8519,
-      "mrr": 0.7181,
-      "ndcg": 0.7326
-    },
-    "⑨ sparse→精排(含标题)": {
-      "n": 135,
-      "recall@1": 0.8,
-      "recall@2": 0.9111,
-      "recall@3": 0.9407,
-      "mrr": 0.8753,
-      "ndcg": 0.8849
+      "recall@1": 0.6222,
+      "recall@2": 0.7926,
+      "recall@3": 0.8741,
+      "recall@5": 0.9185,
+      "recall@10": 0.963,
+      "mrr": 0.7535,
+      "ndcg": 0.8015
     }
   }
 }
