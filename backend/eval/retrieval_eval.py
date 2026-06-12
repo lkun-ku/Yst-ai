@@ -48,7 +48,11 @@ os.environ["DATABASE_URL"] = os.environ.get("EVAL_DATABASE_URL") or "sqlite:///"
 
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.config import settings  # noqa: E402
-from app.services.embedding import BigramBM25, embed_one  # noqa: E402
+# ⚠️ 必须用 `embed_query`（**查询侧**）而不是 `embed_one`：文档侧向量由入库路径用
+# `embed_one`（不加指令前缀）产生，查询侧要走 `embed_query`（加前缀）—— 两者刻意不对称。
+# 原先这里 import 的是 `embed_one`，等于让评测**绕过生产在跑的那个函数**：
+# 改了查询前缀也测不出来（实测踩到：加了前缀后七行指标逐位相同，才发现测错了函数）。
+from app.services.embedding import BigramBM25, embed_query  # noqa: E402
 from app.services.kb_corpus import ingest_official_corpus  # noqa: E402
 from app.services.kb_retrieval import (  # noqa: E402
     heading_bonus,
@@ -232,7 +236,7 @@ def build_configs(chunks: list[dict], rerankers: dict | None = None) -> dict:
 
     def _vec_ranks(query: str):
         try:
-            query_vec = embed_one(query)
+            query_vec = embed_query(query)  # 与生产同源：查询侧带指令前缀
         except Exception:  # embedding 失败 → 该通道缺席，由调用方的降级逻辑兜底
             query_vec = None
         return vector_rank(query_vec, chunks)

@@ -185,6 +185,11 @@ class Settings:
     embedding_model_dir: str = os.getenv(
         "EMBEDDING_MODEL_DIR", "./data/models/bge-large-zh-v1.5"
     )
+    #: **查询侧**指令前缀（文档侧不加）。BGE 系列官方要求在检索查询前加一句指令，
+    #: 它能明显改善"短查询 → 长段落"的召回；而对非 BGE 模型（如 text-embedding-v3）
+    #: 这句前缀只是噪声。所以**默认留空**，由使用方按模型显式开：
+    #: `EMBEDDING_QUERY_PREFIX=为这个句子生成表示以用于检索相关文章：`
+    embedding_query_prefix: str = os.getenv("EMBEDDING_QUERY_PREFIX", "")
 
 
 settings = Settings()

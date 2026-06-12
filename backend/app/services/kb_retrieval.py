@@ -29,7 +29,9 @@ PostgreSQL → `retrieve_by_scope_pg`（向量走 HNSW + SQL 余弦；关键词�
 两路 RRF 融合）；SQLite / dev → 下面的内存混合检索。两条路径返回结构**字段一致**，
 且**用同一个稀疏打分函数**（换方言不该改变检索效果）。
 
-复用 `embedding.py`：embed_one / decode_vector / keyword_score / uniform_sample。
+复用 `embedding.py`：embed_query（**查询侧**，带模型要求的指令前缀）/ decode_vector /
+keyword_score / uniform_sample。文档侧向量由入库路径用 `embed_one`（不带前缀）产生 ——
+两者刻意不对称，理由见 `embedding.embed_query`。
 """
 
 from __future__ import annotations
@@ -46,7 +48,7 @@ from ..models import Document, DocumentChunk
 from .embedding import (
     BigramBM25,
     decode_vector,
-    embed_one,
+    embed_query,
     keyword_score,
     query_terms,
     uniform_sample,
@@ -408,7 +410,7 @@ def retrieve_by_scope_pg(
     ns = scope_obj or Scope(namespace=NAMESPACE_PERSONAL, candidate_id=candidate_id)
     ns_sql, ns_params = _pg_namespace_clause(ns)
 
-    fn = embed_fn or embed_one
+    fn = embed_fn or embed_query  # 查询侧：带 BGE 指令前缀（文档侧 embed_one 不带）
     try:
         qv = fn(scope) or []
     except Exception:
@@ -496,7 +498,7 @@ def retrieve(
     if not chunks:
         return []
 
-    fn = embed_fn or embed_one
+    fn = embed_fn or embed_query  # 查询侧：带 BGE 指令前缀（文档侧 embed_one 不带）
     try:
         qv = fn(query)
     except Exception:

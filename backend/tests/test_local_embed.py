@@ -281,3 +281,53 @@ def test_支持_range_时续传(tmp_path, monkeypatch):
     monkeypatch.setattr(onnx_fetch.urllib.request, "urlopen", lambda *a, **k: _Resp())
     onnx_fetch._download("http://example/f", tmp)
     assert tmp.read_bytes() == b"A" * 100 + b"B" * 50
+
+
+# ---------------- 查询侧 / 文档侧刻意不对称（BGE 指令前缀） ----------------
+
+def test_查询加前缀而文档不加(monkeypatch):
+    """BGE 要求**查询侧**加指令前缀、文档侧不加（非对称训练）。
+
+    两边都加等于两边都没加，而且**不会报错** —— 唯一能发现它的方式就是断言这一层。
+    文档侧若被污染，检索质量整体下降，而指标看起来仍"像那么回事"。
+    """
+    seen: list[str] = []
+
+    def _fake(text: str) -> list[float]:
+        seen.append(text)
+        return [0.0] * emb_mod.FAKE_DIM
+
+    monkeypatch.setattr(emb_mod.settings, "embedding_query_prefix", "指令：")
+    monkeypatch.setattr(emb_mod, "embed_one", _fake)
+
+    emb_mod.embed_query("教师法")  # 查询侧
+    emb_mod.embed_one("教师法")    # 文档侧（上传切片走这里）
+    assert seen == ["指令：教师法", "教师法"]
+
+
+def test_前缀为空时不额外拼接(monkeypatch):
+    """默认前缀为空：非 BGE 模型（如 text-embedding-v3）加上去只是噪声。"""
+    seen: list[str] = []
+    monkeypatch.setattr(emb_mod.settings, "embedding_query_prefix", "")
+    monkeypatch.setattr(emb_mod, "embed_one", lambda t: seen.append(t) or [0.0] * 8)
+
+    emb_mod.embed_query("教师法")
+    assert seen == ["教师法"]
+
+
+def test_生产与评测都绑在查询侧函数上():
+    """**这次踩到的坑**：`eval/retrieval_eval.py` 原先自己 `import embed_one` 算查询向量，
+    绕过了生产路径 —— 于是"加前缀"与"不加前缀"跑出**逐位相同**的七行指标，
+    看起来像"前缀无效"，实际是评测测了自己的实现。
+
+    评测一旦走平行实现，任何对生产路径的改动都**测不出来**。这条守住两端：
+    生产检索模块绑的是查询侧函数，评测源码里调用的也是它。
+    """
+    from app.services import embedding, kb_retrieval
+
+    assert kb_retrieval.embed_query is embedding.embed_query
+    assert not hasattr(kb_retrieval, "embed_one"), "检索模块不该绑文档侧函数"
+
+    src = (_BACKEND / "eval" / "retrieval_eval.py").read_text(encoding="utf-8")
+    assert "embed_query(query)" in src
+    assert "embed_one(query)" not in src, "评测又绕开生产函数了"

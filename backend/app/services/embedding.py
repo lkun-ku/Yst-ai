@@ -129,6 +129,42 @@ def embed_one(text: str) -> list[float]:
     return _fake_embed(text)
 
 
+def embed_query(text: str) -> list[float]:
+    """**查询侧**向量化 —— 与文档侧 `embed_one` 分开。
+
+    ## 为什么查询与文档必须是两个函数
+
+    检索的对称性是**可以被故意打破**的：BGE 系列官方要求在**查询**前加一句指令
+    （`为这个句子生成表示以用于检索相关文章：`），文档侧**不加**。这是模型训练方式决定的
+    （查询是短问句、文档是长段落，非对称训练），加了能明显提升短查询的召回。
+
+    而这件事**不能写进 `embed_one`**：`embed_one` 同时被文档入库路径
+    （`routers/documents.py` 上传切片）调用 —— 在那里加前缀会让**文档向量也被污染**，
+    两边都加了等于两边都没加，而且没有任何报错。
+
+    默认前缀为空（`settings.embedding_query_prefix`）：它只对 BGE 系有效，
+    对 `text-embedding-v3` 这类模型反而引入噪声，所以由使用方按模型显式开。
+
+    ## 实测（法条域，n=135，`eval/retrieval_eval.py --domain 官方法条 --official --auto`）
+
+    | 口径 | 无前缀 | 带前缀 | Δ |
+    | --- | --- | --- | --- |
+    | dense recall@1 | 0.3852 | **0.4074** | +2.2pp |
+    | dense recall@5 | 0.6889 | **0.7407** | +5.2pp |
+    | dense recall@10 | 0.7852 | **0.8296** | +4.4pp |
+    | dense MRR | 0.5246 | **0.5554** | +3.1pp |
+    | dense nDCG | 0.5766 | **0.6146** | +3.8pp |
+    | 生产 RRF(命中数)+标题 @1 | 0.7111 | **0.7185** | +0.7pp |
+
+    六项上升、一项（生产档 recall@10）从 0.9852 微降到 0.9704。方向一致，故保留。
+    ⚠️ **测量时踩到的坑**：`eval/retrieval_eval.py` 原先自己 `import embed_one` 算查询向量，
+    绕过了这个函数 —— 于是"加了前缀"与"没加前缀"跑出来**逐位相同**，看起来像"前缀无效"。
+    评测必须走**生产在跑的那个函数**，否则测的是评测自己的实现。
+    """
+    prefix = settings.embedding_query_prefix
+    return embed_one(f"{prefix}{text}" if prefix and text else text)
+
+
 # ---------------- 严格向量化（官方语料灌入专用） ----------------
 
 #: 向量来源取值。`strict_embed` 用它把"刻意离线"与"真的失败了"区分开。
@@ -472,7 +508,7 @@ def retrieve(
     pool = _filter_scope(chunks, scope) or chunks
 
     # 通道 1：向量检索
-    fn = embed_fn or embed_one
+    fn = embed_fn or embed_query  # 查询侧：带指令前缀（文档侧仍是不带前缀的 embed_one）
     try:
         qv = fn(query)
     except Exception:
