@@ -138,6 +138,16 @@ class Settings:
     # 也要与题目自带答案相符。只在"高价值题"（如官方语料出的题）上开。
     gate_g3_enabled: bool = os.getenv("GATE_G3_ENABLED", "false").lower() == "true"
     gate_g3_votes: int = int(os.getenv("GATE_G3_VOTES", "3"))
+    #: G3' **"多次判定不一致"是否单独触发拦截**（默认 true = 维持现状）。
+    #:
+    #: 依据（`eval/g3_stability_ab.py`，离线反算，零额度）：关掉它可把官方好题误杀
+    #: 4.72%→3.54%（释放 3 道，多数票都等于答案键），代价是歧义题拦截率 61.11%→55.56%
+    #: （漏放 2 道）。**收益确定但很小，代价不确定且可能更大**（歧义样本仅 36 道，
+    #: 置信区间宽到 ±16pp）→ 数据不支持改默认，所以默认 true。做成开关是为了让以后
+    #: 在真实流量上比较时只需改环境变量，不必改代码。见 `OptionVerdict.passed_under_policy`。
+    gate_g3_block_on_instability: bool = (
+        os.getenv("GATE_G3_BLOCK_ON_INSTABILITY", "true").lower() != "false"
+    )
     # 单次 LLM 请求超时（秒）。**做成可配是踩出来的**（2026-06-15）：
     # 本机网络经隧道后单次要 20 秒以上（正常应 1~3 秒），而客户端默认 30 秒 +
     # 3 次重试 + 备用通道 → 一道题可以卡 90 秒以上，评测跑不动、只能被人 Ctrl+C。

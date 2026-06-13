@@ -245,6 +245,30 @@ class OptionVerdict:
     def passed(self) -> bool:
         return self.n > 0 and self.stable and self.matches
 
+    @property
+    def passed_under_policy(self) -> bool:
+        """按**配置的口径**判定（稳定性是否单独触发拦截）。
+
+        ## 为什么要留两个口径（2026-06-16 离线 A/B）
+
+        在 254 道官方好题 + 36 道歧义题上反算（`eval/g3_stability_ab.py`，零额度）：
+
+        | | 现状（稳定性可单独拦） | 关掉稳定性单独拦 |
+        | --- | --- | --- |
+        | 官方好题误杀率 | 4.72%（12/254） | **3.54%**（9/254），释放 3 道且多数票都==答案键 |
+        | 歧义题拦截率 | 61.11%（22/36） | 55.56%（20/36），漏放 2 道 |
+
+        结论是**收益确定但很小（3 道），代价不确定且可能更大（2/36 ≈ 5.6pp，而 n=36 的
+        置信区间宽到 ±16pp）** —— 数据不支持现在改默认口径，所以默认仍是严格口径。
+
+        但把口径做成开关是有价值的：以后要在真实流量上比较，只需改一个环境变量，
+        不必改代码。⚠️ 两个口径都**不放松 `matches`** —— 是否放行仍以"多数表决结果
+        等于答案键"为准，稳定性只是**要不要额外要求它**。
+        """
+        if self.n <= 0 or not self.matches:
+            return False
+        return self.stable if settings.gate_g3_block_on_instability else True
+
     def as_dict(self) -> dict:
         return {
             "n": self.n,
@@ -253,6 +277,7 @@ class OptionVerdict:
             "judged": list(self.judged),
             "n_judged": self.n_judged,
             "passed": self.passed,
+            "passed_under_policy": self.passed_under_policy,
         }
 
 
