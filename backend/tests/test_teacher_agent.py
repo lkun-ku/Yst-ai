@@ -434,3 +434,54 @@ def test_模型自称材料不足时降级为无据回答(db_session, official):
     out = _n_answer({"client": client, "question": "q", "observations": [], "mode": "grounded"})
     assert out["refused"] is False and out["ungrounded"] is True
     assert out["answer"]["citations"] == []
+
+
+# ---------------- 证据层：答案库条目跨观察累加会被稀释官方材料 ----------------
+
+
+def _obs(items: list[dict]) -> dict:
+    return {"tool": "search_kb", "ok": True, "text": "", "error": "", "items": items}
+
+
+def _item(i: int, source: str) -> dict:
+    return {"id": f"it{i}", "content": f"正文{i}", "source_type": source}
+
+
+def _hop(n: int) -> list[dict]:
+    """一次 `search_kb(k=6)` 的典型结果：3 答案库 + 3 官方。"""
+    return ([_item(n * 10 + j, "answer_bank") for j in range(3)]
+            + [_item(n * 10 + j + 3, "official") for j in range(3)])
+
+
+def test_答案库证据跨观察有上限而官方不限():
+    """`retrieve_for_question` 的配额只在**单次调用内**生效，而证据是跨观察累加的 ——
+
+    原先这一层只有按 id 去重，于是 agent 多跳时答案库条目 3×N 增长，
+    官方材料的相对占比被一路稀释。而答案库条目的正文是「题干+选项+答案」，
+    **不构成可引用论述**，它挤占的正是官方法条/考纲在上下文里的位置
+    （2026-06-15 那次"答案库独占 → 模型只能拒答"就是这个机制）。
+
+    所以答案库**只留首次那一份**，官方不限 —— 多跳的价值在把官方材料找得更全。
+    """
+    from app.services.teacher_agent import _evidence_chunks
+
+    state = {"observations": [_obs(_hop(i)) for i in range(3)]}
+    out = _evidence_chunks(state)
+
+    bank = [x for x in out if x.get("source_type") == "answer_bank"]
+    official = [x for x in out if x.get("source_type") == "official"]
+    assert len(bank) == 3, f"答案库不该随调用次数累加，实际 {len(bank)}"
+    assert len(official) == 9, "官方材料必须保留全部（多跳就是为了找全它）"
+
+
+def test_单跳时依据构成不变():
+    """grounded 只发一次 `search_kb(k=6)` → 3 答案库 + 3 官方。
+
+    这条守的是"上限不能误伤单跳"：`BANK_EVIDENCE_MAX` 取 3 正是为了与
+    单次调用的配额对齐，所以 grounded 的行为应当**一字不变**。
+    """
+    from app.services.teacher_agent import _evidence_chunks
+
+    out = _evidence_chunks({"observations": [_obs(_hop(0))]})
+    assert len(out) == 6
+    assert len([x for x in out if x.get("source_type") == "answer_bank"]) == 3

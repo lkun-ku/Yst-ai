@@ -105,6 +105,13 @@ def _emit(s: TeacherState, type_: str, text: str, detail=None) -> None:
         fn(type_, text, detail)
 
 
+#: 单次回答里**答案库条目**的上限。见 `_evidence_chunks` 里的理由：
+#: `retrieve_for_question` 的配额只在单次调用内生效，而证据是跨观察累加的。
+#: 取 3 是为了与单次 `search_kb(k=6)` 的配额一致 —— 这样单跳（grounded）行为不变，
+#: 只有多跳时答案库的占比不再随调用次数线性增长。
+BANK_EVIDENCE_MAX = 3
+
+
 def _evidence_chunks(s: TeacherState) -> list[dict]:
     """所有观察里能作为依据的切片（只有带 content 的才是依据）。
 
@@ -116,9 +123,27 @@ def _evidence_chunks(s: TeacherState) -> list[dict]:
     保留首次出现是够用的：出现重复本身就意味着它被检索到了（带 `keyword_score`），
     判定 `_sufficient` 时走检索侧那套本来也会通过；而真正的误拒场景
     （检索没召回、只有结构化定位命中）**没有重复**，那时留下的正是"无 keyword_score"的那一份。
+
+    ## 答案库条目为什么在这一层还要**再限一次**（2026-06-16）
+
+    `retrieve_for_question` 的配额是**每次调用内部**的：答案库最多占 `k//2`（k=6 → 3 条）。
+    但证据是**跨观察累加**的，而这一层原先只按 id 去重 —— 于是 agent 多跳时，
+    答案库条目会 3×N 地增长，官方材料的**相对占比**被一路稀释。
+
+    而答案库条目的正文是「题干 + 选项 + 答案」（构建时刻意不存解析正文），
+    **不构成可引用论述** —— 它挤占的正是官方法条/考纲在上下文里的位置。
+    （2026-06-15 那次"答案库独占槽位 → 模型拿不到法条原文只能拒答"就是这个机制。）
+
+    所以这里再设一道闸：答案库**只保留首次命中的那一份**，上限 `BANK_EVIDENCE_MAX`
+    （与单次 `search_kb` 的配额一致，故 grounded 单跳行为**完全不变**）；
+    官方材料不限 —— **多跳的价值就在把官方材料找得更全**。
+
+    代价：后续跳里新命中的答案库条目会被丢掉。取舍是刻意的 ——
+    多跳要补的是"能被引用的材料"，而不是"又一道真题的题干"。
     """
     out: list[dict] = []
     seen: set = set()
+    n_bank = 0
     for ob in s.get("observations") or []:
         for it in ob.get("items") or []:
             if not (isinstance(it, dict) and it.get("content")):
@@ -128,6 +153,10 @@ def _evidence_chunks(s: TeacherState) -> list[dict]:
                 if key in seen:
                     continue
                 seen.add(key)
+            if it.get("source_type") == "answer_bank":
+                if n_bank >= BANK_EVIDENCE_MAX:
+                    continue
+                n_bank += 1
             out.append(it)
     return out
 
