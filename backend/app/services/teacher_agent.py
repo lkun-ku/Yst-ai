@@ -327,6 +327,44 @@ _UNGROUNDED_NOTICE = (
 )
 
 
+#: 解析失败时追加到提示词末尾的**格式纠正**要求（只在重试时加）。
+_RETRY_REMINDER = (
+    "【格式纠正】上一次的输出无法解析。请重新作答，并且：\n"
+    "1. 只输出一个 JSON 对象，前后不要有任何解释性文字；\n"
+    "2. 不要用 ``` 代码块包裹；\n"
+    "3. 字符串内部的换行写成 \\n，不要直接换行。"
+)
+
+
+def _ask_parsed(s: TeacherState, prompt: str) -> tuple[dict | None, bool]:
+    """调模型并把回答解析成契约对象；解析失败时**追加格式要求重试一次**。
+
+    ## 为什么要重试（2026-06-16 真机实测）
+
+    问「《教师法》第七条规定教师享有哪些权利？」走 grounded：检索完全正常
+    （6 片 = 3 答案库 + 3 官方，第七条排第一），但模型这一次吐出的不是 JSON
+    → `parse_teacher_answer` 返回 None → **整条回答变成"拒答"**。
+    紧接着用同一句话连问两次都正常（引用 6 条 / 7 条、置信 high）。
+
+    所以这是**偶发的格式失败**，不是能力不足。代价还不对称：重试一次多花一次调用，
+    而拒答让用户白问一遍 —— 在"句句有出处"这个定位下，拒答会被理解成"这题它不会"。
+
+    **重试不放松契约**：仍然必须是带 citations 的 JSON。所以它和 `_ungrounded_answer`
+    是两件事 —— 后者是主动放弃出处（降级），这里只是要求"把话说成规定的形状"。
+    两次都不行才拒答：宁可拒答，也不编一个回答。
+
+    返回 `(解析结果, 是否用过重试)`。把"重试过"显式带出来是为了写进拒答原因 ——
+    否则"重试过但仍失败"与"根本没重试"在症状上完全一样。
+    """
+    text = s["client"].ask(prompt)
+    parsed = parse_teacher_answer(text) if text else None
+    if parsed:
+        return parsed, False
+    _emit(s, "retry", "回答不符合 JSON 契约 → 已追加格式要求重试一次")
+    text = s["client"].ask(f"{prompt}\n\n{_RETRY_REMINDER}")
+    return (parse_teacher_answer(text) if text else None), True
+
+
 def _ungrounded_answer(s: TeacherState) -> dict | None:
     """**无据兜底**：不检索、不带引用，直接让模型用通识作答。
 
@@ -338,8 +376,7 @@ def _ungrounded_answer(s: TeacherState) -> dict | None:
     `confidence` 强制 low。产品承诺从「宁可拒答，也不给没有出处的答案」改为
     「**给答案，但明说它没有出处**」—— 前者让人拿不到信息，后者让人自己判断信不信。
     """
-    text = s["client"].ask(teacher_answer_prompt(s["question"], [], ungrounded=True))
-    parsed = parse_teacher_answer(text) if text else None
+    parsed, _retried = _ask_parsed(s, teacher_answer_prompt(s["question"], [], ungrounded=True))
     if not parsed:
         return None
     # 无据回答**不许带引用**：模型若硬塞引用就清掉（它这次根本没有材料可引）。
@@ -349,15 +386,18 @@ def _ungrounded_answer(s: TeacherState) -> dict | None:
 
 
 def _n_answer(s: TeacherState) -> dict:
-    text = s["client"].ask(
-        teacher_answer_prompt(s["question"], s.get("observations"), history=s.get("history"))
+    parsed, retried = _ask_parsed(
+        s, teacher_answer_prompt(s["question"], s.get("observations"), history=s.get("history"))
     )
-    parsed = parse_teacher_answer(text) if text else None
     if not parsed:
         # 解析不出来 → 转拒答。**不编一个回答**：那是本产品最不能犯的错。
+        # 但先重试过一次（见 `_ask_parsed`）：偶发的格式失败不该让用户白问一遍。
         return {
             "refused": True,
-            "refusal_reason": "生成的回答无法解析（模型输出不符合 JSON 契约）",
+            "refusal_reason": (
+                "生成的回答无法解析（模型输出不符合 JSON 契约"
+                + ("，重试一次仍不符合）" if retried else "）")
+            ),
             "answer": None,
         }
     if parsed.get("insufficient") and s.get("mode") != "plain":

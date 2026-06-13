@@ -368,12 +368,56 @@ def test_决策不可用时兜底检索而不是失败(db_session, official):
 def test_回答无法解析时转拒答而不是编一个(db_session, official):
     from app.services.teacher_agent import _n_answer
 
+    calls: list[str] = []
+
     class Garbled:
         def ask(self, prompt, timeout=30):
+            calls.append(prompt)
             return "嗯…我觉得这个问题的答案是……"
 
     out = _n_answer({"client": Garbled(), "question": "q", "observations": [], "mode": "grounded"})
     assert out["refused"] is True and out["answer"] is None
+    # 两次都不行才拒答（第一次 + 一次格式纠正重试），且拒答原因要写明重试过 ——
+    # 否则"重试过但仍失败"与"根本没重试"在用户那里长得一样。
+    assert len(calls) == 2
+    assert "重试一次" in out["refusal_reason"]
+
+
+def test_解析失败会重试一次并成功(db_session, official):
+    """**真机实测（2026-06-16）**：问「《教师法》第七条规定教师享有哪些权利？」时检索完全正常
+    （6 片 = 3 答案库 + 3 官方、第七条排第一），但模型这一次吐出的不是 JSON
+    → `parse_teacher_answer` 返回 None → **整条回答变成拒答**；紧接着用同一句话连问两次都正常
+    （引用 6 条 / 7 条、置信 high）。
+
+    也就是说这是**偶发的格式失败**，不是能力不足。而代价不对称：重试一次多花一次调用，
+    拒答让用户白问一遍 —— 在"句句有出处"的定位下，拒答会被理解成"这题它不会"。
+
+    ⚠️ 重试**不放松契约**：仍然必须是带 citations 的 JSON。所以它与 `_ungrounded_answer`
+    那种"降级为无据回答"是**两件事**（后者主动放弃出处）。
+    """
+    from app.services.teacher_agent import _RETRY_REMINDER, _n_answer
+
+    prompts: list[str] = []
+
+    class Flaky:
+        def ask(self, prompt, timeout=30):
+            prompts.append(prompt)
+            if len(prompts) == 1:
+                return "第七条讲了六项权利，我一条条说：\n1. 教育教学…"  # 散文，解析不了
+            return json.dumps(
+                {"answer": "第七条含六项权利",
+                 "citations": [{"quote": "教师享有下列权利"}],
+                 "confidence": "high", "insufficient": False},
+                ensure_ascii=False,
+            )
+
+    out = _n_answer({"client": Flaky(), "question": "q", "observations": [], "mode": "grounded"})
+
+    assert out["refused"] is False
+    assert out["answer"]["answer"] == "第七条含六项权利"
+    assert out["answer"]["citations"], "重试后仍必须带引用（不放松契约）"
+    assert len(prompts) == 2, "应当恰好重试一次"
+    assert _RETRY_REMINDER in prompts[1], "重试必须带上格式纠正要求"
 
 
 def test_模型自称材料不足时降级为无据回答(db_session, official):
