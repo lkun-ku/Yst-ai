@@ -54,6 +54,7 @@ EVIDENCE = {
     "teacher": _RESULTS / "teacher_baseline.json",
     "marking": _RESULTS / "marking_baseline.json",
     "g3_real": _RESULTS / "g3_真题单选_baseline.json",
+    "faithfulness": _RESULTS / "faithfulness.json",
 }
 
 _OK, _BAD, _WARN, _NONE = "✅", "❌", "⚠️", "—"
@@ -232,11 +233,33 @@ def from_gate_live(payloads: list[dict], client, mode: str) -> Row:
     )
 
 
-def from_faithfulness() -> Row:
-    """faithfulness 需要 LLM judge 逐条判分 —— 有口径、但**没有证据文件**，如实标出。"""
+def from_faithfulness(path: pathlib.Path) -> Row:
+    """事实性 faithfulness —— 读 `faithfulness.json`（由 `eval/faithfulness_eval.py` 产出）。
+
+    口径：judge 的 `factuality` ≥ 4.0 的样本占比（`metrics.faithfulness_rate`）——
+    这是**比例**口径，与 1–5 分的**均值**不是一回事（拿均值去比 0.90 是量纲错配，
+    对齐审计里发现过这一类问题）。
+
+    ⚠️ 来源是 **LLM judge**，比引用子串校验低一档 —— 报告里必须标出来，
+    否则一个 0.92 会被读成与「编造率 0」同等硬。
+    """
+    data = _load(path)
+    if not data or data.get("_broken"):
+        return Row(
+            "事实性 faithfulness", "≥ 0.90", "（待跑）",
+            "口径已就位：`metrics.faithfulness_rate`｜LLM judge", _NONE,
+            "产出它请跑 `python eval/faithfulness_eval.py`（需 LLM 额度）；"
+            "它与引用校验**不是一回事**（后者才是零误判硬机制）",
+        )
+    m = data.get("metrics") or {}
+    meta = data.get("metadata") or {}
+    rate = float(m.get("faithfulness_rate") or 0)
     return Row(
-        "事实性 faithfulness", "≥ 0.90", "（无证据）", "口径已就位：`metrics.faithfulness_rate`｜LLM judge",
-        _NONE, "要产出它需要一次 judge 运行（LLM 额度）；且它与引用校验**不是一回事**（后者才是零误判硬机制）",
+        "事实性 faithfulness", "≥ 0.90",
+        f"{rate}（{m.get('n')} 条判分；拒答 {meta.get('n_refused', 0)} 条不计入）",
+        _stamp(data, path) + "｜LLM judge（factuality ≥ 4.0）",
+        _OK if rate >= 0.90 else _BAD,
+        str(meta.get("caveat") or ""),
     )
 
 
@@ -277,7 +300,7 @@ def gather(live_gate: bool, gate_n: int) -> tuple[list[Row], str]:
     rows += from_retrieval(EVIDENCE["retrieval_edu"])
     rows += from_teacher(EVIDENCE["teacher"])
     rows.append(from_marking(EVIDENCE["marking"]))
-    rows.append(from_faithfulness())
+    rows.append(from_faithfulness(EVIDENCE["faithfulness"]))
     if live_gate or mode == "fake":
         rows.append(from_gate_live(_gate_sample(gate_n), client, mode))
     else:
