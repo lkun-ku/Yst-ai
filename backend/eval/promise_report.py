@@ -300,6 +300,29 @@ def _gate_sample(n: int) -> list[dict]:
     ]
 
 
+def output_path(out: pathlib.Path, mode: str) -> tuple[pathlib.Path, str]:
+    """fake 模式**不许覆盖真基准** —— 返回 `(落盘路径, 提示语)`。
+
+    ## 为什么要有这条（2026-06-16 实测踩到）
+
+    在 fake 下跑一次（本意是刷新"评分一致性"那一格），结果 `唯一性通过率` 那格里
+    **真实的 `0.9（18/20）` 被 fake 的 `0.0（0/8）` 顶掉了** —— 而表格里那行的来源列
+    仍写着「**本次运行**｜硬机制（G3 闸门）」，看起来就是一次真实测量。
+
+    这与 `marking_eval` 的处置**必须是同一套**（那边早有："已有真实基准，本次 fake
+    结果改写到 `marking_fake.md`，不覆盖真基准"）。两个脚本同类问题两种行为，
+    正是本项目反复吃过的亏：**同一件事实在两处各有一份，就一定会有一处是错的**。
+
+    `--out` 是用户显式指定的路径时**不改名** —— 那是他自己的选择，规则不该劫持它。
+    """
+    if mode == "fake" and out.name == "promise_report.md":
+        return (
+            out.with_name("promise_report_fake.md"),
+            "⚠️ fake 模式：改写到 promise_report_fake.md（不覆盖真基准）",
+        )
+    return out, ""
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="产出 §6.3 承诺表的实测列")
     ap.add_argument("--live-gate", action="store_true", help="real 模式下也现场跑唯一性通过率")
@@ -309,10 +332,12 @@ def main(argv: list[str] | None = None) -> int:
 
     rows, mode = gather(args.live_gate, args.gate_n)
     md = render(rows, mode=mode)
-    out = pathlib.Path(args.out)
+    out, warn = output_path(pathlib.Path(args.out), mode)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(md, encoding="utf-8")
     print(md)
+    if warn:
+        print(warn)
     print(f"已写入：{out}")
     return 0
 
