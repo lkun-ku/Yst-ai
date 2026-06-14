@@ -94,9 +94,19 @@ from app.services.marking import (  # noqa: E402
     std_tolerance,
 )
 from app.services.scope import NAMESPACE_OFFICIAL, Scope  # noqa: E402
+from eval import resumable  # noqa: E402
 
 _DATASET = pathlib.Path(__file__).resolve().parent / "datasets" / "批改一致性" / "主观题样本.json"
 _OUT_DIR = pathlib.Path(__file__).resolve().parent / "results"
+_RESULTS = _OUT_DIR
+
+
+def _row_key(rec: dict) -> str:
+    """续跑的键：同一题在**多轮**实验里要跑多次，所以键必须带上轮次。
+
+    只用题目 id 会让"第 2 轮"被当成"已经跑过"而直接跳过 —— 那一轮就永远跑不到。
+    """
+    return f"{rec.get('id')}#{rec.get('repeat', 1)}"
 
 #: 计划 §6 的产品承诺：**各维度评分标准差 ≤ 0.5（5 分制）** → 百分制等价 **10.0**。
 PROMISED_MAX_STD = 10.0
@@ -243,7 +253,7 @@ def _write_markdown(path: pathlib.Path, result: dict) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def main(limit: int = 0, repeat: int = 1) -> dict:
+def main(limit: int = 0, repeat: int = 1, tag: str = "run") -> dict:
     from datetime import datetime
 
     data = json.loads(_DATASET.read_text(encoding="utf-8"))
@@ -266,10 +276,23 @@ def main(limit: int = 0, repeat: int = 1) -> dict:
     )
 
     rows: list[dict] = []
+
+    # ---- 逐题落盘 + 断点续跑（与 G3 同一套约定，见 `eval/resumable.py`）----
+    # 批改一致性是 **3 倍开销**（同一作答独立批改 N 遍），中断一次等于白花一遍额度；
+    # 落盘后重跑只补缺口。key = `题目 id + 第几轮`，因为多轮实验里同一题要跑多次。
+    jsonl = resumable.result_path(_RESULTS, f"marking_consistency_{_DATASET.stem}", tag)
+    done = resumable.load_done(jsonl, key_of=_row_key)
+    if done:
+        print(f"  {resumable.summarise(done, [])}（{jsonl.name}）", flush=True)
+
     for rnd in range(1, max(1, repeat) + 1):
         if repeat > 1:
             print(f"  --- 第 {rnd}/{repeat} 轮 ---", flush=True)
         for it in items:
+            key = _row_key({"id": it["id"], "repeat": rnd})
+            if key in done:
+                rows.append(done[key])          # 已跑过：直接复用，不再花调用
+                continue
             qtype = str(it.get("qtype") or "")
             rubric = retrieve_rubric(db, scope := Scope(namespace=NAMESPACE_OFFICIAL), qtype,
                                      k=settings.marking_rubric_k)
@@ -281,10 +304,12 @@ def main(limit: int = 0, repeat: int = 1) -> dict:
                 f"有效 {rep.n} 次 · 均分 {rep.mean_total} · 各维标准差 {rep.per_dim_std}",
                 flush=True,
             )
-            rows.append({
+            rec = {
                 "id": it["id"], "qtype": qtype, "repeat": rnd,
                 "tolerance": std_tolerance(qtype), **rep.as_dict(),
-            })
+            }
+            rows.append(rec)
+            resumable.append_record(jsonl, rec)  # **先落盘再继续**：中断也不丢这一条
 
     by_type = aggregate_by_type(rows)
     metrics = _metrics(rows, by_type)
@@ -345,5 +370,11 @@ if __name__ == "__main__":
         default=1,
         help="重复轮数（默认 1）。按题型定阈值需要分布而非单点 —— 至少 3 轮",
     )
+    ap.add_argument(
+        "--tag",
+        default="run",
+        help="本次运行的标签（决定逐题 jsonl 文件名）。**换一个 tag = 从零跑**；"
+        "同一个 tag 重跑 = 只补没跑过的题（断点续跑）",
+    )
     args = ap.parse_args()
-    main(limit=args.limit, repeat=args.repeat)
+    main(limit=args.limit, repeat=args.repeat, tag=args.tag)
