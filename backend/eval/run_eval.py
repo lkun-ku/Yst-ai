@@ -152,8 +152,19 @@ def run_route(db, cand_id, scope, route: str, counter: CountingWrapper) -> list:
 
 ROUTES = ["baseline", "kb_handwritten", "kb_langgraph"]
 
+from eval import resumable  # noqa: E402  （放在此处：脚本顶部有 sys.path 处理）
 
-def main(real: bool = False) -> dict:
+
+def _unit_key(rec: dict) -> str:
+    """续跑的键：**域 × 题型 × 路线** 三者共同决定"这一格"。
+
+    只用路线会跨域覆盖（教资与技术各跑一遍同一条路线），只用域又会让三条路线互相顶掉 ——
+    两种错误都表现为"数字看着齐了其实是混的"，很难发现。
+    """
+    return f"{rec.get('domain')}|{rec.get('kind')}|{rec.get('route')}"
+
+
+def main(real: bool = False, tag: str = "run") -> dict:
     # 评测库为专用库，每次运行重建以保证可重复（不影响 dev/test 库）
     db_file = os.path.join(_ROOT, "backend", "eval", "eval_kb.db")
     if os.path.exists(db_file):
@@ -171,6 +182,16 @@ def main(real: bool = False) -> dict:
 
     per_scope = []
     cand_id = 9100
+
+    # ---- 逐题落盘 + 断点续跑（与 marking_eval / G3 同一套，见 `eval/resumable.py`）----
+    # 单位是 `domain|kind|route`，因为一次运行要跑 2 个域 × 若干 scope × 3 条路线，
+    # 中途断了不该整批重来。⚠️ **题库播种仍要照做**（它不调模型，且后续单元依赖它），
+    # 跳过的只是"跑路线 + 打分"这一段真正花钱的部分。
+    jsonl = resumable.result_path(RESULTS_DIR, "run_eval", tag)
+    done = resumable.load_done(jsonl, key_of=_unit_key)
+    if done:
+        print(f"  ↻ 断点续跑：已有 {len(done)} 条结果（{jsonl.name}）", flush=True)
+
     for domain in ["教资", "技术"]:
         dataset_dir = os.path.join(DATASETS_DIR, domain)
         with open(os.path.join(dataset_dir, "scopes.json"), "r", encoding="utf-8") as f:
@@ -181,6 +202,12 @@ def main(real: bool = False) -> dict:
             scope = sc["scope"]
             ctx = _ctx_for(db, cand_id, scope)
             for route in ROUTES:
+                key = _unit_key({"domain": domain, "kind": sc["kind"], "route": route})
+                if key in done:
+                    per_scope.append(done[key])     # 已跑过：复用，不再花调用
+                    print(f"[跳过·已跑过] {key} n={done[key]['n_questions']} "
+                          f"calls={done[key]['llm_calls']}", flush=True)
+                    continue
                 counter.calls = 0
                 counter.prompt_chars = 0
                 qs = run_route(db, cand_id, scope, route, counter)
@@ -197,6 +224,7 @@ def main(real: bool = False) -> dict:
                     "prompt_chars": counter.prompt_chars,
                 }
                 per_scope.append(rec)
+                resumable.append_record(jsonl, rec)  # 先落盘再继续
                 print(f"[{domain}|{sc['kind']}|{route}] n={len(qs)} calls={counter.calls} scores={rec['scores']}")
 
     # 汇总：每路线跨域平均
@@ -270,5 +298,10 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--real", action="store_true", help="真实模式（需设置 EMBEDDING_MODE/LLM_MODE=real 及 key）")
+    ap.add_argument(
+        "--tag",
+        default="run",
+        help="本次运行的标签（决定逐题 jsonl 文件名）。换 tag = 从零跑；同 tag 重跑 = 只补没跑过的格",
+    )
     args = ap.parse_args()
-    main(real=args.real)
+    main(real=args.real, tag=args.tag)
