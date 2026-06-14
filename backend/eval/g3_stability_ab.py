@@ -148,12 +148,19 @@ def main() -> None:
     # ---------- 有效性：歧义题 ----------
     print("\n=== B) 有效性：歧义题上的拦截率（越高越好）===")
     amb: list[dict] = []
+    seen_ids: set[tuple] = set()
     for p in sorted(RES.glob("g3_*.md")):
-        if "真题单选" in p.name:
-            continue
+        # 不再按文件名排除「真题单选」：歧义变体**也可以**建在真题数据集上
+        # （`--dataset 真题单选.json --limit 254`），此时报告名就叫 `g3_n4_limited_真题单选.md`。
+        # 改用**行格式**识别（只有歧义逐题行能匹配 AMB_LINE），并按 (id, judged) 去重 ——
+        # 同一批变体可能同时出现在多个报告里，不去重会让分母虚高。
         for line in p.read_text(encoding="utf-8").splitlines():
             m = AMB_LINE.match(line)
             if m:
+                key = (m.group(1), tuple(sorted(_keys(m.group(3)))))
+                if key in seen_ids:
+                    continue
+                seen_ids.add(key)
                 amb.append({
                     "id": m.group(1),
                     "expect": sorted(_keys(m.group(2))),
