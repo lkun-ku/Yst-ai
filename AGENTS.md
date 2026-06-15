@@ -91,6 +91,7 @@ single-context 布局：根 `CONTEXT.md` + `docs/adr/`。See `docs/agents/domain
 | `sessions` | 闯关局与判分 |
 | `admin` | 审校后台 |
 | `domain` | 领域模型与领域包：`models` 的科目 / 学段 / 题型、`domain_packs/`、领域相关的 Alembic 迁移 |
+| `eval` | 评测层：`backend/eval/`（脚本 / 口径 / 基准产物）与 `docs/eval/`（承诺↔证据索引） |
 | `cleanup` | 仓库整理（非模块，仅整理类提交用） |
 
 > 新增模块时**同步把 scope 补进上表**，否则又会各写各的。
