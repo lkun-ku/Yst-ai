@@ -282,8 +282,17 @@ def main(limit: int = 0, repeat: int = 1, tag: str = "run") -> dict:
     # 落盘后重跑只补缺口。key = `题目 id + 第几轮`，因为多轮实验里同一题要跑多次。
     jsonl = resumable.result_path(_RESULTS, f"marking_consistency_{_DATASET.stem}", tag)
     done = resumable.load_done(jsonl, key_of=_row_key)
+    #: ⚠️ 第二参**必须真的算出来**，不能塞一个 `[]` 占位 —— 那样这句恒为「本次补 0 条」，
+    #: 而它正是操作者判断「还要跑多久、还要花多少额度」的唯一依据（本评测是 3 倍开销）。
+    #: 键含轮次（`id + 第几轮`），所以待补集合是 items × repeat 减去已落盘的那部分。
+    pending = [
+        (rnd, it)
+        for rnd in range(1, max(1, repeat) + 1)
+        for it in items
+        if _row_key({"id": it["id"], "repeat": rnd}) not in done
+    ]
     if done:
-        print(f"  {resumable.summarise(done, [])}（{jsonl.name}）", flush=True)
+        print(f"  {resumable.summarise(done, pending)}（{jsonl.name}）", flush=True)
 
     for rnd in range(1, max(1, repeat) + 1):
         if repeat > 1:
