@@ -115,6 +115,10 @@ def main(limit: int = 12, tag: str = "run") -> dict:
     #: ⚠️ 待补的是 `pending`，**不是 `questions`** —— 把总题数当待补数打印过：
     #: 实测「已有 12 条」与「本次补 12 条」同框出现（实际补 0 条），
     #: 与 `summarise` 的契约（第二参是**待跑条目**，见 `tests/test_resumable.py`）不符。
+    #: ⚠️ 这里**没有**改用共用件 `resumable.todo_keys`（"同类只留一个实现"就要求用它）——
+    #: 它按 `key_of(it)` 过滤的是 `dict` 条目，而本脚本的 `questions` 是 `list[str]`
+    #: （`_questions()` 的产物，后面直接当问句用）。为复用而把问句包成 dict 再解包，
+    #: 只是把绕的地方换个位置；等 `_questions` 的返回形状统一成 dict 时再并过来。
     pending = [q for q in questions if q not in done]
     print(f"问题数 {len(questions)}｜LLM={mode}｜达标线 factuality ≥ {MIN_FACTUALITY}"
           f"｜{resumable.summarise(done, pending)}", flush=True)
