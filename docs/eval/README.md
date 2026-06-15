@@ -35,7 +35,7 @@ python eval/promise_report.py --live-gate            # real 模式下也现场�
 | 引用首次通过率 | ≥ 0.90 | `teacher_baseline.json` | 硬机制（子串校验）；**可答样本很小**，证据自带 caveat |
 | 拒答率 | 10% ~ 25% | `teacher_baseline.json` | 不可答集是**人工设计**的，不等于真实分布 |
 | 事实性 faithfulness | ≥ 0.90 | `backend/eval/results/faithfulness.json`（由 `eval/faithfulness_eval.py` 产出） | 口径在 `metrics.faithfulness_rate`；来源是 LLM judge，**不是硬机制**，别当零误判。⚠️ 样本由语料编号类问法程序化生成、量小 —— 它证的是「链路通 + 当前模型下的达标率」，**不是**普遍事实性；拒答样本**不计入**（拒答是"没内容可判"，另有拒答率承诺） |
-| 唯一性通过率 | ≥ 0.90 | **（暂无证据文件）** | 口径在 `metrics.evaluate_gate_pass`；**不要拿误杀率顶替** —— 两者分母不同（好题 vs 待过闸门全部） |
+| 唯一性通过率 | ≥ 0.90 | **无证据文件，因为它由 `promise_report.py` 现场跑**（`--live-gate`），读数只记在报告里 —— 别读成"证据缺失" | 口径在 `metrics.evaluate_gate_pass`；**不要拿误杀率顶替** —— 两者分母不同（好题 vs 待过闸门全部） |
 | 评分一致性 | 一致率 ≥ 0.80；维度标准差 ≤ 10 | `marking_baseline.json` | 两个口径**都过**才算达标；来源是 LLM judge；且**换了批改依据后不可与旧数字直接比** |
 | 成本（调用次数） | 平均 ≤ 2、P95 ≤ 4 | `teacher_baseline.json` | 均值有记录，**P95 没有** —— 均值达标不代表尾部安全 |
 
