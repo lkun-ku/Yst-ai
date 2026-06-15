@@ -112,22 +112,30 @@ def main(limit: int = 12, tag: str = "run") -> dict:
 
     jsonl = resumable.result_path(_RESULTS, "faithfulness", tag)
     done = resumable.load_done(jsonl, key_of=_key)
+    #: ⚠️ 待补的是 `pending`，**不是 `questions`** —— 把总题数当待补数打印过：
+    #: 实测「已有 12 条」与「本次补 12 条」同框出现（实际补 0 条），
+    #: 与 `summarise` 的契约（第二参是**待跑条目**，见 `tests/test_resumable.py`）不符。
+    pending = [q for q in questions if q not in done]
     print(f"问题数 {len(questions)}｜LLM={mode}｜达标线 factuality ≥ {MIN_FACTUALITY}"
-          f"｜{resumable.summarise(done, questions)}", flush=True)
+          f"｜{resumable.summarise(done, pending)}", flush=True)
 
+    #: ⚠️ `done` 是**全量记录的唯一真相**，本次新算的**必须并回它**（下面两处 `done[q] = rec`）。
+    #: 踩过的坑（2026-06-16 实测产物为证）：只往 `judged` 里塞、不并回 `done`，于是
+    #: `n_judged=12` 而 `items` 只剩续跑前那 1 条 —— 产物**自己和自己对不上**，
+    #: 且"本次新算 0 条"时 `items` 会是**空的**。指标读的是 `judged`（数字是真的），
+    #: 但 `items` 是**复核用**的原始记录，少了它，那张 1.0 就无法用产物本身核对。
     judged: list[dict] = []
     for rec in done.values():                    # 已跑过的直接用（含它当时的判分）
         if rec.get("judged"):
             judged.append(rec["judged"])
     n_refused = sum(1 for r in done.values() if r.get("refused"))
 
-    for q in questions:
-        if q in done:                            # 断点续跑：不再花调用
-            continue
+    for q in pending:                            # 断点续跑：只跑待补的，已跑的不再花调用
         item = _answer_and_basis(db, q, client)
         if item is None:
             rec = {"question": q, "refused": True, "judged": None}
             resumable.append_record(jsonl, rec)
+            done[q] = rec
             n_refused += 1
             print(f"    [拒答·不计入] {q}", flush=True)
             continue
@@ -137,6 +145,7 @@ def main(limit: int = 12, tag: str = "run") -> dict:
              "explanation": item["answer"]}, ctx)))
         rec = {"question": q, "answer": item["answer"][:300], "judged": score}
         resumable.append_record(jsonl, rec)
+        done[q] = rec
         judged.append(score)
         print(f"    [{len(judged)}] factuality={score['factuality']:.0f}　{q}", flush=True)
 
@@ -159,9 +168,8 @@ def main(limit: int = 12, tag: str = "run") -> dict:
             ),
         },
         "metrics": {"faithfulness_rate": rate, "n": len(judged)},
-        "items": [r for r in done.values()] + [
-            {"question": q, "answer": "", "judged": None} for q in []  # 占位：保持结构一致
-        ],
+        # 逐条原始记录（含拒答），**与逐题 jsonl 同源** —— 供人复核那个比例是怎么算出来的。
+        "items": list(done.values()),
     }
     _RESULTS.mkdir(parents=True, exist_ok=True)
     # ⚠️ **fake 不许覆盖真证据** —— 与 `promise_report.output_path` / `marking_eval`
