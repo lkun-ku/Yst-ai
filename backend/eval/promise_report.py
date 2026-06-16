@@ -57,6 +57,19 @@ EVIDENCE = {
     "faithfulness": _RESULTS / "faithfulness.json",
 }
 
+#: 唯一性通过率的**证据文件** —— 它不放进上面的 `EVIDENCE`，因为那条路是"读既有证据"，
+#: 而这一格是**现场跑**（闸门 N 倍开销，real 下要显式 `--live-gate`）。但**跑完必须落盘**：
+#:
+#: ## 为什么（2026-06-16 实测）
+#:
+#: 那格原先唯一的存在形式就是**报告本身**（来源写「本次运行」）。于是每次刷新报告都是在
+#: 押注：real 模式下不带 `--live-gate`，它会被写成「（未现场跑）」，而那条真实测量
+#: **全仓没有第二处记录** → 一次刷新就永久丢掉。本会话因此不得不让报告引用一个过期时间戳，
+#: 只为了不把那个数顶掉 —— **一个数字只活在一张会重刷的表里，本身就是缺陷**。
+#:
+#: 落盘之后：刷新报告先**读它**（带文件名与生成时间，与其他行同构），`--live-gate` 才重测。
+GATE_EVIDENCE = _RESULTS / "g3_gate_pass.json"
+
 _OK, _BAD, _WARN, _NONE = "✅", "❌", "⚠️", "—"
 
 
@@ -205,7 +218,83 @@ def from_marking(path: pathlib.Path) -> Row:
 # ---------------- 唯一性通过率（可现场跑） ----------------
 
 
-def from_gate_live(payloads: list[dict], client, mode: str) -> Row:
+def gate_row(metrics: dict, mode: str, source: str | None = None) -> Row:
+    """把闸门指标渲染成表里那一行。`metrics` = **落盘的那份 dict**（`GatePassMetrics.as_row()`）。
+
+    只此一处渲染：现场跑与"从证据回读"走**同一个函数** —— 否则"达标没有"的判据会分两处写，
+    迟早分叉（这正是本仓反复吃过的亏）。差别只在 `source`（「本次运行」vs 文件名 + 时间）。
+    """
+    n_total = int(metrics.get("n") or 0)
+    n_passed = int(metrics.get("passed") or 0)
+    rate = float(metrics.get("pass_rate") or 0)
+    note = (
+        "分母 = **待过闸门的全部题**（与误杀率的分母「好题」不同）"
+        if metrics.get("measurable", n_total > 0)
+        else "⚠️ 分母为 0 → **不可测**，不是「全军覆没」"
+    )
+    if mode == "fake":
+        note += "；fake 模式下数字**无参考价值**，此行只证明口径接好了"
+    return Row(
+        "唯一性通过率", "≥ 0.90",
+        f"{rate}（{n_passed}/{n_total}）",
+        (source or "**本次运行**") + "｜硬机制（G3 闸门）",
+        _NONE if mode == "fake" else (_OK if rate >= 0.90 else _BAD),
+        note,
+    )
+
+
+def gate_evidence_path(path: pathlib.Path, mode: str) -> pathlib.Path:
+    """闸门证据的落盘路径：`fake` **不许覆盖真证据**（与报告文件同一条规矩）。
+
+    判据与 `output_path` 不同（那个按**文件名**判是不是"真报告"，这个按**模式**判），
+    所以没有硬塞进同一个函数 —— 但**处置必须一致**（都改名、都不覆盖真基准），
+    否则又是"同类问题两个脚本两种行为"。
+    """
+    if mode == "fake":
+        return path.with_name(f"{path.stem}_fake{path.suffix}")
+    return path
+
+
+def write_gate_evidence(path: pathlib.Path, metrics: dict, mode: str, n_items: int) -> pathlib.Path:
+    """把现场跑的结果落成证据文件，返回实际落盘路径。"""
+    from datetime import datetime
+
+    out = gate_evidence_path(path, mode)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(
+        {
+            "metadata": {
+                "time": datetime.now().isoformat(timespec="seconds"),
+                "llm": mode,
+                "n_items": n_items,
+                "sample": f"eval/datasets/真题单选/真题单选.json 的前 {n_items} 条（不读 dev.db）",
+                "gate": "G3'（逐选项判定；`settings.gate_g3_per_option`）",
+            },
+            "metrics": metrics,
+        },
+        ensure_ascii=False, indent=2,
+    ), encoding="utf-8")
+    return out
+
+
+def gate_evidence_row(path: pathlib.Path) -> Row | None:
+    """读**已落盘**的闸门测量 → 那一行；没有（或坏了）返回 `None`。
+
+    返回 `None` 而不是一行"待跑"：要不要现场跑、要不要标未跑，是**调用方**的决定
+    （本函数只负责"有没有证据"）。
+    """
+    data = _load(path)
+    if not data or data.get("_broken"):
+        return None
+    meta = data.get("metadata") or {}
+    return gate_row(data.get("metrics") or {}, str(meta.get("llm") or "real"), _stamp(data, path))
+
+
+def from_gate_live(payloads: list[dict], client, mode: str) -> tuple[Row, dict]:
+    """现场跑闸门 → `(表里那一行, 可直接落盘的指标)`。
+
+    返回指标（而不只是那一行），是为了让它**能落成证据** —— 见 `GATE_EVIDENCE` 上面那段。
+    """
     from app.config import settings
     from app.services.quality_gates import apply_uniqueness_gate
     from eval.metrics import evaluate_gate_pass
@@ -217,20 +306,8 @@ def from_gate_live(payloads: list[dict], client, mode: str) -> Row:
     finally:
         settings.gate_g3_enabled = before
 
-    note = (
-        "分母 = **待过闸门的全部题**（与误杀率的分母「好题」不同）"
-        if m.measurable
-        else "⚠️ 分母为 0 → **不可测**，不是「全军覆没」"
-    )
-    if mode == "fake":
-        note += "；fake 模式下数字**无参考价值**，此行只证明口径接好了"
-    return Row(
-        "唯一性通过率", "≥ 0.90",
-        f"{m.pass_rate}（{m.n_passed}/{m.n_total}）",
-        "**本次运行**｜硬机制（G3 闸门）",
-        _NONE if mode == "fake" else (_OK if m.pass_rate >= 0.90 else _BAD),
-        note,
-    )
+    metrics = m.as_row()
+    return gate_row(metrics, mode), metrics
 
 
 def from_faithfulness(path: pathlib.Path) -> Row:
@@ -302,12 +379,16 @@ def gather(live_gate: bool, gate_n: int) -> tuple[list[Row], str]:
     rows.append(from_marking(EVIDENCE["marking"]))
     rows.append(from_faithfulness(EVIDENCE["faithfulness"]))
     if live_gate or mode == "fake":
-        rows.append(from_gate_live(_gate_sample(gate_n), client, mode))
+        row, metrics = from_gate_live(_gate_sample(gate_n), client, mode)
+        saved = write_gate_evidence(GATE_EVIDENCE, metrics, mode, gate_n)
+        rows.append(row)
+        print(f"闸门现场跑结果已落盘：{saved.name}（刷新报告从此不必重测）")
     else:
-        rows.append(
-            Row("唯一性通过率", "≥ 0.90", "（未现场跑）", "—", _NONE,
-                "real 模式下现场跑要花 N 倍调用 → 需显式 `--live-gate`")
-        )
+        rows.append(gate_evidence_row(GATE_EVIDENCE) or Row(
+            "唯一性通过率", "≥ 0.90", "（未现场跑）", "—", _NONE,
+            "real 模式下现场跑要花 N 倍调用 → 需显式 `--live-gate`；"
+            "且**没有任何落盘证据**可读（`g3_gate_pass.json` 不存在）",
+        ))
     return rows, mode
 
 

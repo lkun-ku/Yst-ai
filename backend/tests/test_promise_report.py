@@ -165,7 +165,7 @@ def test_现场跑闸门在fake下不给判定_只证明口径(tmp_path, monkeyp
     from app.services.llm_client import FakeLLMClient
 
     monkeypatch.setattr(settings, "gate_g3_enabled", False)  # 默认关，函数内部会临时打开
-    row = pr.from_gate_live(
+    row, metrics = pr.from_gate_live(
         [{"stem": "示例题", "type": "single",
           "options": [{"key": "A", "text": "示例正确表述"}, {"key": "B", "text": "错"}],
           "answer": ["A"]}],
@@ -173,6 +173,7 @@ def test_现场跑闸门在fake下不给判定_只证明口径(tmp_path, monkeyp
     )
     assert row.verdict == pr._NONE
     assert "无参考价值" in row.note
+    assert metrics["n"] == 1, "返回的指标要能直接落盘（且与那一行同源）"
     assert settings.gate_g3_enabled is False, "临时打开后必须还原，不能改全局状态"
 
 
@@ -184,3 +185,78 @@ def test_gate样本来自仓库内的真题集而不是dev_db():
 @pytest.mark.parametrize("n", [1, 8])
 def test_gate样本数可控(n):
     assert len(pr._gate_sample(n)) == n
+
+
+# ---------------- 闸门结果落成证据：数字不能只活在一张会重刷的表里 ----------------
+
+
+def test_闸门证据可回读且判定与现场跑一致(tmp_path):
+    """**这条钉的是"一个数字别只活在一张会重刷的表里"**（2026-06-16）。
+
+    现场跑出的 `0.9（18/20）` 原先只写在报告里，而报告是会被重刷的 ——
+    real 模式下不带 `--live-gate` 刷一次，那格就变成「（未现场跑）」，一条真实测量永久消失。
+    现在它落成 `g3_gate_pass.json`，刷新报告可以只读它。
+    """
+    metrics = {"n": 20, "passed": 18, "pass_rate": 0.9, "measurable": True}
+    live = pr.gate_row(metrics, "real")
+    out = pr.write_gate_evidence(tmp_path / "g3_gate_pass.json", metrics, "real", 20)
+    back = pr.gate_evidence_row(out)
+
+    assert out.name == "g3_gate_pass.json"
+    assert back is not None
+    assert (back.measured, back.verdict, back.target) == (live.measured, live.verdict, live.target)
+    assert "g3_gate_pass.json" in back.source, "从证据回读时来源必须写文件名（人要知道这是哪次）"
+    assert "本次运行" not in back.source
+
+
+def test_没有闸门证据时回读返回None而不是编一行(tmp_path):
+    """"没有证据"与"测了 0 分"是两件事 —— 由调用方决定怎么说（与 `summarise` 同一纪律）。"""
+    assert pr.gate_evidence_row(tmp_path / "g3_gate_pass.json") is None
+
+
+def test_闸门证据的fake版本不覆盖真证据(tmp_path):
+    real = tmp_path / "g3_gate_pass.json"
+    pr.write_gate_evidence(real, {"n": 1, "passed": 0, "pass_rate": 0.0, "measurable": True},
+                           "fake", 1)
+
+    assert not real.exists(), "fake 不许写真证据文件（与报告文件同一条规矩）"
+    assert (tmp_path / "g3_gate_pass_fake.json").exists()
+
+
+class _StubClient:
+    """只为让 `gather` 判成 **real** 模式：real 且不带 `--live-gate` 时它不该发任何调用。"""
+
+    def ask(self, prompt: str) -> str:  # noqa: ANN001
+        raise AssertionError("real 分支（未现场跑）不该发起任何调用")
+
+
+def _gather_rows(tmp_path, monkeypatch) -> dict[str, pr.Row]:
+    """把 `gather` 的闸门证据路径指到 tmp，并按名字取回各行（其余证据行只读仓库文件）。"""
+    monkeypatch.setattr(pr, "GATE_EVIDENCE", tmp_path / "g3_gate_pass.json")
+    monkeypatch.setattr("app.services.llm_client.get_llm_client", lambda: _StubClient())
+    rows, mode = pr.gather(live_gate=False, gate_n=3)
+    assert mode == "real"
+    return {r.name: r for r in rows}
+
+
+def test_real刷新报告_没有证据时标未跑并指出缺哪份文件(tmp_path, monkeypatch):
+    gate = _gather_rows(tmp_path, monkeypatch)["唯一性通过率"]
+
+    assert gate.verdict == pr._NONE and "未现场跑" in gate.measured
+    assert "g3_gate_pass.json" in gate.note, "要告诉人缺的是哪份文件，否则他只会看到「未跑」"
+
+
+def test_real刷新报告_有证据时复用它而不是把它顶掉(tmp_path, monkeypatch):
+    monkeypatch.setattr(pr, "GATE_EVIDENCE", tmp_path / "g3_gate_pass.json")
+    pr.write_gate_evidence(tmp_path / "g3_gate_pass.json",
+                           {"n": 20, "passed": 18, "pass_rate": 0.9, "measurable": True},
+                           "real", 20)
+    monkeypatch.setattr("app.services.llm_client.get_llm_client", lambda: _StubClient())
+
+    rows, _ = pr.gather(live_gate=False, gate_n=3)
+    gate = {r.name: r for r in rows}["唯一性通过率"]
+
+    assert gate.verdict == pr._OK and "0.9" in gate.measured
+    assert "g3_gate_pass.json" in gate.source and "本次运行" not in gate.source, (
+        "复用证据时来源必须指向那份文件 —— 否则一个 3 小时前的测量看起来像刚跑的"
+    )
