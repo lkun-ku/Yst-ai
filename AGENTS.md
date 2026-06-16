@@ -59,7 +59,6 @@ single-context 布局：根 `CONTEXT.md` + `docs/adr/`。See `docs/agents/domain
 2. **一事一分支**：便于单独回滚；做坏了直接丢分支，`main` 不受影响。
 3. **合并前全绿**：`pytest` 全量 + 前端 `node --check`，否则不合并。
 4. **合并后即删**：`git branch -d <branch>`，避免残枝堆积（`chore/pre-github-cleanup` 已按此清理）。
-5. **强推需确认**：涉及历史重写的 `push --force-with-lease` 须先确认远端无他人依赖。
 
 ## 提交信息约定
 
