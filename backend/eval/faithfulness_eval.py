@@ -97,6 +97,16 @@ def _key(rec: dict) -> str:
     return str(rec.get("question") or "")
 
 
+def _question_key(q: str) -> str:
+    """问句字符串的续跑键 = 问句本身 —— 与 `_key` 从记录里取的是**同一个字段**。
+
+    两者必须一致：不一致就会把"已跑过"判成"没跑过"，续跑白花一遍调用（那是本模块
+    存在的全部理由）。`tests/test_faithfulness_eval.py` 里"同 tag 重跑应报补 0 条"
+    那条测试钉的就是这个一致性。
+    """
+    return str(q)
+
+
 def main(limit: int = 12, tag: str = "run") -> dict:
     if _DB.exists():
         _DB.unlink()
@@ -115,32 +125,28 @@ def main(limit: int = 12, tag: str = "run") -> dict:
     #: ⚠️ 待补的是 `pending`，**不是 `questions`** —— 把总题数当待补数打印过：
     #: 实测「已有 12 条」与「本次补 12 条」同框出现（实际补 0 条），
     #: 与 `summarise` 的契约（第二参是**待跑条目**，见 `tests/test_resumable.py`）不符。
-    #: ⚠️ 这里**没有**改用共用件 `resumable.todo_keys`（"同类只留一个实现"就要求用它）——
-    #: 它按 `key_of(it)` 过滤的是 `dict` 条目，而本脚本的 `questions` 是 `list[str]`
-    #: （`_questions()` 的产物，后面直接当问句用）。为复用而把问句包成 dict 再解包，
-    #: 只是把绕的地方换个位置；等 `_questions` 的返回形状统一成 dict 时再并过来。
-    pending = [q for q in questions if q not in done]
+    #: 走共用件 `resumable.todo_keys`（"同类只留一个实现"）—— 条目是**问句字符串**，
+    #: 由 `_question_key` 说明它的键怎么算（该共用件的实现本就与条目类型无关）。
+    pending = resumable.todo_keys(questions, done, key_of=_question_key)
     print(f"问题数 {len(questions)}｜LLM={mode}｜达标线 factuality ≥ {MIN_FACTUALITY}"
           f"｜{resumable.summarise(done, pending)}", flush=True)
 
-    #: ⚠️ `done` 是**全量记录的唯一真相**，本次新算的**必须并回它**（下面两处 `done[q] = rec`）。
-    #: 踩过的坑（2026-06-16 实测产物为证）：只往 `judged` 里塞、不并回 `done`，于是
-    #: `n_judged=12` 而 `items` 只剩续跑前那 1 条 —— 产物**自己和自己对不上**，
-    #: 且"本次新算 0 条"时 `items` 会是**空的**。指标读的是 `judged`（数字是真的），
-    #: 但 `items` 是**复核用**的原始记录，少了它，那张 1.0 就无法用产物本身核对。
-    judged: list[dict] = []
-    for rec in done.values():                    # 已跑过的直接用（含它当时的判分）
-        if rec.get("judged"):
-            judged.append(rec["judged"])
-    n_refused = sum(1 for r in done.values() if r.get("refused"))
+    #: ⚠️ **同步点只留一个**：循环里只写 `done`（全量记录的唯一真相），
+    #: `judged` / `n_refused` 一律**在循环之后从它派生**。
+    #: 踩过的坑（2026-06-16 实测产物为证）：当时循环里只推进 `judged`、不并回 `done`，
+    #: 而 `items` 取 `done.values()` → `n_judged=12` 而 `items` 只剩 1 条，产物自己和自己对不上；
+    #: 若"本次新算"就是全部（无历史记录），`items` 直接是空的。
+    #: 修法不只是"补一处 `done[q] = rec`" —— 那样仍是两份要手工同步的真相，
+    #: 下次往循环里再加一条路径（比如换题、加分支）还会漏。
+    n_judged_before = sum(1 for r in done.values() if r.get("judged"))
+    n_new = 0
 
     for q in pending:                            # 断点续跑：只跑待补的，已跑的不再花调用
         item = _answer_and_basis(db, q, client)
         if item is None:
             rec = {"question": q, "refused": True, "judged": None}
             resumable.append_record(jsonl, rec)
-            done[q] = rec
-            n_refused += 1
+            done[q] = rec                        # 唯一真相：落盘后立刻并回
             print(f"    [拒答·不计入] {q}", flush=True)
             continue
         ctx = item["basis"]
@@ -149,10 +155,14 @@ def main(limit: int = 12, tag: str = "run") -> dict:
              "explanation": item["answer"]}, ctx)))
         rec = {"question": q, "answer": item["answer"][:300], "judged": score}
         resumable.append_record(jsonl, rec)
-        done[q] = rec
-        judged.append(score)
-        print(f"    [{len(judged)}] factuality={score['factuality']:.0f}　{q}", flush=True)
+        done[q] = rec                            # 唯一真相：落盘后立刻并回
+        n_new += 1
+        # 括号里的序号是**累计判分数**（含历史），与改动前一致 —— 便于对照两份运行日志。
+        print(f"    [{n_judged_before + n_new}] factuality={score['factuality']:.0f}　{q}",
+              flush=True)
 
+    judged = [r["judged"] for r in done.values() if r.get("judged")]   # 派生，不手工同步
+    n_refused = sum(1 for r in done.values() if r.get("refused"))      # 派生，不手工同步
     rate = faithfulness_rate(judged, min_factuality=MIN_FACTUALITY)
     result = {
         "metadata": {
@@ -161,6 +171,11 @@ def main(limit: int = 12, tag: str = "run") -> dict:
             "channel": "teacher grounded（检索官方语料 → 作答）",
             "judge": "eval/judge.py 的 factuality 维度（1–5 整数）",
             "min_factuality": MIN_FACTUALITY,
+            #: 产物要能**自证出自哪次运行**：否则"这 12 条是哪次跑的、取了多少"只能靠人去
+            #: 翻 jsonl 的文件名 —— 而承诺表读的是这个文件，不是那个文件名。
+            "tag": tag,
+            "limit": limit,
+            "n_questions": len(questions),
             "n_judged": len(judged),
             "n_refused": n_refused,
             # 来源必须写在产物里：judge 是"模型说的"，比硬机制低一档。

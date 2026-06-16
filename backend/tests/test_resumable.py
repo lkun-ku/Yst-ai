@@ -40,6 +40,21 @@ def test_已落盘的记录会被复用(tmp_path):
     assert [it["id"] for it in pending] == ["q2"], "只有没跑过的 q2 该被补跑"
 
 
+def test_条目不是dict时也能用_键由key_of给(tmp_path):
+    """**这条钉的是"类型签名别比实现窄"**（2026-06-16）。
+
+    实现本来就是 `key_of(it) not in done`，与条目是不是 dict 无关；但签名原先只收
+    `Sequence[dict]` —— 于是 `faithfulness_eval` 旁边手写了一份同形的过滤（它的条目是
+    **问句字符串**）。签名比实现窄，就是在邀请别人绕过共用件。
+    """
+    p = tmp_path / "x.jsonl"
+    resumable.append_record(p, {"question": "Q1", "judged": None})
+    done = resumable.load_done(p, key_of=lambda r: str(r.get("question") or ""))
+
+    pending = resumable.todo_keys(["Q1", "Q2", "Q3"], done, key_of=str)
+    assert pending == ["Q2", "Q3"], "字符串条目同样只补缺口，且保序"
+
+
 def test_多轮实验里同一题的不同轮次不会被顶掉(tmp_path):
     """**这条守的是一个容易踩的坑**：键若只用题目 id，第 2 轮会被当成"跑过了"直接跳过，
     那一轮就永远跑不到 —— 而报错是没有的，只是数据悄悄少一轮。"""

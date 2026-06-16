@@ -14,6 +14,12 @@
 
 比例本身没算错（它读 `judged`），但 `items` 是**给人复核比例怎么来的**用的原始记录——
 丢了它就等于「数字在、依据不在」，正是本项目反复吃过的亏。
+
+## 修法不是「补一处同步」，而是让同步点只剩一个
+
+只补一行 `done[q] = rec` 会留下两份要手工同步的真相，下次往循环里加一条路径还会漏。
+所以现在是：**循环里只写 `done`**，`judged` / `n_refused` 全部在循环之后从 `done` 派生。
+下面「拒答数也来自全量」那条测的就是它 —— 它同时盯着"历史 + 本次"，而不只是本次。
 """
 
 from __future__ import annotations
@@ -30,6 +36,14 @@ if str(_ROOT) not in sys.path:
 
 from eval import faithfulness_eval as fe  # noqa: E402
 from eval import resumable  # noqa: E402
+
+#: 测试输入。**提成常量而不是各测各写**：这几组字面量原先在文件里出现 4 次以上，
+#: 将来改样例（比如换个问法）时漏改一处，那个用例就会在测**另一个场景** —— 而它照样是绿的。
+_QS1 = ["Q1"]
+_QS2 = ["Q1", "Q2"]
+_QS3 = ["Q1", "Q2", "Q3"]
+#: 模拟「上次中断已落盘的那一条」（判分 4.0，与本次算出的 5.0 区分得开）。
+_SEED_Q1 = {"question": "Q1", "answer": "旧的", "judged": {"factuality": 4.0}}
 
 
 class _StubClient:
@@ -83,18 +97,16 @@ def test_续跑时items要包含本次新算的记录(_hermetic, monkeypatch):
     修之前这里是 1（新补的 2 条只进了 `judged`，没进 `items`），而 `n_judged` 是 3 ——
     产物自己和自己对不上。
     """
-    qs = ["Q1", "Q2", "Q3"]
-    result = _run(_hermetic, monkeypatch, qs, "t1", seed=[{"question": "Q1", "answer": "旧的",
-                                                          "judged": {"factuality": 4.0}}])
+    result = _run(_hermetic, monkeypatch, _QS3, "t1", seed=[_SEED_Q1])
 
     assert result["metadata"]["n_judged"] == 3
     assert len(result["items"]) == 3, "items 丢了本次新算的记录 —— 产物会自相矛盾"
-    assert {r["question"] for r in result["items"]} == set(qs)
+    assert {r["question"] for r in result["items"]} == set(_QS3)
 
 
 def test_全新跑时items不能是空的(_hermetic, monkeypatch):
     """没有历史记录时，修之前 `items` 是 `[]`（`done` 全程为空）—— 表头写 2 条、脚下列 0 条。"""
-    result = _run(_hermetic, monkeypatch, ["Q1", "Q2"], "t2")
+    result = _run(_hermetic, monkeypatch, _QS2, "t2")
 
     assert result["metadata"]["n_judged"] == 2
     assert len(result["items"]) == 2
@@ -102,33 +114,54 @@ def test_全新跑时items不能是空的(_hermetic, monkeypatch):
 
 def test_落盘文件与返回值一致(_hermetic, monkeypatch):
     """测写出来的**文件**，而不是只看返回值 —— 被引用的是文件（promise_report 读它）。"""
-    qs = ["Q1", "Q2", "Q3"]
-    _run(_hermetic, monkeypatch, qs, "t3", seed=[{"question": "Q1", "answer": "旧的",
-                                                 "judged": {"factuality": 4.0}}])
+    _run(_hermetic, monkeypatch, _QS3, "t3", seed=[_SEED_Q1])
     data = _written(_hermetic)
 
-    assert len(data["items"]) == data["metadata"]["n_judged"] == len(qs)
-    assert data["metrics"]["n"] == len(qs)
+    assert len(data["items"]) == data["metadata"]["n_judged"] == len(_QS3)
+    assert data["metrics"]["n"] == len(_QS3)
 
 
 def test_拒答记录也要进items(_hermetic, monkeypatch):
     """拒答不计入**比例**，但它是确实跑过的一条 —— 复核时要看得见「哪几题拒答了」。"""
     monkeypatch.setattr(fe, "_answer_and_basis", lambda db, q, client: None)
-    result = _run(_hermetic, monkeypatch, ["Q1", "Q2"], "t4")
+    result = _run(_hermetic, monkeypatch, _QS2, "t4")
 
     assert result["metadata"]["n_judged"] == 0 and result["metadata"]["n_refused"] == 2
     assert len(result["items"]) == 2 and all(r.get("refused") for r in result["items"])
 
 
+def test_拒答数也来自全量而不只是本次(_hermetic, monkeypatch):
+    """`n_refused` 与 `n_judged` 一样是**从 `done` 派生**的：历史 2 条拒答 + 本次 1 条 = 3。
+
+    它盯着的是"同步点只剩一个"这条修法 —— 若哪天又变成循环里手工累加，历史那两条就会丢。
+    """
+    monkeypatch.setattr(fe, "_answer_and_basis", lambda db, q, client: None)
+    _run(_hermetic, monkeypatch, _QS2, "t8")
+    result = _run(_hermetic, monkeypatch, _QS3, "t8")
+
+    assert result["metadata"]["n_refused"] == 3
+    assert result["metadata"]["n_judged"] == 0
+
+
 def test_items与逐题jsonl同源(_hermetic, monkeypatch):
     """产物里的每条都应能在 jsonl 里找到 —— 两处不一致时，人不知道该信哪个。"""
-    qs = ["Q1", "Q2", "Q3"]
-    _run(_hermetic, monkeypatch, qs, "t5", seed=[{"question": "Q1", "answer": "旧的",
-                                                 "judged": {"factuality": 4.0}}])
+    _run(_hermetic, monkeypatch, _QS3, "t5", seed=[_SEED_Q1])
     jsonl = resumable.result_path(_hermetic / "results", "faithfulness", "t5")
     on_disk = [json.loads(l) for l in jsonl.read_text(encoding="utf-8").splitlines() if l.strip()]
 
-    assert len(on_disk) == 3, "jsonl 与 items 的条数必须一致（同一次运行的两种视图）"
+    assert len(on_disk) == len(_QS3), "jsonl 与 items 的条数必须一致（同一次运行的两种视图）"
+
+
+def test_产物自证出自哪次运行(_hermetic, monkeypatch):
+    """`metadata` 要记下 `tag` / `limit` / 实得题数。
+
+    否则"这 12 条是哪一次跑的"只能靠翻 jsonl 的**文件名** —— 而承诺表读的是**这个文件**，
+    它自己说不出出处（2026-06-16 评审提出的缺口）。
+    """
+    meta = _run(_hermetic, monkeypatch, _QS3, "real9")["metadata"]
+
+    assert meta["tag"] == "real9"
+    assert meta["limit"] == 3 and meta["n_questions"] == 3
 
 
 def test_进度行报的是待补条数而不是总题数(_hermetic, monkeypatch, capsys):
@@ -137,12 +170,10 @@ def test_进度行报的是待补条数而不是总题数(_hermetic, monkeypatch
     实测那行是「已有 12 条结果，本次补 12 条」—— 已全部跑完却说还要补 12 条，
     与 `summarise` 的契约（第二参是待跑条目）不符，也把「其实一条没补」这件事盖住了。
     """
-    qs = ["Q1", "Q2", "Q3"]
-    _run(_hermetic, monkeypatch, qs, "t7", seed=[{"question": "Q1", "answer": "旧的",
-                                                 "judged": {"factuality": 4.0}}])
+    _run(_hermetic, monkeypatch, _QS3, "t7", seed=[_SEED_Q1])
     assert "已有 1 条结果，本次补 2 条" in capsys.readouterr().out
 
-    _run(_hermetic, monkeypatch, qs, "t7")          # 同 tag 重跑：已全跑完 → 补 0 条
+    _run(_hermetic, monkeypatch, _QS3, "t7")        # 同 tag 重跑：已全跑完 → 补 0 条
     assert "已有 3 条结果，本次补 0 条" in capsys.readouterr().out
 
 
@@ -153,7 +184,7 @@ def test_fake模式改写文件名不覆盖真证据(_hermetic, monkeypatch):
     from app.services.llm_client import FakeLLMClient
 
     monkeypatch.setattr(fe, "get_llm_client", lambda: FakeLLMClient())
-    _run(_hermetic, monkeypatch, ["Q1"], "t6")
+    _run(_hermetic, monkeypatch, _QS1, "t6")
 
     assert not (_hermetic / "results" / "faithfulness.json").exists(), "fake 不许写真证据文件"
     assert _written(_hermetic, "faithfulness_fake.json")["metadata"]["llm"].startswith("LLM=fake")

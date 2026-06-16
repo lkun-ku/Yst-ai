@@ -59,9 +59,16 @@ def append_record(path: JsonlPath, rec: dict) -> None:
         f.flush()
 
 
-def todo_keys(items: Sequence[dict], done: dict[str, dict],
-              key_of: Callable[[dict], str]) -> list[dict]:
-    """还没跑过的条目（**保序**：输出顺序与输入一致，便于对照）。"""
+def todo_keys(items: Sequence[Any], done: dict[str, dict],
+              key_of: Callable[[Any], str]) -> list[Any]:
+    """还没跑过的条目（**保序**：输出顺序与输入一致，便于对照）。
+
+    ⚠️ 条目可以是**任何类型**，不只是 dict —— 由调用方的 `key_of` 决定"怎么算它的键"。
+    之所以放宽（2026-06-16）：`faithfulness_eval` 的条目是**问句字符串**（`list[str]`），
+    而原先的签名只收 dict。**类型签名比实现更窄，就是在邀请别人绕过共用件**：
+    那份实现本来就是 `key_of(it) not in done`，与条目是不是 dict 毫无关系 ——
+    而它当场就导致旁边手写了一份同形的过滤（正是 `resumable.py` 开头要消掉的那种分叉）。
+    """
     return [it for it in items if key_of(it) not in done]
 
 
