@@ -1,0 +1,15 @@
+{
+  "metadata": {
+    "time": "2026-06-16T07:44:55",
+    "llm": "real",
+    "n_items": 20,
+    "sample": "eval/datasets/真题单选/真题单选.json 的前 20 条（不读 dev.db）",
+    "gate": "G3'（逐选项判定；`settings.gate_g3_per_option`）"
+  },
+  "metrics": {
+    "n": 20,
+    "passed": 18,
+    "pass_rate": 0.9,
+    "measurable": true
+  }
+}

@@ -1,10 +1,13 @@
 {
   "metadata": {
-    "time": "2026-06-16T05:47:24",
+    "time": "2026-06-16T07:38:21",
     "llm": "LLM=real（RealLLMClient）",
     "channel": "teacher grounded（检索官方语料 → 作答）",
     "judge": "eval/judge.py 的 factuality 维度（1–5 整数）",
     "min_factuality": 4.0,
+    "tag": "real1",
+    "limit": 12,
+    "n_questions": 12,
     "n_judged": 12,
     "n_refused": 0,
     "source": "LLM judge（**不是硬机制**）—— 可信度低于引用子串校验（后者零误判）",
