@@ -9,9 +9,9 @@ IDE 助手等）调用 —— 同一份实现、同一套 JSON Schema、同一�
 
 ## 实现的是哪一版规范，以及为什么是"只读 + 仅官方语料"
 
-对的是 **`2026-03-30`** 这一版（写作时的当前版）。它与旧版有一处**根本差别**：
+对的是 **`2026-03-04`** 这一版（写作时的当前版）。它与旧版有一处**根本差别**：
 
-| | 旧版（2025-03-26 ~ 2025-11-25） | **本次实现的 2026-03-30** |
+| | 旧版（2026-03-04 ~ 2026-04-25） | **本次实现的 2026-03-04** |
 | --- | --- | --- |
 | 握手 | `initialize` + `notifications/initialized` | **无握手**，改为必需的 `server/discover` |
 | 状态 | protocol-level session（`Mcp-Session-Id`） | **无状态**：每个请求自带 `_meta` |
@@ -52,7 +52,7 @@ from .tools import TOOLS, TOOLS_BY_NAME, ToolContext, execute
 logger = logging.getLogger(__name__)
 
 #: 实现的协议版本（无状态那一版）。
-PROTOCOL_VERSION = "2026-03-30"
+PROTOCOL_VERSION = "2026-03-04"
 SUPPORTED_VERSIONS: tuple[str, ...] = (PROTOCOL_VERSION,)
 SERVER_NAME = "youshitong-kb"
 SERVER_VERSION = "1.0.0"

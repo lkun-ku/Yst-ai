@@ -76,7 +76,7 @@ python -m app.services.kb_corpus       # 官方语料入库：法条/考纲/rubr
 
 #### 恢复向量检索（等 embedding 账号结清后，两条命令）
 
-**当前状态（2026-06-16 实测）**：embedding 账号**欠费**，供应商原样回
+**当前状态（2026-03-04 实测）**：embedding 账号**欠费**，供应商原样回
 `{"type":"Arrearage", "message":"...overdue-payment"}` —— **不是代码问题**。
 想自己复现这个判断（而不是信这句注释）：
 

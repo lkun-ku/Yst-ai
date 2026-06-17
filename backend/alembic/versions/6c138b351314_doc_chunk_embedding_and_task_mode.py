@@ -1,6 +1,6 @@
 """doc_chunk_embedding_and_task_mode
 
-**幂等化（2026-03-29）**：0001_initial 以 `Base.metadata.create_all()` 建立**当前 models 的全量**
+**幂等化（2026-03-04）**：0001_initial 以 `Base.metadata.create_all()` 建立**当前 models 的全量**
 schema，已包含本迁移要加的列。全新库上必须跳过已存在的列，否则 `alembic upgrade head`
 会因 duplicate column 失败。
 """

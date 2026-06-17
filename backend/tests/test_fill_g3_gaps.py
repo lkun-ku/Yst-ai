@@ -25,7 +25,7 @@ from eval.g3_slices import LEGACY_SPANS, POLLUTED_TAGS  # noqa: E402
 
 def _write_md(dir_: pathlib.Path, stem: str, tag: str, real: bool = True) -> None:
     (dir_ / f"g3_per_option_{stem}_{tag}.md").write_text(
-        f"# 报告\n- 生成时间：2026-06-15　LLM={'real' if real else 'fake'}　每次投票 3 次\n",
+        f"# 报告\n- 生成时间：2026-03-04　LLM={'real' if real else 'fake'}　每次投票 3 次\n",
         encoding="utf-8",
     )
 
@@ -131,7 +131,7 @@ def test_两个脚本读的是同一张账本():
 def _slice_md(dir_: pathlib.Path, dataset: str, tag: str, n: int, span: tuple[int, int],
               blocked: int = 0) -> None:
     (dir_ / f"g3_per_option_{dataset}_{tag}.md").write_text(
-        f"# 报告\n- 生成时间：2026-06-15　LLM=real　每次投票 3 次\n"
+        f"# 报告\n- 生成时间：2026-03-04　LLM=real　每次投票 3 次\n"
         f"- 数据切片：`x.json` 第 {span[0]}–{span[1]} 道（共 100 道）\n"
         f"| 官方好题（n={n}） | **不该** | 0.0 | **0.0** | 越低越安全 |\n"
         f"- 有效判定 {n} 道，其中被拦 {blocked} 道：\n",
@@ -158,7 +158,7 @@ def test_老分片靠账本才能核对完整性(tmp_path, monkeypatch, capsys):
     """老报告头没写区间，只能查账本 —— 否则只能"假设它完整"，而那正是 n=287 的来源。"""
     monkeypatch.setattr(sm, "_RESULTS", tmp_path)
     (tmp_path / "g3_per_option_ds_p2.md").write_text(
-        "# 报告\n- 生成时间：2026-06-15　LLM=real\n"
+        "# 报告\n- 生成时间：2026-03-04　LLM=real\n"
         "| 官方好题（n=51） | **不该** | 0.0 | **0.0** | 越低越安全 |\n"
         "- 有效判定 51 道，其中被拦 1 道：\n",
         encoding="utf-8",
@@ -177,7 +177,7 @@ def test_覆盖不足会明确报缺口而不是含糊过去(tmp_path, monkeypat
     "覆盖了 254 道"这个说法要么被算出来，要么明确报缺口。"""
     monkeypatch.setattr(sm, "_RESULTS", tmp_path)
     (tmp_path / "g3_per_option_ds_a.md").write_text(
-        "# 报告\n- 生成时间：2026-06-15　LLM=real\n"
+        "# 报告\n- 生成时间：2026-03-04　LLM=real\n"
         "- 数据切片：`x.json` 第 30–50 道\n"      # 刻意不带「共 N 道」
         "| 官方好题（n=21） | **不该** | 0.0 | **0.0** | 越低越安全 |\n"
         "- 有效判定 21 道，其中被拦 0 道：\n",

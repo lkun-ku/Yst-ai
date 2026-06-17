@@ -45,7 +45,7 @@ single-context 布局：根 `CONTEXT.md` + `docs/adr/`。See `docs/agents/domain
 
 按 `docs/改造计划.md` §3 的**分期**逐项建分支，命名 `feat/<主题>`（如 `feat/domain-model`），**合并后立即删除**。
 
-> 此处原先维护过一张「P1–P4 待执行分支表」。**2026-06-10 随边界调整一并作废**：
+> 此处原先维护过一张「P1–P4 待执行分支表」。**2026-03-05 随边界调整一并作废**：
 > 表中那 5 个分支（`feat/p2-official-kb` 等）**从未开工、无独有提交**，已删除。
 > 现在**分期以 `docs/改造计划.md` 为单一来源** —— 两处各列一份必然漂移。
 >
@@ -120,14 +120,14 @@ single-context 布局：根 `CONTEXT.md` + `docs/adr/`。See `docs/agents/domain
 2. 跑过 `python -m pytest` 全量 + 前端 `node --check`
 3. 没把 `.env` / 密钥 / 本地库（`backend/dev.db`）/ 实验产物带进来（见 `.gitignore`）
 
-> ⚠️ **本条第 3 项于 2026-06-10 修订**：原文是「没把 `AGENTS.md` / `docs/` 带进来」，
+> ⚠️ **本条第 3 项于 2026-03-05 修订**：原文是「没把 `AGENTS.md` / `docs/` 带进来」，
 > 该口径**已反转** —— 二者连同 `CONTEXT.md`、`backend/eval/` 已**解除忽略、纳入版本控制**。
 > 理由：被忽略会让「归档」与「删除」都无法从 git 恢复（本仓已因此永久丢过一份决策记录）；
 > 且 `CONTEXT.md` 是术语的单一真相、`AGENTS.md` 是协作约定，必须随仓库走。
 > 仍被忽略的：`.env` / 密钥 / `backend/dev.db` / `backend/uploads/` /
 > `backend/eval/eval_kb.db` / `ui-concepts/` / `.scratch/`。
 >
-> ⚠️ **2026-06-11 二次修订**：`backend/eval/results/` **已解除忽略**（原列在上面那行里）。
+> ⚠️ **2026-03-06 二次修订**：`backend/eval/results/` **已解除忽略**（原列在上面那行里）。
 > 理由：`results/*.md|json` 是「某项优化到底有没有效」的**唯一证据**，
 > 不随代码走就等于没有证据（面试时只能口述数字）。
 > 评测库 `eval_kb.db` 仍是本地重算的中间产物，继续忽略。
@@ -161,8 +161,8 @@ single-context 布局：根 `CONTEXT.md` + `docs/adr/`。See `docs/agents/domain
 
 ### 变更记录
 
-- v1（2026-06-08）：要求每条决策都写理由 → 摩擦过高，废弃
-- v2（2026-06-08 起）：仅「偏离推荐」时要求理由
+- v1（2026-03-04）：要求每条决策都写理由 → 摩擦过高，废弃
+- v2（2026-03-04 起）：仅「偏离推荐」时要求理由
 
 ### 描述客观性（v3 新增）
 

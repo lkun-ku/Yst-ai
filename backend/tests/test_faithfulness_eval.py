@@ -1,6 +1,6 @@
 """`eval/faithfulness_eval.py` 的**产物自洽性**：`items` 必须真的是「跑过的那几条」。
 
-## 为什么值得一条测试（2026-06-16 实测产物为证）
+## 为什么值得一条测试（2026-03-04 实测产物为证）
 
 已入库的 `results/faithfulness.json` 出现过一个**自相矛盾**的状态：
 `metadata.n_judged = 12`、`metrics.faithfulness_rate = 1.0`，而 `items` 只有 **1** 条。
@@ -156,7 +156,7 @@ def test_产物自证出自哪次运行(_hermetic, monkeypatch):
     """`metadata` 要记下 `tag` / `limit` / 实得题数。
 
     否则"这 12 条是哪一次跑的"只能靠翻 jsonl 的**文件名** —— 而承诺表读的是**这个文件**，
-    它自己说不出出处（2026-06-16 评审提出的缺口）。
+    它自己说不出出处（2026-03-04 评审提出的缺口）。
     """
     meta = _run(_hermetic, monkeypatch, _QS3, "real9")["metadata"]
 

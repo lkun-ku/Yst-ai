@@ -2,7 +2,7 @@
 
 Revision ID: d9e6096bc0af
 Revises: 29b4962fba52
-Create Date: 2026-04-04 21:18:29.789089
+Create Date: 2026-03-04 21:18:29.789089
 """
 from alembic import op
 import sqlalchemy as sa
@@ -15,7 +15,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 幂等化（2026-06-12）：与 `7a1c0ffee123` / `abb8b649ff92` 同一个原因 ——
+    # 幂等化（2026-04-26）：与 `7a1c0ffee123` / `abb8b649ff92` 同一个原因 ——
     # `0001_initial` 用 `Base.metadata.create_all()` 建的是**当前 models 的全量** schema，
     # 所以本列早已存在；无条件 `add_column` 会让**全新库上的 `alembic upgrade head` 失败**
     # （实测：`DuplicateColumn: column "cancel_requested" of relation "doc_tasks" already exists`）。

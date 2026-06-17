@@ -2,7 +2,7 @@
 
 Revision ID: abb8b649ff92
 Revises: b2c3d4e5f6a7
-Create Date: 2026-04-04 12:00:49.609471
+Create Date: 2026-03-04 12:00:49.609471
 """
 from alembic import op
 import sqlalchemy as sa
@@ -15,7 +15,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """幂等化（2026-06-12）—— 与同链的 `7a1c0ffee123` 是**同一个原因**。
+    """幂等化（2026-04-26）—— 与同链的 `7a1c0ffee123` 是**同一个原因**。
 
     `0001_initial` 用 `Base.metadata.create_all()` 建的是**当前 models 的全量** schema，
     所以 `kb_tasks.cancel_requested` / `request_json` 与 `kb_task_events` 表**早已存在**。

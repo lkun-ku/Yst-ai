@@ -1,10 +1,13 @@
 """票 10：每日任务与考期倒计时。"""
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from app.models import Candidate, DailyTask, Question, QuestionSource, QuestionType
 from app.seed.import_questions import import_questions
+
+# 考期须晚于当天（路由校验），用相对日期避免写死具体日期。
+_FUTURE_EXAM = (date.today() + timedelta(days=45)).isoformat()
 
 
 def _guest(client):
@@ -56,10 +59,10 @@ def test_set_exam_date_and_countdown(client, db_session):
     """可输入考期并展示倒计时（验收 1）。"""
     uid = _guest(client)
     r = client.post(
-        "/api/daily/exam-date", json={"exam_date": "2026-06-16"}, headers={"X-Unionid": uid}
+        "/api/daily/exam-date", json={"exam_date": _FUTURE_EXAM}, headers={"X-Unionid": uid}
     )
     assert r.status_code == 200
-    assert r.json()["exam_date"] == "2026-06-16"
+    assert r.json()["exam_date"] == _FUTURE_EXAM
     assert r.json()["countdown_days"] >= 0
 
 
@@ -72,7 +75,7 @@ def test_exam_date_invalid_format(client):
 
 
 def test_exam_date_requires_identity(client):
-    assert client.post("/api/daily/exam-date", json={"exam_date": "2026-06-16"}).status_code == 401
+    assert client.post("/api/daily/exam-date", json={"exam_date": _FUTURE_EXAM}).status_code == 401
 
 
 def test_exam_date_content_safety_rejected(client, monkeypatch):
@@ -86,7 +89,7 @@ def test_exam_date_content_safety_rejected(client, monkeypatch):
     monkeypatch.setattr(daily_router, "get_content_safety", lambda: RejectClient())
     uid = _guest(client)
     r = client.post(
-        "/api/daily/exam-date", json={"exam_date": "2026-06-16"}, headers={"X-Unionid": uid}
+        "/api/daily/exam-date", json={"exam_date": _FUTURE_EXAM}, headers={"X-Unionid": uid}
     )
     assert r.status_code == 400
 
@@ -113,10 +116,10 @@ def test_daily_task_contains_mistake_review_and_new_questions(client, db_session
     )
 
     client.post(
-        "/api/daily/exam-date", json={"exam_date": "2026-06-16"}, headers={"X-Unionid": uid}
+        "/api/daily/exam-date", json={"exam_date": _FUTURE_EXAM}, headers={"X-Unionid": uid}
     )
     d = client.get("/api/daily", headers={"X-Unionid": uid}).json()
-    assert d["exam_date"] == "2026-06-16"
+    assert d["exam_date"] == _FUTURE_EXAM
     assert d["countdown_days"] >= 0
     assert d["task"]["task_date"]  # 当日任务已生成
     assert any(i["question_id"] == q["id"] for i in d["task"]["items"]["mistake_review"])
@@ -138,7 +141,7 @@ def test_complete_task_feedback(client, db_session):
     import_questions(db_session)
     uid = _guest(client)
     client.post(
-        "/api/daily/exam-date", json={"exam_date": "2026-06-16"}, headers={"X-Unionid": uid}
+        "/api/daily/exam-date", json={"exam_date": _FUTURE_EXAM}, headers={"X-Unionid": uid}
     )
     d = client.get("/api/daily", headers={"X-Unionid": uid}).json()
     tid = d["task"]["task_id"]

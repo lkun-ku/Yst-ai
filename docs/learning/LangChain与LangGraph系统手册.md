@@ -2,7 +2,7 @@
 
 > 面向「被网上碎片信息绕晕」的开发者，从定位辨析到面试考点的一次性打通。
 >
-> 编写时间：2026 年 9 月。技术版本基准：LangChain 1.x（1.0 于 2025-10-22 GA，1.1 于 2025-12-02）、LangGraph 1.x（PyPI 2026-05-04 显示 langgraph 1.2.11，langchain-core 1.5.3）。
+> 编写时间：2026 年 6 月。技术版本基准：LangChain 1.x（1.0 于 2025-10-22 GA，1.1 于 2025-12-02）、LangGraph 1.x（PyPI 2026-05-04 显示 langgraph 1.2.11，langchain-core 1.5.3）。
 
 > **急着查具体内容？** 跳到 [定位目录](#定位目录) 按需求直达章节。建议先读下面的开篇，它会纠正一个普遍误解。
 
@@ -1704,7 +1704,7 @@ async def chat(thread_id: str, body: ChatRequest):
 
 ## 参考来源
 
-本手册的技术事实主要来自以下渠道的交叉验证（2026 年 9 月检索）：
+本手册的技术事实主要来自以下渠道的交叉验证（2026 年 6 月检索）：
 
 - LangChain 官方博客《LangChain and LangGraph Agent Frameworks Reach v1.0 Milestones》
 - LangChain Changelog（1.0 于 2025-10-22、LangGraph 1.0 于 2025-10-23、LangChain 1.1 于 2025-12-02）
@@ -1715,5 +1715,5 @@ async def chat(thread_id: str, body: ChatRequest):
 - 协议对比资料：《MCP vs A2A: The Two Protocols Every AI Agent Developer Needs to Understand (2026)》《MCP vs A2A Protocol: Which AI Agent Standard Does Your Stack Need?》《MCP vs A2A vs LangChain Agent Protocol》
 - 生态选型资料：《Is LangChain Worth It in 2026?》《LangSmith Alternatives (2026)》《Best LLM Observability Platform Guide 2026》
 
-**关于时效性的说明**：LangChain / LangGraph 生态演进很快（1.0 之后数月内已到 1.2.x）。本手册的技术判断以 2026 年 9 月为准。若你在更晚的时间阅读，建议优先核实三件事：① `create_agent` 的 API 是否有变更；② LangGraph Platform 相关产品的命名与定价；③ MCP / A2A 的规范版本与治理状态。
+**关于时效性的说明**：LangChain / LangGraph 生态演进很快（1.0 之后数月内已到 1.2.x）。本手册的技术判断以 2026 年 6 月为准。若你在更晚的时间阅读，建议优先核实三件事：① `create_agent` 的 API 是否有变更；② LangGraph Platform 相关产品的命名与定价；③ MCP / A2A 的规范版本与治理状态。
 

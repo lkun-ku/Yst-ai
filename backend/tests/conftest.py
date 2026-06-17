@@ -20,7 +20,7 @@ os.environ["AUTO_MIGRATE"] = "true"
 # RERANK_IMPL=fake 并用 FakeReranker 替身；**真实模型的收益由
 # eval/retrieval_eval.py --rerank 测量**，不在单测里。
 os.environ.setdefault("RERANK_IMPL", "off")
-# 用户决策（2026-04-09）：测试使用**真实环境**（backend/.env 的 real 模式），
+# 用户决策（2026-03-04）：测试使用**真实环境**（backend/.env 的 real 模式），
 # 不强制 fake——真实模型下的出题/判分/复盘才可信。代价：测试变慢（doc 生成 30s+/次）。
 
 import pytest
@@ -50,7 +50,7 @@ def _isolate_answer_bank(tmp_path, monkeypatch):
 def _force_fake_llm(monkeypatch):
     """**测试一律走 Fake 模型** —— 不许看环境变量吃饭。
 
-    ⚠️ 这条是踩出来的（2026-06-15）：外层 shell 里 `LLM_MODE=real` 时，测试中
+    ⚠️ 这条是踩出来的（2026-04-24）：外层 shell 里 `LLM_MODE=real` 时，测试中
     `get_llm_client()` 会返回**真实客户端**并真的发请求 —— 实测三个用例合计跑了 **400 秒**，
     而且**偷偷消耗 API 额度**；更糟的是断言是按 fake 写的，**红不了**（付出代价却拿不到信号）。
     同一个原因还会让 `test_pipeline.test_fake_client_is_default_no_api_quota` 在 real 环境下必红。

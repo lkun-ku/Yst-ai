@@ -12,7 +12,7 @@ key: k1_comprehensive   # 必须等于目录名，且必须是 models.Subject �
 
 # 考纲版本。变更（考纲修订 / 模块调整）时必须同步三处：
 # knowledge_tree 种子、syllabus/ 语料，以及预计算闭包携带的本体版本号。
-version: "2026-09"
+version: "2026-06"
 
 # 官方五大模块与权重（§1.3）。
 # 权重为**占比小数**（非百分数），五者之和必须为 1.0（loader 不变量 4）。

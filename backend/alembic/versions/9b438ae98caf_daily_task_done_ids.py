@@ -1,6 +1,6 @@
 """daily_task_done_ids
 
-**幂等化（2026-03-29）**：0001_initial 以 `Base.metadata.create_all()` 建立**当前 models 的全量**
+**幂等化（2026-03-04）**：0001_initial 以 `Base.metadata.create_all()` 建立**当前 models 的全量**
 schema，已包含 `done_ids` 列。全新库上必须跳过，否则 `alembic upgrade head` 会失败。
 
 SQLite 不允许给已有数据的表加 NOT NULL 且无默认值的列，故显式 server_default。

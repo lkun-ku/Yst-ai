@@ -19,7 +19,7 @@ _EVAL_SCRIPT = os.path.join(_ROOT, "backend", "eval", "run_eval.py")
 
 @pytest.mark.skipif(
     settings.llm_mode == "real",
-    reason="run_eval 的 fake 产出断言依赖 fake LLM 模式（用户决策 2026-04-09 切 real），跳过",
+    reason="run_eval 的 fake 产出断言依赖 fake LLM 模式（用户决策 2026-03-04 切 real），跳过",
 )
 @pytest.mark.skipif(
     not os.path.exists(_EVAL_SCRIPT),

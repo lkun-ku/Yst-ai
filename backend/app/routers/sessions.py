@@ -83,7 +83,7 @@ def _sample_pool(db, need: int, filters: list) -> list:
     """SQL 层随机抽样（P1 性能改造）—— 实现已收口在 `services.sampling`。
 
     ⚠️ 这里原先与 `daily.py` **各写了一份**"全表 `.all()` + `random.shuffle`"，
-    改造时**只改了本文件**，`daily.py` 那处一直留着（2026-06-15 核实性能欠账时发现）。
+    改造时**只改了本文件**，`daily.py` 那处一直留着（2026-03-04 核实性能欠账时发现）。
     所以两处现在都调 `random_rows` —— **随机抽样只有一个写法**，下次要抽别再抄一遍。
     """
     return random_rows(db, Question, filters, need)

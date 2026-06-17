@@ -33,7 +33,7 @@ def _retrieval_payload(ks: list[int], prod: dict, extra: dict | None = None) -> 
     rows = {"⑤ RRF(命中数)+标题 ★生产": prod}
     rows.update(extra or {})
     return {
-        "metadata": {"time": "2026-06-11T02:41:29", "ks": ks, "n_chunks": 415, "n_queries": 135},
+        "metadata": {"time": "2026-03-04T02:41:29", "ks": ks, "n_chunks": 415, "n_queries": 135},
         "rows": rows,
     }
 
@@ -91,7 +91,7 @@ def test_没有生产档时退回最后一档而不是丢空(tmp_path):
 
 def _teacher_payload(answered: int, n_un: int = 5, cite: float = 1.0, avg=1.8) -> dict:
     return {
-        "metadata": {"time": "2026-06-11T19:20:59"},
+        "metadata": {"time": "2026-03-04T19:20:59"},
         "rows": {
             "grounded": {"n_answerable": 20, "n_unanswerable": n_un, "answered": answered,
                          "cite_first_pass_rate": cite, "avg_tool_calls": avg},
@@ -191,7 +191,7 @@ def test_gate样本数可控(n):
 
 
 def test_闸门证据可回读且判定与现场跑一致(tmp_path):
-    """**这条钉的是"一个数字别只活在一张会重刷的表里"**（2026-06-16）。
+    """**这条钉的是"一个数字别只活在一张会重刷的表里"**（2026-03-04）。
 
     现场跑出的 `0.9（18/20）` 原先只写在报告里，而报告是会被重刷的 ——
     real 模式下不带 `--live-gate` 刷一次，那格就变成「（未现场跑）」，一条真实测量永久消失。

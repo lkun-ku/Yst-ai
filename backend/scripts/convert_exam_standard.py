@@ -175,7 +175,7 @@ def render(preamble: list[str], stages: dict[str, list[Level1]]) -> str:
         "publisher: 教育部师范教育司 / 教育部考试中心",
         "issued: 二〇一一年十月",
         "source_file: data/official/_source/考试标准_试行.txt",
-        "retrieved: 2026-06-11",
+        "retrieved: 2026-03-04",
         "converter: scripts/convert_exam_standard.py",
         "note: 正文逐字取自官方原文，由机械转换器生成（一级指标的竖排单字已还原成词）；"
         "仅去掉表格结构所需的制表符与全角缩进、补 Markdown 标题层级，未改动任何文字、标点与数字。",

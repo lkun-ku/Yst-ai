@@ -249,7 +249,7 @@ class OptionVerdict:
     def passed_under_policy(self) -> bool:
         """按**配置的口径**判定（稳定性是否单独触发拦截）。
 
-        ## 为什么要留两个口径（2026-06-16 离线 A/B）
+        ## 为什么要留两个口径（2026-03-07 离线 A/B）
 
         在 254 道官方好题 + 36 道歧义题上反算（`eval/g3_stability_ab.py`，零额度）：
 
@@ -311,7 +311,7 @@ def vote_per_option(client, payload: dict, n: int | None = None) -> OptionVerdic
 
     旧判据 `vote_uniqueness` 问的是「**选哪个**」，模型被迫选一个，
     于是「被舍弃的那个也同样正确」这件事**根本不会出现在投票结果里**。
-    实测（`eval/g3_ambiguity.py`，2026-06-12）：20 道"两个选项都说得通"的歧义题，
+    实测（`eval/g3_ambiguity.py`，2026-03-04）：20 道"两个选项都说得通"的歧义题，
     旧判据**只拦下 15%**，17 条被放行。
 
     这里改问「**每个选项对不对**」，并明确要求"不要因为已有选项成立就判其它不成立" ——

@@ -1,6 +1,6 @@
 """票 14：实时生成管线接入。测试一律用 FakeLLMClient，不消耗 API 额度（测试决策 33/45）。
 
-真实模式（用户决策 2026-04-09）下 fake 路径断言不成立，相关测试跳过。
+真实模式（用户决策 2026-03-04）下 fake 路径断言不成立，相关测试跳过。
 """
 
 import json
@@ -11,7 +11,7 @@ from app.config import settings
 
 _skip_real = pytest.mark.skipif(
     settings.llm_mode == "real",
-    reason="真实模式下默认客户端为 real（用户决策 2026-04-09），fake 路径断言跳过",
+    reason="真实模式下默认客户端为 real（用户决策 2026-03-04），fake 路径断言跳过",
 )
 
 from app.models import (

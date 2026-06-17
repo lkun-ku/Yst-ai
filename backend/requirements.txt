@@ -16,7 +16,7 @@ langgraph==1.2.11
 langchain-core==1.6.2
 
 # --- 工单 14：PG 生产路径（pgvector）---
-# 与 TencentDB PostgreSQL 18.x + pgvector 0.8.x 已实测兼容（2026-03-29 trial）。
+# 与 TencentDB PostgreSQL 18.x + pgvector 0.8.x 已实测兼容（2026-03-04 trial）。
 # SQLite/dev 不引：保留 LargeBinary 列与内存余弦路径。
 psycopg2-binary==2.9.9
 pgvector==0.5.0

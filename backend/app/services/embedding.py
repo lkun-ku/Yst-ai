@@ -4,7 +4,7 @@
 200×1024 维暴力余弦在毫秒级完成；Chroma 是为全库百万 chunk 量级设计的独立服务，
 在此规模下属过度工程（独立部署 + 双写同步 + 权限重建成本高于收益）。
 
-**跨文档场景已升级（见 ADR-0010，2026-03-29）**：跨文档检索改由 `kb_retrieval.retrieve_by_scope`
+**跨文档场景已升级（见 ADR-0010，2026-03-04）**：跨文档检索改由 `kb_retrieval.retrieve_by_scope`
 承载。生产 PostgreSQL 上启用 **pgvector 扩展**，切片向量字段 `document_chunks.embedding`
 在该方言下即 `VECTOR(1024)`（工单 20/W-5 合并双列后只有这一个字段），并建 HNSW 索引；
 `retrieve_by_scope` 按方言分发——PG 走 SQL 余弦，SQLite/dev 走本模块的内存检索。
@@ -213,7 +213,7 @@ def strict_embed(text: str) -> tuple[list[float] | None, str, str]:
 
     `embed_one` 在 real 失败时 `except Exception: pass` 后退回 64 维伪向量 ——
     这对**用户上传**是对的（几篇讲义，绝不因供应商抖动而阻塞）。
-    但同一行为对**官方语料灌入**是危险的，实测（2026-06-12）：
+    但同一行为对**官方语料灌入**是危险的，实测（2026-05-01）：
 
         embedding 供应商（百炼）账户欠费 → HTTP 400
         → embed_one 吞掉异常，返回 64 维哈希词袋
@@ -230,7 +230,7 @@ def strict_embed(text: str) -> tuple[list[float] | None, str, str]:
       宁可让这批切片没有向量（检索按既有三级降级到关键词，且明写着 failed），
       也不让"看起来成功了"的假向量进库。
 
-    ## `local` 模式的"暂时没权重"也归到失败（2026-06-16）
+    ## `local` 模式的"暂时没权重"也归到失败（2026-05-04）
 
     本地模型最容易出的不是"调用报错"，而是**权重还没下**。若把它当成"没配"而退回伪向量，
     结果会与"灌了真向量"在库里长得一模一样（全是 `ok`）—— 正是上面这个坑的翻版。

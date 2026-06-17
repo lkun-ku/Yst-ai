@@ -41,7 +41,7 @@ def test_已落盘的记录会被复用(tmp_path):
 
 
 def test_条目不是dict时也能用_键由key_of给(tmp_path):
-    """**这条钉的是"类型签名别比实现窄"**（2026-06-16）。
+    """**这条钉的是"类型签名别比实现窄"**（2026-03-04）。
 
     实现本来就是 `key_of(it) not in done`，与条目是不是 dict 无关；但签名原先只收
     `Sequence[dict]` —— 于是 `faithfulness_eval` 旁边手写了一份同形的过滤（它的条目是

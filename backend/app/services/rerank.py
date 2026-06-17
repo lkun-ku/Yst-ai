@@ -276,7 +276,7 @@ def get_reranker() -> Reranker | None:
 def _fetch(model_dir: str | Path | None = None) -> int:
     """下载权重（不随仓库走）。返回下载的字节数；已存在则跳过。
 
-    下载实现改到 `services/onnx_fetch.py`（2026-06-16）—— 与本地向量模型**共用一份**。
+    下载实现改到 `services/onnx_fetch.py`（2026-03-04）—— 与本地向量模型**共用一份**。
     原先这里是硬编码的 `https://huggingface.co`：**国内不可达**，等于新用户装不了精排；
     换成 hf-mirror 虽然能通，但实测只有 21 KB/s（265MB = 3.5 小时）。
     共用实现按**实测吞吐**排序（modelscope 5.2 MB/s 优先），并带断点续传。

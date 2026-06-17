@@ -26,8 +26,8 @@
 
 ## 复验记录
 
-- **2026-06-11 首次通过**（`NO_PROXY='*'` 后才通；根因是环境里有东西拦出站，见 ADR-0020）。
-- **2026-06-15 原样重跑通过**：`protocol_version = 2026-03-30` ·
+- **2026-04-29 首次通过**（`NO_PROXY='*'` 后才通；根因是环境里有东西拦出站，见 ADR-0020）。
+- **2026-05-02 原样重跑通过**：`protocol_version = 2026-03-04` ·
   `server_info = youshitong-kb / 1.0.0` · 工具清单 `['check_quote','lookup_law','search_kb']` ·
   `search_kb` 入参 `['query','k']` · `lookup_law` 取回 701 字含「第七条」 · 未知工具 `isError=True`。
 
@@ -148,7 +148,7 @@ async def run_low_level(url: str) -> int:
     print(f"低层路径连接 {url}", flush=True)
     async with streamable_http_client(url) as (read, write):
         async with ClientSession(read, write) as session:
-            raw = await session.send_discover("2026-03-30")
+            raw = await session.send_discover("2026-03-04")
             print(f"  server/discover → {type(raw).__name__}", flush=True)
             listed = await session.list_tools()
             names = sorted(t.name for t in listed.tools)

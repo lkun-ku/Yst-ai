@@ -55,7 +55,7 @@ def test_six_core_tables_create_and_persist(db_session):
     # 每日任务
     from app.models import DailyTask
 
-    d = DailyTask(candidate_id=cand.id, task_date="2026-06-16", items="[]")
+    d = DailyTask(candidate_id=cand.id, task_date="2026-03-04", items="[]")
     db_session.add(d)
     db_session.commit()
     db_session.refresh(d)

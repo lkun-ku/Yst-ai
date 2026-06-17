@@ -2,7 +2,7 @@
 
 知识库出题独立任务表（替代模块级内存字典）+ 题目溯源切片列。
 
-**幂等化（2026-03-29）**：0001_initial 以 `Base.metadata.create_all()` 建立**当前 models 的全量**
+**幂等化（2026-03-04）**：0001_initial 以 `Base.metadata.create_all()` 建立**当前 models 的全量**
 schema，已包含 kb_tasks 表与 questions.source_chunk 列。全新库上必须跳过已存在的对象，
 否则 `alembic upgrade head` 会因 duplicate table / duplicate column 失败。
 """

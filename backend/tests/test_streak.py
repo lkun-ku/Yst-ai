@@ -15,84 +15,84 @@ from app.services.streak import (
 
 class TestAdvance:
     def test_首次完成_连胜为1(self):
-        s = advance(empty_state(), "2026-05-15")
+        s = advance(empty_state(), "2026-03-05")
         assert s["current"] == 1
-        assert s["last_date"] == "2026-05-15"
+        assert s["last_date"] == "2026-03-05"
         assert s["max"] == 1
 
     def test_连续两天_连胜累加(self):
-        s = advance(empty_state(), "2026-05-15")
-        s = advance(s, "2026-05-16")
+        s = advance(empty_state(), "2026-03-05")
+        s = advance(s, "2026-03-06")
         assert s["current"] == 2
 
     def test_同一天重复完成_幂等(self):
-        s = advance(empty_state(), "2026-05-15")
-        s2 = advance(s, "2026-05-15")
+        s = advance(empty_state(), "2026-03-05")
+        s2 = advance(s, "2026-03-05")
         assert s2["current"] == 1  # 不重复 +1
         assert s2 == s
 
     def test_断连后重新从1开始(self):
-        s = advance(empty_state(), "2026-05-15")
-        s = advance(s, "2026-05-16")  # 2
-        s = advance(s, "2026-05-20")  # 隔了 3 天 → 断连
+        s = advance(empty_state(), "2026-03-05")
+        s = advance(s, "2026-03-06")  # 2
+        s = advance(s, "2026-03-09")  # 隔了 3 天 → 断连
         assert s["current"] == 1
 
     def test_max_记录历史最高(self):
-        s = advance(empty_state(), "2026-05-15")
-        s = advance(s, "2026-05-16")
-        s = advance(s, "2026-05-17")
+        s = advance(empty_state(), "2026-03-05")
+        s = advance(s, "2026-03-06")
+        s = advance(s, "2026-03-07")
         assert s["max"] == 3
-        s = advance(s, "2026-05-26")  # 断连
+        s = advance(s, "2026-03-14")  # 断连
         assert s["current"] == 1
         assert s["max"] == 3  # 历史最高保留
 
     def test_total_days_累计达标天数(self):
-        s = advance(empty_state(), "2026-05-15")
-        s = advance(s, "2026-05-16")
-        s = advance(s, "2026-05-25")
+        s = advance(empty_state(), "2026-03-05")
+        s = advance(s, "2026-03-06")
+        s = advance(s, "2026-03-13")
         assert s["total_days"] == 3
 
 
 class TestMakeup:
     def _state(self, cards=1):
-        s = advance(empty_state(), "2026-05-15")  # current=1, last=09-01
-        s = advance(s, "2026-05-17")  # 断连 → current=1, last=09-03
+        s = advance(empty_state(), "2026-03-05")  # current=1, last=09-01
+        s = advance(s, "2026-03-07")  # 断连 → current=1, last=09-03
         s["cards"] = cards
         return s
 
     def test_补签成功_连胜加一且扣卡(self):
         s = self._state(cards=2)
-        ok, ns, why = makeup(s, "2026-05-16", used=set())
+        ok, ns, why = makeup(s, "2026-03-06", used=set())
         assert ok is True
         assert ns["current"] == 2
         assert ns["cards"] == 1
 
     def test_无卡不可补签(self):
         s = self._state(cards=0)
-        ok, ns, why = makeup(s, "2026-05-16", used=set())
+        ok, ns, why = makeup(s, "2026-03-06", used=set())
         assert ok is False
         assert "补签卡" in why
         assert ns["cards"] == 0
 
     def test_同一天不可重复补签(self):
         s = self._state(cards=3)
-        ok1, s1, _ = makeup(s, "2026-05-16", used=set())
+        ok1, s1, _ = makeup(s, "2026-03-06", used=set())
         assert ok1 is True
-        ok2, s2, why = makeup(s1, "2026-05-16", used={"2026-05-16"})
+        ok2, s2, why = makeup(s1, "2026-03-06", used={"2026-03-06"})
         assert ok2 is False
         assert "已补签" in why
         assert s2["current"] == s1["current"]  # 未再增加
 
     def test_不可补今天或未来(self):
         s = self._state(cards=3)
-        ok, _, why = makeup(s, "2026-05-17", used=set())  # == last_date
+        ok, _, why = makeup(s, "2026-03-07", used=set())  # == last_date
         assert ok is False
-        ok, _, why = makeup(s, "2026-05-26", used=set())  # 未来
+        ok, _, why = makeup(s, "2026-03-14", used=set())  # 未来
         assert ok is False
         assert "已过去" in why
 
     def test_无连胜记录不可补签(self):
-        ok, _, why = makeup(empty_state(), "2026-05-15", used=set())
+        ok, _, why = makeup(empty_state(), "2026-03-05", used=set())
         assert ok is False
         assert "还没有连胜" in why
 
@@ -118,11 +118,11 @@ class TestGrantCards:
 
 class TestDateHelpers:
     def test_next_day_跨月(self):
-        assert next_day("2026-06-16") == "2026-06-16"
-        assert next_day("2026-06-16") == "2027-01-01"
+        assert next_day("2026-03-31") == "2026-04-01"
+        assert next_day("2026-05-31") == "2026-06-01"
 
     def test_prev_day_跨年(self):
-        assert prev_day("2027-01-01") == "2026-06-16"
+        assert prev_day("2026-06-01") == "2026-05-31"
 
 
 class TestNoShareUpsell:
@@ -137,22 +137,22 @@ class TestNoShareUpsell:
         s = empty_state()
         s2 = dict(s)
         # 除 grant_cards 外，advance / makeup 都不应增加卡
-        s3 = advance(s2, "2026-05-15")
+        s3 = advance(s2, "2026-03-05")
         assert s3["cards"] == s["cards"]
-        ok, s4, _ = makeup({**s3, "cards": 1}, "2026-05-13", used=set())
+        ok, s4, _ = makeup({**s3, "cards": 1}, "2026-03-04", used=set())
         assert s4["cards"] <= 1
 
 
 def test_idempotent_full_flow():
     """完整流程：连胜 → 断连 → 补签 → 继续连胜。"""
     s = empty_state()
-    for d in ("2026-05-15", "2026-05-16", "2026-05-17"):
+    for d in ("2026-03-05", "2026-03-06", "2026-03-07"):
         s = advance(s, d)
     assert s["current"] == 3
     s = grant_cards(s, 1)
-    s = advance(s, "2026-05-21")  # 断连 → 1
+    s = advance(s, "2026-03-10")  # 断连 → 1
     assert s["current"] == 1
-    ok, s, _ = makeup(s, "2026-05-20", used=set())
+    ok, s, _ = makeup(s, "2026-03-09", used=set())
     assert ok and s["current"] == 2
-    s = advance(s, "2026-05-22")  # 06 之后连续 → 3
+    s = advance(s, "2026-03-11")  # 06 之后连续 → 3
     assert s["current"] == 3

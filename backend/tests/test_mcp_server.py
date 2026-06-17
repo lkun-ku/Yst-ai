@@ -143,7 +143,7 @@ def test_不支持的协议版本返回规范指定的错误码与支持集(ctx)
 def test_旧版客户端拿到的_initialize_是时代探测信号(ctx):
     """`-32601` 不是"没实现" —— 规范说旧版客户端正是靠**特定错误码**判断
     服务端属于哪个时代（新版无握手），随后改用 server/discover。"""
-    out = handle_message(_msg("initialize", {"protocolVersion": "2025-11-25"}), ctx)
+    out = handle_message(_msg("initialize", {"protocolVersion": "2026-03-04"}), ctx)
     assert out["error"]["code"] == METHOD_NOT_FOUND
     assert "initialize" in out["error"]["message"]
 
@@ -260,7 +260,7 @@ def test_HTTP_头与体版本不一致返回400(client):
     resp = _post(
         client,
         _msg("tools/list"),
-        headers={"MCP-Protocol-Version": "2025-11-25"},
+        headers={"MCP-Protocol-Version": "2026-05-13"},
     )
     assert resp.status_code == 400
     assert "不一致" in resp.json()["error"]["message"]

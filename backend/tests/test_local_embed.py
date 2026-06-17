@@ -117,7 +117,7 @@ def test_local_模式缺权重时_strict_embed_判失败而非伪向量(monkeypa
 
     而是**权重还没下**。若当成"没配"退回 64 维伪向量，库里会与"灌了真向量"一模一样
     （全是 `ok`）—— 检索看起来有向量、实际等于关键词，且无人发现。
-    （同一坑在 2026-06-12 由百炼欠费踩过一次，见 `strict_embed` 的 docstring。）
+    （同一坑在 2026-03-04 由百炼欠费踩过一次，见 `strict_embed` 的 docstring。）
     """
     monkeypatch.setattr(emb_mod.settings, "embedding_mode", "local")
     monkeypatch.setattr(emb_mod.settings, "embedding_model_dir", str(tmp_path))  # 空目录
